@@ -1,0 +1,108 @@
+[
+  {
+    "year": 2025,
+    "subjectType": "物理类",
+    "sourceName": "贵州省招生考试院",
+    "sourcePageUrl": "https://zsksy.guizhou.gov.cn/zlxz/202603/t20260324_89900333.html",
+    "sourceUrl": "https://zsksy.guizhou.gov.cn/zlxz/202603/P020250625419082373133.pdf",
+    "sourceFile": "guizhou_2025_物理类_score_rank.pdf",
+    "parseMethod": "pdf_table",
+    "enabled": true
+  },
+  {
+    "year": 2025,
+    "subjectType": "历史类",
+    "sourceName": "贵州省招生考试院",
+    "sourcePageUrl": "https://zsksy.guizhou.gov.cn/zlxz/202603/t20260324_89900333.html",
+    "sourceUrl": "https://zsksy.guizhou.gov.cn/zlxz/202603/P020250625419082410128.pdf",
+    "sourceFile": "guizhou_2025_历史类_score_rank.pdf",
+    "parseMethod": "pdf_table",
+    "enabled": true
+  },
+  {
+    "year": 2024,
+    "subjectType": "物理类",
+    "sourceName": "贵州省招生考试院",
+    "sourcePageUrl": "https://zsksy.guizhou.gov.cn/zlxz/202603/t20260324_89900474.html",
+    "sourceUrl": "https://zsksy.guizhou.gov.cn/zlxz/202603/P020240625688381550083.pdf",
+    "sourceFile": "guizhou_2024_物理类_score_rank.pdf",
+    "parseMethod": "pdf_table",
+    "enabled": true
+  },
+  {
+    "year": 2024,
+    "subjectType": "历史类",
+    "sourceName": "贵州省招生考试院",
+    "sourcePageUrl": "https://zsksy.guizhou.gov.cn/zlxz/202603/t20260324_89900474.html",
+    "sourceUrl": "https://zsksy.guizhou.gov.cn/zlxz/202603/P020240625688381616895.pdf",
+    "sourceFile": "guizhou_2024_历史类_score_rank.pdf",
+    "parseMethod": "pdf_table",
+    "enabled": true
+  },
+  {
+    "year": 2023,
+    "subjectType": "理科",
+    "sourceName": "贵州省招生考试院",
+    "sourcePageUrl": "",
+    "sourceUrl": "",
+    "sourceFile": "",
+    "parseMethod": "manual_verified",
+    "enabled": false,
+    "note": "待核验贵州省招生考试院普通类官方源后启用；传统文理科不得自动映射为物理类/历史类。"
+  },
+  {
+    "year": 2023,
+    "subjectType": "文科",
+    "sourceName": "贵州省招生考试院",
+    "sourcePageUrl": "",
+    "sourceUrl": "",
+    "sourceFile": "",
+    "parseMethod": "manual_verified",
+    "enabled": false,
+    "note": "待核验贵州省招生考试院普通类官方源后启用；传统文理科不得自动映射为物理类/历史类。"
+  },
+  {
+    "year": 2022,
+    "subjectType": "理科",
+    "sourceName": "贵州省招生考试院",
+    "sourcePageUrl": "",
+    "sourceUrl": "",
+    "sourceFile": "",
+    "parseMethod": "manual_verified",
+    "enabled": false,
+    "note": "待核验贵州省招生考试院普通类官方源后启用；传统文理科不得自动映射为物理类/历史类。"
+  },
+  {
+    "year": 2022,
+    "subjectType": "文科",
+    "sourceName": "贵州省招生考试院",
+    "sourcePageUrl": "",
+    "sourceUrl": "",
+    "sourceFile": "",
+    "parseMethod": "manual_verified",
+    "enabled": false,
+    "note": "待核验贵州省招生考试院普通类官方源后启用；传统文理科不得自动映射为物理类/历史类。"
+  },
+  {
+    "year": 2021,
+    "subjectType": "理科",
+    "sourceName": "贵州省招生考试院",
+    "sourcePageUrl": "",
+    "sourceUrl": "",
+    "sourceFile": "",
+    "parseMethod": "manual_verified",
+    "enabled": false,
+    "note": "待核验贵州省招生考试院普通类官方源后启用；传统文理科不得自动映射为物理类/历史类。"
+  },
+  {
+    "year": 2021,
+    "subjectType": "文科",
+    "sourceName": "贵州省招生考试院",
+    "sourcePageUrl": "",
+    "sourceUrl": "",
+    "sourceFile": "",
+    "parseMethod": "manual_verified",
+    "enabled": false,
+    "note": "待核验贵州省招生考试院普通类官方源后启用；传统文理科不得自动映射为物理类/历史类。"
+  }
+]

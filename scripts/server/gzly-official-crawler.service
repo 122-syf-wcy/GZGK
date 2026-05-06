@@ -1,0 +1,22 @@
+[Unit]
+Description=GZLY Official Links Crawler
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/gzly_scraper
+Environment=WORKERS=3
+Environment=DELAY=1.2
+Environment=CHECKPOINT_EVERY=20
+Environment=RESTART_DELAY_SECONDS=30
+Environment=OFFICIAL_LINK_SYNC_HOST=39.97.232.141
+Environment=OFFICIAL_LINK_SYNC_USER=root
+Environment=OFFICIAL_LINK_SYNC_PORT=22
+Environment=OFFICIAL_LINK_SYNC_KEY=/root/.ssh/gzly_sync_ed25519
+Environment=OFFICIAL_LINK_SYNC_REMOTE_DIR=/root/gzly_scraper/data/official_links
+Environment=SCRAPER_PROXY_LIST=http://127.0.0.1:7890
+ExecStart=/bin/bash /root/gzly_scraper/server/official_links_scraper_foreground.sh
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,702 @@
+[
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 516,
+    "min_rank": 41632
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 557,
+    "min_rank": 20194
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 530,
+    "min_rank": 33468
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "国家专项计划",
+    "min_score": 510,
+    "min_rank": 45035
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "地方专项计划",
+    "min_score": 508,
+    "min_rank": 46657
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "预科",
+    "min_score": 505,
+    "min_rank": 48976
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 489,
+    "min_rank": 60705
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 516,
+    "min_rank": 41632
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 557,
+    "min_rank": 20194
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 530,
+    "min_rank": 33468
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "国家专项计划",
+    "min_score": 510,
+    "min_rank": 45035
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "地方专项计划",
+    "min_score": 508,
+    "min_rank": 46657
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "预科",
+    "min_score": 505,
+    "min_rank": 48976
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 489,
+    "min_rank": 60705
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 516,
+    "min_rank": 41632
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 557,
+    "min_rank": 20194
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 530,
+    "min_rank": 33468
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "国家专项计划",
+    "min_score": 510,
+    "min_rank": 45035
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "地方专项计划",
+    "min_score": 508,
+    "min_rank": 46657
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "预科",
+    "min_score": 505,
+    "min_rank": 48976
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 489,
+    "min_rank": 60705
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 516,
+    "min_rank": 41632
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 557,
+    "min_rank": 20194
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 530,
+    "min_rank": 33468
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "国家专项计划",
+    "min_score": 510,
+    "min_rank": 45035
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "地方专项计划",
+    "min_score": 508,
+    "min_rank": 46657
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "预科",
+    "min_score": 505,
+    "min_rank": 48976
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 489,
+    "min_rank": 60705
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 516,
+    "min_rank": 41632
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 557,
+    "min_rank": 20194
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 530,
+    "min_rank": 33468
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "国家专项计划",
+    "min_score": 510,
+    "min_rank": 45035
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "地方专项计划",
+    "min_score": 508,
+    "min_rank": 46657
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "预科",
+    "min_score": 505,
+    "min_rank": 48976
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 489,
+    "min_rank": 60705
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 516,
+    "min_rank": 41632
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 557,
+    "min_rank": 20194
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 530,
+    "min_rank": 33468
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "国家专项计划",
+    "min_score": 510,
+    "min_rank": 45035
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "地方专项计划",
+    "min_score": 508,
+    "min_rank": 46657
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "预科",
+    "min_score": 505,
+    "min_rank": 48976
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 489,
+    "min_rank": 60705
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 516,
+    "min_rank": 41632
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 557,
+    "min_rank": 20194
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 530,
+    "min_rank": 33468
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "国家专项计划",
+    "min_score": 510,
+    "min_rank": 45035
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "地方专项计划",
+    "min_score": 508,
+    "min_rank": 46657
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "预科",
+    "min_score": 505,
+    "min_rank": 48976
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 489,
+    "min_rank": 60705
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 516,
+    "min_rank": 41632
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 557,
+    "min_rank": 20194
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 530,
+    "min_rank": 33468
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "国家专项计划",
+    "min_score": 510,
+    "min_rank": 45035
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "地方专项计划",
+    "min_score": 508,
+    "min_rank": 46657
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "预科",
+    "min_score": 505,
+    "min_rank": 48976
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 489,
+    "min_rank": 60705
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 516,
+    "min_rank": 41632
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 557,
+    "min_rank": 20194
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 530,
+    "min_rank": 33468
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "国家专项计划",
+    "min_score": 510,
+    "min_rank": 45035
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "地方专项计划",
+    "min_score": 508,
+    "min_rank": 46657
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "预科",
+    "min_score": 505,
+    "min_rank": 48976
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 489,
+    "min_rank": 60705
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 516,
+    "min_rank": 41632
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 557,
+    "min_rank": 20194
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 530,
+    "min_rank": 33468
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "国家专项计划",
+    "min_score": 510,
+    "min_rank": 45035
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "地方专项计划",
+    "min_score": 508,
+    "min_rank": 46657
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "预科",
+    "min_score": 505,
+    "min_rank": 48976
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 489,
+    "min_rank": 60705
+  }
+]

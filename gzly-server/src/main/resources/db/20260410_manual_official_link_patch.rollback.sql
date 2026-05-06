@@ -1,0 +1,11 @@
+-- 2026-04-10 手工补录 6 所贵州院校官方入口前的生产回滚快照
+DELETE FROM `uni_official_link`
+WHERE `school_id` IN ('3308', '3233', '2569', '2268', '2266', '1572');
+
+INSERT INTO `uni_official_link` VALUES
+(27381,'1572','黔东南民族职业技术学院','www.qdnpt.edu.cn','https://www.qdnpt.edu.cn/','','','','','官网访问失败，需人工核验','scraper',2,'2026-04-08 13:28:33','2026-04-09 19:04:22','2026-04-08 13:28:33','2026-04-09 19:04:22',NULL,NULL,NULL,NULL,NULL,NULL,NULL,0,'2026-04-08 18:42:01'),
+(6499,'2266','贵州警察学院','www.gzjgxy.cn','https://www.gzjgxy.cn','https://www.gzpc.edu.cn/jgsz/xzbm/zsjyc/','','https://www.gzpc.edu.cn/jyjx/zysz/','','官网访问失败，需人工核验','scraper',2,'2026-04-08 13:12:03','2026-04-09 19:04:22','2026-04-08 13:12:03','2026-04-09 19:04:22','','本科专业','','','在省公安厅政治部的组织领导下，配合做好公安类专业招生体检、体侧、面试工作','','brochure:playwright-html;catalog:playwright-html;tuition:playwright-html',1,'2026-04-08 20:19:27'),
+(7141,'2268','贵州航天职业技术学院','www.gzhtzy.edu.cn','https://www.gzhtzy.edu.cn/','','','','','官网访问失败，需人工核验','scraper',2,'2026-04-08 13:12:47','2026-04-09 19:04:22','2026-04-08 13:12:47','2026-04-09 19:04:22',NULL,NULL,NULL,NULL,NULL,NULL,NULL,0,'2026-04-08 18:42:01'),
+(1196,'2569','贵州职业技术学院','www.gzvti.com','https://www.gzvti.com/xysy.htm','javascript:void(0);','','','','官网访问失败，需人工核验','scraper',2,'2026-04-08 13:05:18','2026-04-09 19:04:22','2026-04-08 13:05:18','2026-04-09 19:04:22','','','','','','','brochure:none;catalog:none;tuition:none',2,'2026-04-08 18:41:53'),
+(221,'3233','贵州水利水电职业技术学院','www.gzsdzy.cn','https://www.gzsdzy.cn','https://zs.gzsdzy.cn/jyweb/webIndex.zf','javascript:void(0)','javascript:void(0);','','官网访问失败，需人工核验','scraper',1,'2026-04-08 13:03:56','2026-04-09 19:04:22','2026-04-08 13:03:56','2026-04-09 19:04:22','','','','','','','brochure:none;catalog:none;tuition:none',2,'2026-04-08 18:41:52'),
+(175,'3308','六盘水幼儿师范高等专科学校','lpsyz.cn','https://lpsyz.cn/','https://lpsyz.cn/zsjy/zsxx.htm','https://lpsyz.cn/info/1351/19251.htm','','','官网访问失败，需人工核验','scraper',2,'2026-04-08 13:03:55','2026-04-09 19:04:22','2026-04-08 13:03:55','2026-04-09 19:04:22','','六盘水幼专专业、信息安全技术应用专业、现代物业管理专业、计算机应用技术专业、人工智能技术应用专业、现代教育技术专业、舞蹈表演专业、研学旅行管理与服务专业','','','','','brochure:playwright-html;catalog:playwright-html;tuition:playwright-html',1,'2026-04-08 20:19:26');

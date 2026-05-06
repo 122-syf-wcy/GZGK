@@ -1,0 +1,10 @@
+{
+  "year": 2025,
+  "sourcePageUrl": "https://zsdata.sicau.edu.cn/zsdata/lqxx/#/lnfs",
+  "sourceUrl": "https://zsdata.sicau.edu.cn/zsdata/lqxx/#/lnfs",
+  "sourceHash": "1571cfccb9ace8717b646228b011b96b8e002dc9666bc1e4df55ca5be6401762",
+  "sourceLevel": "school_verified",
+  "parseMethod": "manual_verified_csv",
+  "preserveNonEmpty": true,
+  "csvText": "schoolId,universityName,groupCode,groupName,subjectType,firstSubjectRequirement,resubjectRequirement,minScore,minRank,planCount,batch\n,四川农业大学,105,四川农业大学历史类105组,历史类,历史,不限,592,6142,587,普通本科批B段\n"
+}

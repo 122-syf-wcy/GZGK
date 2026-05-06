@@ -1,0 +1,17 @@
+[Unit]
+Description=GZLY Spring Boot Backend
+After=network-online.target mysql.service redis.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/gzly/backend
+EnvironmentFile=/etc/gzly/gzly.env
+ExecStart=/usr/bin/java -Xms512m -Xmx1024m -jar /opt/gzly/backend/app.jar --server.port=8090 --spring.datasource.username=${GZLY_DB_USERNAME} --spring.datasource.password=${GZLY_DB_PASSWORD} --spring.data.redis.password=${GZLY_REDIS_PASSWORD}
+Restart=always
+RestartSec=10
+SuccessExitStatus=143
+
+[Install]
+WantedBy=multi-user.target

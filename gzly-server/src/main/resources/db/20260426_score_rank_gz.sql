@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS `data_score_rank_gz` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `year` SMALLINT NOT NULL COMMENT '年份',
+  `province` VARCHAR(20) NOT NULL DEFAULT '贵州' COMMENT '省份',
+  `subject_type` VARCHAR(10) NOT NULL COMMENT '首选科目类别(物理类/历史类)',
+  `score` SMALLINT NOT NULL COMMENT '分数',
+  `score_label` VARCHAR(20) NOT NULL DEFAULT '' COMMENT '原始分数段标签，如683及以上',
+  `segment_count` INT NOT NULL DEFAULT 0 COMMENT '本段人数',
+  `cumulative_count` INT NOT NULL COMMENT '累计人数(该分及以上)',
+  `cumulative_rate` DECIMAL(7,3) DEFAULT NULL COMMENT '累计比例%',
+  `rank_low` INT NOT NULL COMMENT '同分最好位次，累计人数-本段人数+1',
+  `rank_high` INT NOT NULL COMMENT '同分保守位次，累计人数',
+  `source_name` VARCHAR(100) NOT NULL DEFAULT '' COMMENT '数据来源名称',
+  `source_url` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '来源链接',
+  `source_page_url` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '官方发布页面',
+  `source_file` VARCHAR(200) NOT NULL DEFAULT '' COMMENT '来源文件名',
+  `parse_method` VARCHAR(40) NOT NULL DEFAULT '' COMMENT '解析方式',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_year_subject_score` (`year`, `subject_type`, `score`),
+  KEY `idx_year_subject_score` (`year`, `subject_type`, `score`),
+  KEY `idx_year_subject_rank` (`year`, `subject_type`, `rank_low`, `rank_high`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='贵州官方一分一段表';

@@ -1,0 +1,502 @@
+[
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2024,
+    "subject_type": "物理类",
+    "min_score": 590,
+    "min_rank": 9520
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2024,
+    "subject_type": "物理类",
+    "min_score": 590,
+    "min_rank": 9417
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "法学",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选不限",
+    "year": 2024,
+    "subject_type": "物理类",
+    "min_score": 588,
+    "min_rank": 9927
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（国家专项计划）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2024,
+    "subject_type": "物理类",
+    "min_score": 588,
+    "min_rank": 10092
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（国家专项计划）（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2024,
+    "subject_type": "物理类",
+    "min_score": 588,
+    "min_rank": 9838
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2024,
+    "subject_type": "历史类",
+    "min_score": 590,
+    "min_rank": 9520
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2024,
+    "subject_type": "历史类",
+    "min_score": 590,
+    "min_rank": 9417
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "法学",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选不限",
+    "year": 2024,
+    "subject_type": "历史类",
+    "min_score": 588,
+    "min_rank": 9927
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（国家专项计划）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2024,
+    "subject_type": "历史类",
+    "min_score": 588,
+    "min_rank": 10092
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（国家专项计划）（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2024,
+    "subject_type": "历史类",
+    "min_score": 588,
+    "min_rank": 9838
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2023,
+    "subject_type": "理科",
+    "min_score": 590,
+    "min_rank": 9520
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2023,
+    "subject_type": "理科",
+    "min_score": 590,
+    "min_rank": 9417
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "法学",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选不限",
+    "year": 2023,
+    "subject_type": "理科",
+    "min_score": 588,
+    "min_rank": 9927
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（国家专项计划）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2023,
+    "subject_type": "理科",
+    "min_score": 588,
+    "min_rank": 10092
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（国家专项计划）（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2023,
+    "subject_type": "理科",
+    "min_score": 588,
+    "min_rank": 9838
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2023,
+    "subject_type": "文科",
+    "min_score": 590,
+    "min_rank": 9520
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2023,
+    "subject_type": "文科",
+    "min_score": 590,
+    "min_rank": 9417
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "法学",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选不限",
+    "year": 2023,
+    "subject_type": "文科",
+    "min_score": 588,
+    "min_rank": 9927
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（国家专项计划）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2023,
+    "subject_type": "文科",
+    "min_score": 588,
+    "min_rank": 10092
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（国家专项计划）（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2023,
+    "subject_type": "文科",
+    "min_score": 588,
+    "min_rank": 9838
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2022,
+    "subject_type": "理科",
+    "min_score": 590,
+    "min_rank": 9520
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2022,
+    "subject_type": "理科",
+    "min_score": 590,
+    "min_rank": 9417
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "法学",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选不限",
+    "year": 2022,
+    "subject_type": "理科",
+    "min_score": 588,
+    "min_rank": 9927
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（国家专项计划）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2022,
+    "subject_type": "理科",
+    "min_score": 588,
+    "min_rank": 10092
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（国家专项计划）（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2022,
+    "subject_type": "理科",
+    "min_score": 588,
+    "min_rank": 9838
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2022,
+    "subject_type": "文科",
+    "min_score": 590,
+    "min_rank": 9520
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2022,
+    "subject_type": "文科",
+    "min_score": 590,
+    "min_rank": 9417
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "法学",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选不限",
+    "year": 2022,
+    "subject_type": "文科",
+    "min_score": 588,
+    "min_rank": 9927
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（国家专项计划）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2022,
+    "subject_type": "文科",
+    "min_score": 588,
+    "min_rank": 10092
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（国家专项计划）（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2022,
+    "subject_type": "文科",
+    "min_score": 588,
+    "min_rank": 9838
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2021,
+    "subject_type": "理科",
+    "min_score": 590,
+    "min_rank": 9520
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2021,
+    "subject_type": "理科",
+    "min_score": 590,
+    "min_rank": 9417
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "法学",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选不限",
+    "year": 2021,
+    "subject_type": "理科",
+    "min_score": 588,
+    "min_rank": 9927
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（国家专项计划）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2021,
+    "subject_type": "理科",
+    "min_score": 588,
+    "min_rank": 10092
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（国家专项计划）（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2021,
+    "subject_type": "理科",
+    "min_score": 588,
+    "min_rank": 9838
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2021,
+    "subject_type": "文科",
+    "min_score": 590,
+    "min_rank": 9520
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2021,
+    "subject_type": "文科",
+    "min_score": 590,
+    "min_rank": 9417
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "法学",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选不限",
+    "year": 2021,
+    "subject_type": "文科",
+    "min_score": 588,
+    "min_rank": 9927
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（国家专项计划）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2021,
+    "subject_type": "文科",
+    "min_score": 588,
+    "min_rank": 10092
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（国家专项计划）（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2021,
+    "subject_type": "文科",
+    "min_score": 588,
+    "min_rank": 9838
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2020,
+    "subject_type": "理科",
+    "min_score": 590,
+    "min_rank": 9520
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2020,
+    "subject_type": "理科",
+    "min_score": 590,
+    "min_rank": 9417
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "法学",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选不限",
+    "year": 2020,
+    "subject_type": "理科",
+    "min_score": 588,
+    "min_rank": 9927
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（国家专项计划）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2020,
+    "subject_type": "理科",
+    "min_score": 588,
+    "min_rank": 10092
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（国家专项计划）（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2020,
+    "subject_type": "理科",
+    "min_score": 588,
+    "min_rank": 9838
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2020,
+    "subject_type": "文科",
+    "min_score": 590,
+    "min_rank": 9520
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2020,
+    "subject_type": "文科",
+    "min_score": 590,
+    "min_rank": 9417
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "法学",
+    "notes": "（外语语种要求：不限） 选科要求：首选物理，再选不限",
+    "year": 2020,
+    "subject_type": "文科",
+    "min_score": 588,
+    "min_rank": 9927
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "电气工程及其自动化",
+    "notes": "（国家专项计划）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2020,
+    "subject_type": "文科",
+    "min_score": 588,
+    "min_rank": 10092
+  },
+  {
+    "school_id": "935",
+    "university_name": "贵州大学",
+    "major_name": "计算机类",
+    "notes": "（国家专项计划）（包含计算机科学与技术、信息安全）（外语语种要求：不限） 选科要求：首选物理，再选化学",
+    "year": 2020,
+    "subject_type": "文科",
+    "min_score": 588,
+    "min_rank": 9838
+  }
+]

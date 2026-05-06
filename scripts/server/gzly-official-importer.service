@@ -1,0 +1,17 @@
+[Unit]
+Description=GZLY Official Links Importer
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/gzly_scraper
+EnvironmentFile=/etc/gzly/data-gap-supplement.env
+Environment=DB_NAME=gzly
+Environment=DB_USER=root
+Environment=IMPORT_INTERVAL_SECONDS=30
+ExecStart=/bin/bash /root/gzly_scraper/server/import_official_links.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS `data_major_requirement_gz` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `year` SMALLINT NOT NULL COMMENT '年份',
+  `school_id` VARCHAR(20) NOT NULL COMMENT '院校ID',
+  `university_name` VARCHAR(100) NOT NULL DEFAULT '' COMMENT '院校名称',
+  `major_id` VARCHAR(50) NOT NULL DEFAULT '' COMMENT '专业/专业组代码',
+  `major_name` VARCHAR(200) NOT NULL COMMENT '专业名称',
+  `subject_type` VARCHAR(10) NOT NULL COMMENT '首选科目类别(物理类/历史类)',
+  `first_subject_requirement` VARCHAR(50) NOT NULL DEFAULT '' COMMENT '首选科目要求',
+  `resubject_requirement` VARCHAR(100) NOT NULL DEFAULT '' COMMENT '再选科目要求(不限/化学/化学和生物等)',
+  `requirement_text` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '官方原文或解析备注',
+  `source_name` VARCHAR(100) NOT NULL DEFAULT '' COMMENT '数据来源名称',
+  `source_url` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '来源链接',
+  `source_file` VARCHAR(200) NOT NULL DEFAULT '' COMMENT '来源文件名',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_year_school_major_subject` (`year`, `school_id`, `major_name`, `subject_type`),
+  KEY `idx_school_major_subject` (`school_id`, `major_name`, `subject_type`),
+  KEY `idx_year_subject_requirement` (`year`, `subject_type`, `resubject_requirement`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='贵州官方专业选科要求库';

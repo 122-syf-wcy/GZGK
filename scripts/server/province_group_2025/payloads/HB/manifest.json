@@ -1,0 +1,8 @@
+{
+  "provinceCode": "HB",
+  "provinceName": "湖北",
+  "year": 2025,
+  "count": 0,
+  "items": [],
+  "note": "Payloads are for dry-run first. Do not import until dry-run rejected=0 and CONFIRM_PROVINCE_IMPORT is set."
+}

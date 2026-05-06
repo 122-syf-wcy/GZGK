@@ -1,0 +1,75 @@
+[
+  {
+    "status": 200,
+    "url": "https://www.gaokao.cn/school/935/provinceline",
+    "content_type": "text/html; charset=utf-8",
+    "size": 30687
+  },
+  {
+    "status": 200,
+    "url": "https://api-os.growingio.com/v2/88025341dda01c5f/web/pv",
+    "content_type": "text/plain; charset=utf-8",
+    "size": 0
+  },
+  {
+    "status": 200,
+    "url": "https://tags.growingio.com/products/88025341dda01c5f/web/www.gaokao.cn/settings/general",
+    "content_type": "application/json; charset=utf-8",
+    "size": 14,
+    "body_preview": "{\"imp\": false}"
+  },
+  {
+    "status": 200,
+    "url": "https://px.effirst.com/api/v1/jconfig?wpk-header=app%3D4qgthszz-efopzl8g%26tm%3D1775292985%26ud%3D3200c609-5fb8-4d8e-accc-a14ca0fed652%26sver%3D1.2.9%26sign%3Dc41e43c828c16c16a6eb1c9c1e68e8ce",
+    "content_type": "text/html; charset=utf-8",
+    "size": 1455
+  },
+  {
+    "status": 200,
+    "url": "https://api-os.growingio.com/v2/88025341dda01c5f/web/pv?stm=1775292985893",
+    "content_type": "text/plain; charset=utf-8",
+    "size": 0
+  },
+  {
+    "status": 200,
+    "url": "https://api-os.growingio.com/custom/88025341dda01c5f/web/cstm?stm=1775292985894",
+    "content_type": "text/plain; charset=utf-8",
+    "size": 0
+  },
+  {
+    "status": 200,
+    "url": "https://api-os.growingio.com/custom/88025341dda01c5f/web/cstm?stm=1775292985894",
+    "content_type": "text/plain; charset=utf-8",
+    "size": 0
+  },
+  {
+    "status": 200,
+    "url": "https://api-os.growingio.com/custom/88025341dda01c5f/web/cstm?stm=1775292985894",
+    "content_type": "text/plain; charset=utf-8",
+    "size": 0
+  },
+  {
+    "status": 200,
+    "url": "https://px.effirst.com/api/v1/jssdk/upload?wpk-header=app%3D4qgthszz-efopzl8g%26cp%3Dnone%26de%3D4%26seq%3D17752929887105%26tm%3D1775292988%26ud%3Ded2acb9d-b403-4d32-051e-4bb4b4805e66%26ver%3Dnull%26type%3Dflow%26sver%3D1.2.9%26sign%3D9bf8a190ef82c5049df7b199c599c45b",
+    "content_type": "text/html; charset=utf-8",
+    "size": 0
+  },
+  {
+    "status": 200,
+    "url": "https://px.effirst.com/api/v1/jssdk/upload?wpk-header=app%3D4qgthszz-efopzl8g%26cp%3Dnone%26de%3D4%26seq%3D17752929889501%26tm%3D1775292988%26ud%3Ded2acb9d-b403-4d32-051e-4bb4b4805e66%26ver%3Dnull%26type%3Djsfsperf%26sver%3D1.2.9%26sign%3D9bf8a190ef82c5049df7b199c599c45b",
+    "content_type": "text/html; charset=utf-8",
+    "size": 0
+  },
+  {
+    "status": 200,
+    "url": "https://px.effirst.com/api/v1/jssdk/upload?wpk-header=app%3D4qgthszz-efopzl8g%26cp%3Dnone%26de%3D4%26seq%3D17752929866613%26tm%3D1775292986%26ud%3Ded2acb9d-b403-4d32-051e-4bb4b4805e66%26ver%3Dnull%26type%3Dapi%26sver%3D1.2.9%26sign%3D9bf8a190ef82c5049df7b199c599c45b",
+    "content_type": "text/html; charset=utf-8",
+    "size": 0
+  },
+  {
+    "status": 200,
+    "url": "https://px.effirst.com/api/v1/jssdk/upload?wpk-header=app%3D4qgthszz-efopzl8g%26cp%3Dnone%26de%3D4%26seq%3D17752929884229%26tm%3D1775292988%26ud%3Ded2acb9d-b403-4d32-051e-4bb4b4805e66%26ver%3Dnull%26type%3Dapi%26sver%3D1.2.9%26sign%3D9bf8a190ef82c5049df7b199c599c45b",
+    "content_type": "text/html; charset=utf-8",
+    "size": 0
+  }
+]

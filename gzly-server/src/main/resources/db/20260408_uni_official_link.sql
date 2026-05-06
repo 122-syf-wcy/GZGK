@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS `uni_official_link` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `school_id` VARCHAR(20) NOT NULL COMMENT '院校ID',
+  `school_name` VARCHAR(100) DEFAULT '' COMMENT '院校名称',
+  `source_domain` VARCHAR(200) DEFAULT '' COMMENT '来源域名',
+  `school_site` VARCHAR(500) DEFAULT '' COMMENT '学校官网',
+  `admission_site` VARCHAR(500) DEFAULT '' COMMENT '招生网',
+  `admission_brochure_url` VARCHAR(500) DEFAULT '' COMMENT '招生章程',
+  `major_catalog_url` VARCHAR(500) DEFAULT '' COMMENT '专业目录',
+  `tuition_info_url` VARCHAR(500) DEFAULT '' COMMENT '收费标准',
+  `tuition_remark` VARCHAR(500) DEFAULT '' COMMENT '收费备注',
+  `capture_method` VARCHAR(50) DEFAULT 'manual' COMMENT 'manual/scraper',
+  `capture_status` TINYINT NOT NULL DEFAULT 0 COMMENT '0=待补充 1=已收录 2=待核验',
+  `last_verified_at` DATETIME DEFAULT NULL COMMENT '最近人工核验时间',
+  `last_captured_at` DATETIME DEFAULT NULL COMMENT '最近采集时间',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uk_school_id` (`school_id`),
+  KEY `idx_status` (`capture_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='院校官方报考资料入口';

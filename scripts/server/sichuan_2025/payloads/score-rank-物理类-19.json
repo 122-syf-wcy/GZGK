@@ -1,0 +1,11 @@
+{
+  "year": 2025,
+  "subjectType": "物理类",
+  "sourcePageUrl": "https://www.sceea.cn/Html/202506/Newsdetail_4335.html",
+  "sourceUrl": "https://www.sceea.cn/Upload/image/20250625/20250625184114_5421.jpg",
+  "sourceFile": "score_rank_sc_2025_物理类_reviewed.csv",
+  "sourceHash": "5bf6c63974f6469a9ab97b0efc5d3194d2918d8f73587b856c0aacdeeab29679",
+  "parseMethod": "manual_verified_csv",
+  "preserveNonEmpty": true,
+  "csvText": "score,scoreLabel,segmentCount,cumulativeCount\n169,169分,3,284750\n168,168分,3,284753\n167,167分,1,284754\n166,166分,2,284756\n165,165分,3,284759\n164,164分,2,284761\n163,163分,4,284765\n162,162分,3,284768\n161,161分,3,284771\n160,160分,2,284773\n159,159分,4,284777\n158,158分,2,284779\n157,157分,1,284780\n156,156分,1,284781\n155,155分,1,284782\n154,154分,1,284783\n153,153分,2,284785\n152,152分,1,284786\n151,151分,1,284787\n150,150分,2,284789\n"
+}

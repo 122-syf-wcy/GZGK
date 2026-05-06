@@ -1,0 +1,11 @@
+{
+  "year": 2025,
+  "subjectType": "历史类",
+  "sourcePageUrl": "https://www.sceea.cn/Html/202506/Newsdetail_4334.html",
+  "sourceUrl": "https://www.sceea.cn/Upload/image/20250625/20250625183926_0811.jpg",
+  "sourceFile": "score_rank_sc_2025_历史类_reviewed.csv",
+  "sourceHash": "7282ee78249df5a2d1dee33157ebe9cd5c18747660f745bd4c9ed86620d974f5",
+  "parseMethod": "manual_verified_csv",
+  "preserveNonEmpty": true,
+  "csvText": "score,scoreLabel,segmentCount,cumulativeCount\n171,171分,10,177820\n170,170分,6,177826\n169,169分,4,177830\n168,168分,9,177839\n167,167分,10,177849\n166,166分,6,177855\n165,165分,4,177859\n164,164分,13,177872\n163,163分,9,177881\n162,162分,11,177892\n161,161分,9,177901\n160,160分,8,177909\n159,159分,10,177919\n158,158分,2,177921\n157,157分,6,177927\n156,156分,7,177934\n155,155分,4,177938\n154,154分,12,177950\n153,153分,9,177959\n152,152分,8,177967\n151,151分,8,177975\n150,150分,3,177978\n"
+}

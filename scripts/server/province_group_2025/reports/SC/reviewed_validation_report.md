@@ -1,0 +1,18 @@
+# 四川 reviewed CSV 校验报告
+
+- 错误数：0
+- 警告数：5
+
+## 计数
+
+- score_rank: `{'rowsBySubject': {'历史类': 514, '物理类': 541}}`
+- group_lines: `{'rows': 27, 'groupsBySubject': {'历史类': 9, '物理类': 18}}`
+- group_plans: `{'rows': 140, 'groupsBySubject': {'历史类': 7, '物理类': 14}}`
+
+## 警告
+
+- group_lines 历史类 当前 9 组，未达到解锁门槛 45 组。
+- group_lines 物理类 当前 18 组，未达到解锁门槛 45 组。
+- group_plans 历史类 当前 7 组，未达到解锁门槛 45 组。
+- group_plans 物理类 当前 14 组，未达到解锁门槛 45 组。
+- group_lines 有 6 个专业组未在 group_plans 中找到招生计划：891 101 历史类；891 101 物理类；891 102 历史类；891 102 物理类；891 103 物理类；成都信息工程大学 111 物理类。

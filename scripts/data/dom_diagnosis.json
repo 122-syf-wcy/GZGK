@@ -1,0 +1,367 @@
+{
+  "dom": {
+    "allTables": [
+      {
+        "index": 0,
+        "className": "tb-normal",
+        "parentClass": "",
+        "grandparentClass": "bgwhite p20 radius8 mb20",
+        "headers": [
+          "年份",
+          "录取批次",
+          "招生类型",
+          "最低分/最低位次",
+          "录取率"
+        ],
+        "dataRows": [
+          [
+            "年份",
+            "录取批次",
+            "招生类型",
+            "最低分/最低位次",
+            "录取率"
+          ],
+          [
+            "2025",
+            "本科批",
+            "普通类",
+            "516/41632",
+            "录取率"
+          ],
+          [
+            "2025",
+            "本科提前批B段",
+            "高校专项计划",
+            "557/20194",
+            "录取率"
+          ],
+          [
+            "2025",
+            "本科批",
+            "护理类",
+            "530/33468",
+            "录取率"
+          ],
+          [
+            "2025",
+            "本科批",
+            "国家专项计划",
+            "510/45035",
+            "录取率"
+          ],
+          [
+            "2025",
+            "本科批",
+            "地方专项计划",
+            "508/46657",
+            "录取率"
+          ],
+          [
+            "2025",
+            "本科批",
+            "预科",
+            "505/48976",
+            "录取率"
+          ],
+          [
+            "2025",
+            "本科批",
+            "中外合作办学",
+            "489/60705",
+            "录取率"
+          ]
+        ],
+        "rowCount": 8
+      },
+      {
+        "index": 1,
+        "className": "tb-normal",
+        "parentClass": "",
+        "grandparentClass": "bgwhite p20 radius8 mb20 ohide pb0",
+        "headers": [
+          "专业名称",
+          "最低分/最低位次",
+          "录取率"
+        ],
+        "dataRows": [
+          [
+            "专业名称",
+            "最低分/最低位次",
+            "录取率"
+          ],
+          [
+            "计算机类\n\n（包含计算机科学与技术、信息安全）（外语语种要求：不限）\n\n选科要求：首选物理，再选化学",
+            "590/9520",
+            "录取率"
+          ],
+          [
+            "电气工程及其自动化\n\n（外语语种要求：不限）\n\n选科要求：首选物理，再选化学",
+            "590/9417",
+            "录取率"
+          ],
+          [
+            "法学\n\n（外语语种要求：不限）\n\n选科要求：首选物理，再选不限",
+            "588/9927",
+            "录取率"
+          ],
+          [
+            "电气工程及其自动化\n\n（国家专项计划）（外语语种要求：不限）\n\n选科要求：首选物理，再选化学",
+            "588/10092",
+            "录取率"
+          ],
+          [
+            "计算机类\n\n（国家专项计划）（包含计算机科学与技术、信息安全）（外语语种要求：不限）\n\n选科要求：首选物理，再选化学",
+            "588/9838",
+            "录取率"
+          ]
+        ],
+        "rowCount": 6
+      }
+    ],
+    "sections": [
+      {
+        "tag": "DIV",
+        "class": "main-nav_title__3Mns6",
+        "text": "首页"
+      },
+      {
+        "tag": "DIV",
+        "class": "main-nav_title__3Mns6",
+        "text": "查大学"
+      },
+      {
+        "tag": "DIV",
+        "class": "main-nav_title__3Mns6",
+        "text": "查专业"
+      },
+      {
+        "tag": "DIV",
+        "class": "main-nav_title__3Mns6",
+        "text": "智能选大学"
+      },
+      {
+        "tag": "DIV",
+        "class": "main-nav_title__3Mns6",
+        "text": "名校名卷"
+      },
+      {
+        "tag": "DIV",
+        "class": "main-nav_title__3Mns6",
+        "text": "名师教提分"
+      },
+      {
+        "tag": "DIV",
+        "class": "main-nav_title__3Mns6",
+        "text": "分类考试"
+      },
+      {
+        "tag": "H3",
+        "class": "",
+        "text": "计算机类"
+      },
+      {
+        "tag": "H3",
+        "class": "cursor",
+        "text": "电气工程及其自动化"
+      },
+      {
+        "tag": "H3",
+        "class": "cursor",
+        "text": "法学"
+      },
+      {
+        "tag": "H3",
+        "class": "cursor",
+        "text": "电气工程及其自动化"
+      },
+      {
+        "tag": "H3",
+        "class": "",
+        "text": "计算机类"
+      },
+      {
+        "tag": "DIV",
+        "class": "scan-code-unlock_title__27v2U",
+        "text": "剩余 \n132个专业分"
+      },
+      {
+        "tag": "DIV",
+        "class": "school_title hover_style clearfix",
+        "text": "上海海事大学"
+      },
+      {
+        "tag": "DIV",
+        "class": "school_title hover_style clearfix",
+        "text": "中国人民警察大学"
+      },
+      {
+        "tag": "DIV",
+        "class": "school_title hover_style clearfix",
+        "text": "山西工学院"
+      },
+      {
+        "tag": "DIV",
+        "class": "school_title hover_style clearfix",
+        "text": "河北医科大学"
+      },
+      {
+        "tag": "DIV",
+        "class": "school_title hover_style clearfix",
+        "text": "青岛大学"
+      },
+      {
+        "tag": "DIV",
+        "class": "school_title hover_style clearfix",
+        "text": "杭州师范大学"
+      },
+      {
+        "tag": "SPAN",
+        "class": "title ellipsis",
+        "text": "北京：2026年普通高等学校体育专业考试温馨提示"
+      },
+      {
+        "tag": "SPAN",
+        "class": "title ellipsis",
+        "text": "北京2026年高招体检3月2日至3月31日进行"
+      },
+      {
+        "tag": "SPAN",
+        "class": "title ellipsis",
+        "text": "北京：2026年高考小语种听力考试考试成绩今天发布"
+      },
+      {
+        "tag": "SPAN",
+        "class": "title ellipsis",
+        "text": "北京：2026年高考艺术类专业统考合格分数线公布"
+      },
+      {
+        "tag": "SPAN",
+        "class": "title ellipsis",
+        "text": "首都经济贸易大学2026年外语类保送生招生简章"
+      },
+      {
+        "tag": "DIV",
+        "class": "box_title clearfix",
+        "text": "高校对比最多4所清空"
+      },
+      {
+        "tag": "H3",
+        "class": "",
+        "text": "高校对比最多4所"
+      },
+      {
+        "tag": "H3",
+        "class": "",
+        "text": "系统使用说明"
+      },
+      {
+        "tag": "P",
+        "class": "title",
+        "text": "志愿填报"
+      },
+      {
+        "tag": "P",
+        "class": "title",
+        "text": "名师教提分"
+      },
+      {
+        "tag": "P",
+        "class": "title",
+        "text": "高考小智"
+      },
+      {
+        "tag": "P",
+        "class": "title",
+        "text": "高考社群"
+      },
+      {
+        "tag": "P",
+        "class": "title",
+        "text": "院校排行"
+      },
+      {
+        "tag": "P",
+        "class": "title",
+        "text": "一分一段"
+      },
+      {
+        "tag": "P",
+        "class": "title",
+        "text": "省控线"
+      },
+      {
+        "tag": "P",
+        "class": "title",
+        "text": "高考直播"
+      },
+      {
+        "tag": "P",
+        "class": "title",
+        "text": "高考作文"
+      },
+      {
+        "tag": "P",
+        "class": "title",
+        "text": "高考真题"
+      },
+      {
+        "tag": "P",
+        "class": "title",
+        "text": "高考估分"
+      },
+      {
+        "tag": "P",
+        "class": "title",
+        "text": "专家指导课"
+      }
+    ],
+    "rawHTML": "<div class=\"layoutWrap clearfix\"><div class=\"flex-scx pb30 pt10 \"><div class=\"school-tab_schoolInfo__34Mth\"><div class=\"school-tab_info__3x6H6\"><div class=\"school-tab_nameAndAdress__1oq3l\"><div class=\"school-tab_name__3pOZK\">贵州大学</div><div class=\"school-tab_adress__1WWI_\"><i aria-label=\"icon: environment\" class=\"anticon anticon-environment\"></i>贵州贵阳市</div></div><div class=\"school-tab_coreTags__31I0N\"><span>公办</span><span>综合类</span></div><div class=\"school-tab_tags__1OGng\"><div class=\"school-tab_item__3J3Fh\">211</div><div class=\"school-tab_item__3J3Fh\">双一流</div></div></div></div><div class=\"school-tab_schoolEntersBox__2Iv01\"><div class=\"scss_schoolProbability__hcFnp\"><div class=\"scss_name__2wbCP\">登录查看<span><i class=\"iconfont icon_xiaofangxiang_right\"></i></span></div><div class=\"scss_rate__FKP3u\">录取概率</div></div><div style=\"width: 20px; height: 10px; display: inline-block; background: transparent;\"></div><div class=\"school-tab_btns__3us3U\"><div class=\"school-tab_btnItem__2NzvM\"><div><div class=\"school-tab-focus_followWrap__2jIoa\" style=\"width: 42px;\"><i aria-label=\"icon: heart\" class=\"anticon anticon-heart school-tab-focus_star__2cMbr\"></i><div class=\"school-tab-focus_txtName__2DVTB\">关注</div></div></div></div></div><div class=\"scss_kyAppletBox__wMCcL\"><div class=\"scss_enter__144t9\"><i class=\"scss_hat__1Ny5l iconfont icon_hat\"></i><div class=\"scss_name__2wbCP\">学校考研</div></div><div class=\"dialog_package\" id=\"dialog_package\"></div></div></div></div><div style=\"min-height: 450px;\"><div><div class=\"school-bread-pt\"><div class=\"breadcrumb_bread__wgm_-\"><span>查学校</span><span> &gt; </span><span>贵州大学</span><span> &gt; </span><span>分数/计划</span></div></div><div class=\"mb20\"><div class=\"school-tab_tabNavs__1wdWg\"><div class=\"school-tab_item__3J3Fh \">学校概况</div><div class=\"school-tab_item__3J3Fh school-tab_active__1p7QM\">历年分数</div><div class=\"school-tab_item__3J3Fh \">招生计划</div><div class=\"school-tab_item__3J3Fh \">开设专业</div><div class=\"school-tab_item__3J3Fh \">录取预测</div><div class=\"school-tab_item__3J3Fh \">就业方向</div><div data-name=\"艺考专区\" class=\"school-tab_item__3J3Fh school-tab_singleTabItem__2yWPE \">艺考专区<i class=\"iconfont icon_zhankai_down school-tab_zk__1aOet\" style=\"font-size: 20px;\"></i><ul class=\"school-tab_dropSingleMenu__20Dju\"><li class=\"\">艺考专区</li><li class=\"\">专项计划</li><li class=\"\">中外合作</li><li class=\"\">医学院</li></ul></div></div></div><div class=\"clearfix\"><div class=\"school-content-left_box__2JrKH\" style=\"width: 800px; min-height: 400px;\"><div><div id=\"proline\"><div class=\"bgwhite p20 radius8 mb20\"><div class=\"flex-scx mb10\"><div class=\"flex-fsx\"><span class=\"color333 size16 weight600\">院校分数线</span><div class=\"score-plan_appDownload__26iHl\"><div class=\"score-plan_enterBtn__1ovQg\">手机APP随时随地查询<i class=\"iconfont icon_dafangxiang_ight\"></i></div><div class=\"score-plan_codeBox__3xm9l\"><div class=\"relative\"></div></div></div></div><div class=\"slt-drop flex-fsx\"><div><div class=\"ant-select ant-select-enabled\" style=\"width: 100px;\"><div class=\"ant-select-selection\n            ant-select-selection--single\" role=\"combobox\" aria-autocomplete=\"list\" aria-haspopup=\"true\" aria-controls=\"651a906a-aec6-4c4c-e619-e4bbbbba4740\" aria-expanded=\"false\" tabindex=\"0\"><div class=\"ant-select-selection__rendered\"><div class=\"ant-select-selection-selected-value\" title=\"贵州\" style=\"display: block; opacity: 1;\">贵州</div></div><span class=\"ant-select-arrow\" unselectable=\"on\" style=\"user-select: none;\"><i aria-label=\"icon: down\" class=\"anticon anticon-down ant-select-arrow-icon\"></i></span></div></div></div><div style=\"width: 10px; height: 10px; display: inline-block; background: transparent;\"></div><div class=\"filter-compents_filterSeletcBox__1gdci\"><div class=\"ant-select ant-select-enabled\" style=\"width: 100px;\"><div class=\"ant-select-selection\n            ant-select-selection--single\" role=\"combobox\" aria-autocomplete=\"list\" aria-haspopup=\"true\" aria-controls=\"e823be31-f42d-49de-c7ae-ea18ab1a52ac\" aria-expanded=\"false\" tabindex=\"0\"><div class=\"ant-select-selection__rendered\"><div unselectable=\"on\" class=\"ant-select-selection__placeholder\" style=\"display: none; user-select: none;\">全部</div><div class=\"ant-select-selection-selected-value\" title=\"2025\" style=\"display: block; opacity: 1;\">2025</div></div><span class=\"ant-select-arrow\" unselectable=\"on\" style=\"user-select: none;\"><i aria-label=\"icon: down\" class=\"anticon anticon-down ant-select-arrow-icon\"></i></span></div></div></div><div style=\"width: 10px; height: 10px; display: inline-block; background: transparent;\"></div><div class=\"filter-compents_filterSeletcBox__1gdci\"><div class=\"ant-select ant-select-enabled\" style=\"width: 100px;\"><div class=\"ant-select-selection\n            ant-select-selection--single\" role=\"combobox\" aria-autocomplete=\"list\" aria-haspopup=\"true\" aria-controls=\"c7355d14-879d-4b47-9114-3ecfbd25439b\" aria-expanded=\"false\" tabindex=\"0\"><div class=\"ant-select-selection__rendered\"><div unselectable=\"on\" class=\"ant-select-selection__placeholder\" style=\"display: none; user-select: none;\">全部</div><div class=\"ant-select-selection-selected-value\" title=\"物理类\" style=\"display: block; opacity: 1;\">物理类</div></div><span class=\"ant-select-arrow\" unselectable=\"on\" style=\"user-select: none;\"><i aria-label=\"icon: down\" class=\"anticon anticon-down ant-select-arrow-icon\"></i></span></div></div></div></div></div><div style=\"border: none; padding: 0px;\"><table class=\"tb-normal\"><thead><tr><td width=\"90\">年份</td><td width=\"130\">录取批次</td><td width=\"140\">招生类型</td><td class=\"minScore\" width=\"164\">最低分/最低位次</td><td width=\"70\">录取率</td></tr></thead><tbody><tr><td>2025</td><td>本科批</td><td>普通类</td><td>516/41632</td><td><span class=\"cursor nowrape\" style=\"line-height: 19px;\">录取率<i class=\"iconfont icon_xiaofangxiang_right\"></i></span></td></tr><tr><td>2025</td><td>本科提前批B段</td><td>高校专项计划</td><td>557/20194</td><td><span class=\"cursor nowrape\" style=\"line-height: 19px;\">录取率<i class=\"iconfont icon_xiaofangxiang_right\"></i></span></td></tr><tr><td>2025</td><td>本科批</td><td>护理类</td><td>530/33468</td><td><span class=\"cursor nowrape\" style=\"line-height: 19px;\">录取率<i class=\"iconfont icon_xiaofangxiang_right\"></i></span></td></tr><tr><td>2025</td><td>本科批</td><td>国家专项计划</td><td>510/45035</td><td><span class=\"cursor nowrape\" style=\"line-height: 19px;\">录取率<i class=\"iconfont icon_xiaofangxiang_right\"></i></span></td></tr><tr><td>2025</td><td>本科批</td><td>地方专项计划</td><td>508/46657</td><td><span class=\"cursor nowrape\" style=\"line-height: 19px;\">录取率<i class=\"iconfont icon_xiaofangxiang_right\"></i></span></td></tr><tr><td>2025</td><td>本科批</td><td>预科</td><td>505/48976</td><td><span class=\"cursor nowrape\" style=\"line-height: 19px;\">录取率<i class=\"iconfont icon_xiaofangxiang_right\"></i></span></td></tr><tr><td>2025</td><td>本科批</td><td>中外合作办学</td><td>489/60705</td><td><span class=\"cursor nowrape\" style=\"line-height: 19px;\">录取率<i class=\"iconfont icon_xiaofangxiang_right\"></i></span></td></tr></tbody></table></div></div></div><div id=\"scoreline\"><div class=\"bgwhite p20 radius8 mb20 ohide pb0\"><div class=\"flex-scx mb10\"><span class=\"color333 size16 weight600\">专业分数线</span><div class=\"slt-drop flex-fsx\"><div><div class=\"ant-select ant-select-enabled\" style=\"width: 100px;\"><div class=\"ant-select-selection\n            ant-select-selection--single\" role=\"combobox\" aria-autocomplete=\"list\" aria-haspopup=\"true\" aria-controls=\"9c15cbf6-b142-4589-e7e6-465efdae58d6\" aria-expanded=\"false\" tabindex=\"0\"><div class=\"ant-select-selection__rendered\"><div class=\"ant-select-selection-selected-value\" title=\"贵州\" style=\"display: block; opacity: 1;\">贵州</div></div><span class=\"ant-select-arrow\" unselectable=\"on\" style=\"user-select: none;\"><i aria-label=\"icon: down\" class=\"anticon anticon-down ant-select-arrow-icon\"></i></span></div></div></div><div style=\"width: 10px; height: 10px; display: inline-block; background: transparent;\"></div><div class=\"filter-compents_filterSeletcBox__1gdci\"><div class=\"ant-select ant-select-enabled\" style=\"width: 100px;\"><div class=\"ant-select-selection\n            ant-s"
+  },
+  "captured_urls": [
+    "https://static-gkcx.gaokao.cn/www/2.0/json/coop/9.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/3/11/17.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/2/11/433.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/2/11/342.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/bi/hotsearch/11/0.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/pc/0/8.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/school/list_v2.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/school/school_code.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/info/linkage.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/school/935/info.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/international/project/school_project_v3.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/school/info/935.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/pcnews/11.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/commenttop/935.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/pc/11/20.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/school/935/pc_jobdetail.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/config/dicprovince/dicname2id.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/config/dicprovince/dic.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/config/81001.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/config/81002.json?a=www.gaokao.cn",
+    "https://miao.baidu.com/abdr?_o=https%3A%2F%2Fwww.gaokao.cn",
+    "https://static-answer.eol.cn/html/www/data/board/935.json?a=www.gaokao.cn",
+    "https://tags.growingio.com/products/88025341dda01c5f/web/www.gaokao.cn/settings/general",
+    "https://misc.eol.cn/js/target/pc/zsgkPCd/yxldy/11.json?a=www.gaokao.cn",
+    "https://miao.baidu.com/abdr?data=%7B%22data%22%3A%22S6TtDZ3tonni0RAotDNoI6MWD7pkmkOJ3YEjvBbk5h%2BDesXDDwpiMfK39AHlEjMjmCSVzP6kPDDpgceXYl9MIkXF7GHU%2FA6xjBCJGIm8%2FSqpJQiN4BjWGwmGYP8UDQKU4ZNNc%2BLvxMc42lC979rye82JL50Br3OVvH%2FnVY%2BzYV%2B5TJnS2%2BjVJf%2FxlShbnQu0iJuKAoi8VW3HkCeV2g5OUAjsBDNFW9Y7OETcERfdfZK2iRqkX%2Bmmgyskv%2FjU9J0f0s3IliFb1JP4TicV%2BE7EviLGjsWxXwr2zRw6mEDpzs2NruBwzAYqjTBbCoQ9B9%2BIpPGzetrm1vDrGZG5nwc7pxlEsHxyTi9f5fFw4cZ6oODqiDjZaaEleb6cH52SPgUTAJCduOicwi13yIBKfvDnanfItJxxCGi%2FGZQO%2F0Oq4WWPwSsXWT7BDNoA8NxhwRLyrYq7sKk1klx0zyZcsXZhERtt5cUGsnZgSs0tYns6WyljO6YXhCtcVvHnzwlZp19jzl2G3PGWPGcEY4eQPr%2BOWaV07beLkuHR520xmNupsKhmwo3CH08PEJrfqswlKtlU%2BXGBVO4tZU%2BmIOrmYaKa9g%3D%3D%22%2C%22key_id%22%3A%2235191cdfa1bf4721%22%2C%22enc%22%3A2%7D&_=0.5578631774503833",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/2/11/3.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/2/11/310.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/2/11/321.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/school/935/dic/professionalscore.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/single/config/province.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/2/11/374.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/school/935/dic/provincescore.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/2/11/320.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/2/11/230.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/2/11/317.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/2/52/317.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/school/935/benchmarkScore.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/operate/2/11/208.json?a=www.gaokao.cn",
+    "https://static-gkcx.gaokao.cn/www/2.0/json/rank/9549/52/lists.json?a=www.gaokao.cn",
+    "https://static-data.gaokao.cn/www/2.0/samescore3/2025/516.json?a=www.gaokao.cn",
+    "https://api-gaokao.zjzw.cn/apidata/web?autosign=&like_spname=&local_batch_id=14&local_province_id=52&local_type_id=2073&page=1&platform=2&school_id=935&size=5&sp_xuanke=&special_group=&uri=v1/school/special_score&year=2025&signsafe=f2569fc0fea2890436293d2502a23c8d",
+    "https://api-gaokao.zjzw.cn/apidata/web?autosign=&local_province_id=52&local_type_id=2073&page=1&platform=2&school_id=935&size=10&uri=v1/school/province_score&year=2025&signsafe=160d612879a9913e41260ea7b1216399",
+    "https://api-gaokao.zjzw.cn/apidata/web?autosign=&platform=2&sign=93b67fb76aa6c5caef002ea4ba8505122cb9195b6686f44ec576b46187db231e991b5bc0df02ce486fcda64da54741d628b8cf00c6c63cb8b9cb66470670487a0ef2344f946b9cf4f543b8bfc6a7da78565f81b037f1db43e57fb604529ab47c850db42fcf56108e1c1d36c301405bc9&uri=v1/user/polling&signsafe=b823bfdcb039c297054ca1a107923230",
+    "https://miao.baidu.com/abdr?data=%7B%22data%22%3A%22YT%2B2%2FKMr%2BOcRPZ3tkk1GP7fKl4WokfCVMxU%2B3hUvrsTSifLNPtHKDN4EgcBNOdDUuOFtECoPkZCr2vNvuDIPeMtzLrtflJGOiv8XBjErOb1AdWhhdEhgXbbPncdKT1%2Fv%2B2BEnoGDFT9k%2FdKqV%2BIvsJpVHd61HcCBJajp2m8asScOOwB%2BT1nfOrkuxMdrYiTDIzqc4GGKKQgXd%2BFcwb2DDgNb09H1raU4clzJuGGrP8Nou6w%2FJ8uUcFqbCLJq54RRGv3jCP4tFOc8GhQiTHUYeSy3X4IIFxmSfzHAWXJkls%2BnpfdX3kgKKnsziIgT79M%2BRzdr9KmIFnKi2WFcJFkGKA8MnJwAVmli0uhDooy6xICLf%2BJfPcLFtY%2BP1PjIeEe0WcB2DBmavpYJY3BhfIgIuabViYWF6mLbAV6ZwgK%2FMWnWrLzkhayTK9JMDVqRCjG5MkuQIrOSzv8fcUTOSoIMmHTfE433HU5bGE39NB1YDUX%2Femyr9TVSKKCqWXfbsnMry3SpkWIwfaA5THaQB0qrGyxcXallOpsDUO7eWOzfoCshuFFZJ15cL%2Fh%2Fi6PY8ifiA00ECiguMZLPPJyBDHD%2BzGRKFvMZD2QMpToWQdPXEAsCdSLNU3JdyqKOAuCCCQCheDEteTkjIgs0eMJHh6naF8ajF5wfc81NUOq8Z4p9ESgp7ME5iTpu%2BsoDsFIVvjWrsBBuwTsWBfJqR5cX3cLutDcx3KdHf0L2yBaKbd1IC%2BSPxigPHYs4XbT08Juj%2B%2FSX%2FJklEBv1fsFuYvpEIalUryIaEYFwLa4c6EFvS%2FD4IV%2Byz3SHjNuXgvzPnOZMqeWziJoK%2FnAMrmA2JOuP6S5f8g%3D%3D%22%2C%22key_id%22%3A%2235191cdfa1bf4721%22%2C%22enc%22%3A2%7D&_=0.4537033360683633",
+    "https://api-gaokao.zjzw.cn/apidata/web?autosign=&platform=2&sign=93b67fb76aa6c5caef002ea4ba8505122cb9195b6686f44ec576b46187db231e991b5bc0df02ce486fcda64da54741d66bb1ca2b7e7b7315f5425e1b9e11888336124074ed765aa79ee45660475da65432678d6944412ea96982d371b7a2f7d19acd23c5818a862199cf9f98618754f0&uri=v1/user/polling&signsafe=3634e4036d193ffe2f3e4db9b7482ece"
+  ]
+}

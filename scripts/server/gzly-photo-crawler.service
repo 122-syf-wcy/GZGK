@@ -1,0 +1,24 @@
+[Unit]
+Description=GZLY Campus Photo Crawler
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/gzly_scraper
+Environment=PHOTO_WORKERS=3
+Environment=PHOTO_CHECKPOINT_EVERY=10
+Environment=PHOTO_RESTART_DELAY_SECONDS=30
+Environment=PHOTO_PROXY=http://127.0.0.1:7890
+Environment=PHOTO_SYNC_HOST=39.97.232.141
+Environment=PHOTO_SYNC_USER=root
+Environment=PHOTO_SYNC_PORT=22
+Environment=PHOTO_SYNC_KEY=/root/.ssh/gzly_sync_ed25519
+Environment=PHOTO_SYNC_REMOTE_PATH=/opt/gzly/frontend/dist/school_photos.json
+ExecStart=/bin/bash /root/gzly_scraper/server/photo_scraper_foreground.sh
+StandardOutput=append:/root/gzly_scraper/data/universities/photo_crawler.log
+StandardError=append:/root/gzly_scraper/data/universities/photo_crawler.err
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

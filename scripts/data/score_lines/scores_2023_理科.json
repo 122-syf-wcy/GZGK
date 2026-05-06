@@ -1,0 +1,46 @@
+[
+  {
+    "school_id": "3881",
+    "university_name": "海南热带海洋学院国际学院",
+    "year": 2023,
+    "subject_type": "理科",
+    "batch": "本科一批",
+    "recruit_type": "普通类",
+    "min_score": 499,
+    "min_rank": 30106,
+    "type_code": "1"
+  },
+  {
+    "school_id": "3881",
+    "university_name": "海南热带海洋学院国际学院",
+    "year": 2023,
+    "subject_type": "理科",
+    "batch": "国家专项计划本科批",
+    "recruit_type": "普通类",
+    "min_score": 506,
+    "min_rank": 27024,
+    "type_code": "1"
+  },
+  {
+    "school_id": "3828",
+    "university_name": "北京交通大学（威海校区）",
+    "year": 2023,
+    "subject_type": "理科",
+    "batch": "本科一批",
+    "recruit_type": "普通类",
+    "min_score": 499,
+    "min_rank": 30106,
+    "type_code": "1"
+  },
+  {
+    "school_id": "3828",
+    "university_name": "北京交通大学（威海校区）",
+    "year": 2023,
+    "subject_type": "理科",
+    "batch": "国家专项计划本科批",
+    "recruit_type": "普通类",
+    "min_score": 506,
+    "min_rank": 27024,
+    "type_code": "1"
+  }
+]

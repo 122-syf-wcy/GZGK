@@ -1,0 +1,10 @@
+{
+  "year": 2025,
+  "sourcePageUrl": "http://zb.xyc.edu.cn/info/1013/4761.htm",
+  "sourceUrl": "http://zb.xyc.edu.cn/info/1013/4761.htm",
+  "sourceHash": "7e6c524915b12a776c139d0ed0858ee903946f4daa47d80ac450d45ccc325d30",
+  "sourceLevel": "school_verified",
+  "parseMethod": "manual_verified_html",
+  "preserveNonEmpty": true,
+  "csvText": "schoolId,universityName,groupCode,groupName,subjectType,firstSubjectRequirement,resubjectRequirement,minScore,minRank,planCount,batch\n891,新余学院,101,新余学院历史类101组,历史类,历史,,528,,,普通本科批B段\n891,新余学院,102,新余学院历史类102组,历史类,历史,,528,,,普通本科批B段\n891,新余学院,101,新余学院物理类101组,物理类,物理,,491,,,普通本科批B段\n891,新余学院,102,新余学院物理类102组,物理类,物理,,507,,,普通本科批B段\n891,新余学院,103,新余学院物理类103组,物理类,物理,,506,,,普通本科批B段\n"
+}

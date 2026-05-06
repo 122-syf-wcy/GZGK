@@ -1,0 +1,22 @@
+[Unit]
+Description=GZLY Data Gap Supplement Pipeline
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/gzly_scraper
+EnvironmentFile=/etc/gzly/data-gap-supplement.env
+Environment=WORK_DIR=/root/gzly_scraper
+Environment=SCOPE=official-missing
+Environment=LIMIT=200
+Environment=WORKERS=3
+Environment=DELAY=1.2
+Environment=CHECKPOINT_EVERY=20
+Environment=RUN_IMPORTER=0
+Environment=CLEAR_CHECKPOINT=0
+Environment=DB_NAME=gzly
+Environment=DB_USER=root
+Environment=DB_HOST=127.0.0.1
+Environment=DB_PORT=3306
+ExecStart=/bin/bash /root/gzly_scraper/server/run_data_gap_supplement.sh

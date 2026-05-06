@@ -1,0 +1,226 @@
+{
+  "count": 44,
+  "items": [
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-01.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-02.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-03.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-04.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-05.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-06.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-07.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-08.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-09.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-10.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-11.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-12.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-13.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-14.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-15.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-16.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-17.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-历史类-18.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-01.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-02.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-03.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-04.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-05.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-06.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-07.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-08.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-09.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-10.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-11.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-12.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-13.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-14.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-15.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-16.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-17.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-18.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "score_rank",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/score-rank-物理类-19.json",
+      "endpoint": "/score-rank/import"
+    },
+    {
+      "kind": "group-lines",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/group-lines-001.json",
+      "endpoint": "/group-lines/import"
+    },
+    {
+      "kind": "group-lines",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/group-lines-002.json",
+      "endpoint": "/group-lines/import"
+    },
+    {
+      "kind": "group-lines",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/group-lines-003.json",
+      "endpoint": "/group-lines/import"
+    },
+    {
+      "kind": "group-lines",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/group-lines-004.json",
+      "endpoint": "/group-lines/import"
+    },
+    {
+      "kind": "group-plans",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/group-plans-001.json",
+      "endpoint": "/group-plans/import"
+    },
+    {
+      "kind": "group-plans",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/group-plans-002.json",
+      "endpoint": "/group-plans/import"
+    },
+    {
+      "kind": "group-plans",
+      "path": "/root/gzly_scraper/sichuan_2025/payloads/group-plans-003.json",
+      "endpoint": "/group-plans/import"
+    }
+  ],
+  "note": "Payloads are for dry-run first. Do not import until dry-run rejected=0, sources are manually verified, and CONFIRM_SICHUAN_IMPORT is set."
+}

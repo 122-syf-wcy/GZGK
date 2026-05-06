@@ -1,0 +1,11 @@
+[Unit]
+Description=Run GZLY data gap supplement pipeline daily
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=gzly-data-gap-supplement.service
+
+[Install]
+WantedBy=timers.target
+

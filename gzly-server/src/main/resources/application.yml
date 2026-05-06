@@ -1,0 +1,123 @@
+server:
+  port: 8082
+  compression:
+    enabled: true
+    min-response-size: 2048
+    mime-types: application/json,text/html,text/plain,text/css,application/javascript,application/xml,text/xml
+  servlet:
+    context-path: /api
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 20
+    accept-count: 200
+    max-connections: 8192
+
+spring:
+  application:
+    name: gzly-server
+
+  # ---- MySQL ----
+  datasource:
+    url: jdbc:mysql://localhost:3306/gzly?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${GZLY_DB_USERNAME:root}
+    password: ${GZLY_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 600000
+
+  # ---- Redis ----
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      database: 0
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+
+  # ---- Multipart ----
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 20MB
+
+  # ---- Jackson ----
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+# ---- MyBatis-Plus ----
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    db-config:
+      id-type: auto
+      # logic-delete disabled - no tables use deleted column
+
+# ---- JWT ----
+gzly:
+  jwt:
+    secret: ${GZLY_JWT_SECRET:}
+    expire-hours: 168
+    admin-expire-hours: ${GZLY_ADMIN_JWT_EXPIRE_HOURS:8}
+
+  admin:
+    password: ${GZLY_ADMIN_PASSWORD:}
+    password-hash: ${GZLY_ADMIN_PASSWORD_HASH:}
+    login-lock-limit: ${GZLY_ADMIN_LOGIN_LOCK_LIMIT:5}
+    login-window-seconds: ${GZLY_ADMIN_LOGIN_WINDOW_SECONDS:300}
+    login-lock-seconds: ${GZLY_ADMIN_LOGIN_LOCK_SECONDS:900}
+
+  # ---- AI (OpenAI 格式) ----
+  ai:
+    base-url: ${GZLY_AI_BASE_URL:}
+    api-key: ${GZLY_AI_API_KEY:}
+    model: ${GZLY_AI_MODEL:gpt-4o-mini}
+    max-tokens: 2000
+    temperature: 0.7
+    system-prompt: >
+      你是一名资深的贵州省高考志愿填报顾问。请基于提供的志愿方案数据，给出专业的匹配度分析和风险复核建议。
+      注意：严禁出现结果承诺和绝对化措辞，必须提醒考生结合官方指南自主决策。
+
+  ml:
+    enabled: ${GZLY_ML_ENABLED:false}
+    base-url: ${GZLY_ML_BASE_URL:http://127.0.0.1:8091}
+    timeout-ms: ${GZLY_ML_TIMEOUT_MS:1200}
+
+  skills:
+    local-path: ${GZLY_SKILLS_LOCAL_PATH:/root/zhangxuefeng-skills}
+
+  # ---- 缓存 TTL (秒) ----
+  cache:
+    university-ttl: 86400
+    score-line-ttl: 86400
+
+  rate-limit:
+    enabled: true
+    volunteer-generate-limit: 10
+    volunteer-generate-window-seconds: 60
+    ai-analysis-limit: 6
+    ai-analysis-window-seconds: 60
+    feedback-limit: 5
+    feedback-window-seconds: 600
+    encouragement-limit: 6
+    encouragement-window-seconds: 600
+    auth-login-limit: 5
+    auth-login-window-seconds: 300
+    qa-submit-limit: 10
+    qa-submit-window-seconds: 600
+    qa-like-limit: 60
+    qa-like-window-seconds: 600
+    algorithm-limit: 120
+    algorithm-window-seconds: 60

@@ -1,0 +1,7022 @@
+[
+  {
+    "school_id": "3881",
+    "university_name": "海南热带海洋学院国际学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 413,
+    "min_rank": 134931
+  },
+  {
+    "school_id": "3881",
+    "university_name": "海南热带海洋学院国际学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 413,
+    "min_rank": 134931
+  },
+  {
+    "school_id": "3881",
+    "university_name": "海南热带海洋学院国际学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 413,
+    "min_rank": 134931
+  },
+  {
+    "school_id": "3881",
+    "university_name": "海南热带海洋学院国际学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 413,
+    "min_rank": 134931
+  },
+  {
+    "school_id": "3881",
+    "university_name": "海南热带海洋学院国际学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 413,
+    "min_rank": 134931
+  },
+  {
+    "school_id": "3881",
+    "university_name": "海南热带海洋学院国际学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 413,
+    "min_rank": 134931
+  },
+  {
+    "school_id": "3828",
+    "university_name": "北京交通大学（威海校区）",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 542,
+    "min_rank": 26910
+  },
+  {
+    "school_id": "3828",
+    "university_name": "北京交通大学（威海校区）",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 542,
+    "min_rank": 26910
+  },
+  {
+    "school_id": "3828",
+    "university_name": "北京交通大学（威海校区）",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 542,
+    "min_rank": 26910
+  },
+  {
+    "school_id": "3828",
+    "university_name": "北京交通大学（威海校区）",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 542,
+    "min_rank": 26910
+  },
+  {
+    "school_id": "3828",
+    "university_name": "北京交通大学（威海校区）",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 542,
+    "min_rank": 26910
+  },
+  {
+    "school_id": "3828",
+    "university_name": "北京交通大学（威海校区）",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 542,
+    "min_rank": 26910
+  },
+  {
+    "school_id": "3825",
+    "university_name": "北京师范大学（珠海校区）",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 630,
+    "min_rank": 2301
+  },
+  {
+    "school_id": "3825",
+    "university_name": "北京师范大学（珠海校区）",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科提前批C段",
+    "recruit_type": "优师专项",
+    "min_score": 603,
+    "min_rank": 6469
+  },
+  {
+    "school_id": "3825",
+    "university_name": "北京师范大学（珠海校区）",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 630,
+    "min_rank": 2301
+  },
+  {
+    "school_id": "3825",
+    "university_name": "北京师范大学（珠海校区）",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科提前批C段",
+    "recruit_type": "优师专项",
+    "min_score": 603,
+    "min_rank": 6469
+  },
+  {
+    "school_id": "3825",
+    "university_name": "北京师范大学（珠海校区）",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 630,
+    "min_rank": 2301
+  },
+  {
+    "school_id": "3825",
+    "university_name": "北京师范大学（珠海校区）",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科提前批C段",
+    "recruit_type": "优师专项",
+    "min_score": 603,
+    "min_rank": 6469
+  },
+  {
+    "school_id": "3825",
+    "university_name": "北京师范大学（珠海校区）",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 630,
+    "min_rank": 2301
+  },
+  {
+    "school_id": "3825",
+    "university_name": "北京师范大学（珠海校区）",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科提前批C段",
+    "recruit_type": "优师专项",
+    "min_score": 603,
+    "min_rank": 6469
+  },
+  {
+    "school_id": "3825",
+    "university_name": "北京师范大学（珠海校区）",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 630,
+    "min_rank": 2301
+  },
+  {
+    "school_id": "3825",
+    "university_name": "北京师范大学（珠海校区）",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科提前批C段",
+    "recruit_type": "优师专项",
+    "min_score": 603,
+    "min_rank": 6469
+  },
+  {
+    "school_id": "3825",
+    "university_name": "北京师范大学（珠海校区）",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科提前批B段",
+    "recruit_type": "高校专项计划",
+    "min_score": 630,
+    "min_rank": 2301
+  },
+  {
+    "school_id": "3825",
+    "university_name": "北京师范大学（珠海校区）",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科提前批C段",
+    "recruit_type": "优师专项",
+    "min_score": 603,
+    "min_rank": 6469
+  },
+  {
+    "school_id": "3808",
+    "university_name": "日喀则职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 325,
+    "min_rank": 191657
+  },
+  {
+    "school_id": "3808",
+    "university_name": "日喀则职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 341,
+    "min_rank": 185626
+  },
+  {
+    "school_id": "3808",
+    "university_name": "日喀则职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 325,
+    "min_rank": 191657
+  },
+  {
+    "school_id": "3808",
+    "university_name": "日喀则职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 341,
+    "min_rank": 185626
+  },
+  {
+    "school_id": "3808",
+    "university_name": "日喀则职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 325,
+    "min_rank": 191657
+  },
+  {
+    "school_id": "3808",
+    "university_name": "日喀则职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 341,
+    "min_rank": 185626
+  },
+  {
+    "school_id": "3808",
+    "university_name": "日喀则职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 325,
+    "min_rank": 191657
+  },
+  {
+    "school_id": "3808",
+    "university_name": "日喀则职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 341,
+    "min_rank": 185626
+  },
+  {
+    "school_id": "3808",
+    "university_name": "日喀则职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 325,
+    "min_rank": 191657
+  },
+  {
+    "school_id": "3808",
+    "university_name": "日喀则职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 341,
+    "min_rank": 185626
+  },
+  {
+    "school_id": "3808",
+    "university_name": "日喀则职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 325,
+    "min_rank": 191657
+  },
+  {
+    "school_id": "3808",
+    "university_name": "日喀则职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 341,
+    "min_rank": 185626
+  },
+  {
+    "school_id": "3806",
+    "university_name": "重庆安防职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 232,
+    "min_rank": 204424
+  },
+  {
+    "school_id": "3806",
+    "university_name": "重庆安防职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 232,
+    "min_rank": 204424
+  },
+  {
+    "school_id": "3806",
+    "university_name": "重庆安防职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 232,
+    "min_rank": 204424
+  },
+  {
+    "school_id": "3806",
+    "university_name": "重庆安防职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 232,
+    "min_rank": 204424
+  },
+  {
+    "school_id": "3806",
+    "university_name": "重庆安防职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 232,
+    "min_rank": 204424
+  },
+  {
+    "school_id": "3806",
+    "university_name": "重庆安防职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 232,
+    "min_rank": 204424
+  },
+  {
+    "school_id": "3751",
+    "university_name": "鹰潭卫生职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 357,
+    "min_rank": 77089
+  },
+  {
+    "school_id": "3751",
+    "university_name": "鹰潭卫生职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 357,
+    "min_rank": 77089
+  },
+  {
+    "school_id": "3751",
+    "university_name": "鹰潭卫生职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 357,
+    "min_rank": 77089
+  },
+  {
+    "school_id": "3751",
+    "university_name": "鹰潭卫生职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 357,
+    "min_rank": 77089
+  },
+  {
+    "school_id": "3751",
+    "university_name": "鹰潭卫生职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 357,
+    "min_rank": 77089
+  },
+  {
+    "school_id": "3751",
+    "university_name": "鹰潭卫生职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 357,
+    "min_rank": 77089
+  },
+  {
+    "school_id": "3739",
+    "university_name": "三亚护理职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 180,
+    "min_rank": 204980
+  },
+  {
+    "school_id": "3739",
+    "university_name": "三亚护理职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 180,
+    "min_rank": 204980
+  },
+  {
+    "school_id": "3739",
+    "university_name": "三亚护理职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 180,
+    "min_rank": 204980
+  },
+  {
+    "school_id": "3739",
+    "university_name": "三亚护理职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 180,
+    "min_rank": 204980
+  },
+  {
+    "school_id": "3739",
+    "university_name": "三亚护理职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 180,
+    "min_rank": 204980
+  },
+  {
+    "school_id": "3739",
+    "university_name": "三亚护理职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 180,
+    "min_rank": 204980
+  },
+  {
+    "school_id": "3733",
+    "university_name": "广西智能制造职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 250,
+    "min_rank": 203676
+  },
+  {
+    "school_id": "3733",
+    "university_name": "广西智能制造职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 250,
+    "min_rank": 203676
+  },
+  {
+    "school_id": "3733",
+    "university_name": "广西智能制造职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 250,
+    "min_rank": 203676
+  },
+  {
+    "school_id": "3733",
+    "university_name": "广西智能制造职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 250,
+    "min_rank": 203676
+  },
+  {
+    "school_id": "3733",
+    "university_name": "广西智能制造职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 250,
+    "min_rank": 203676
+  },
+  {
+    "school_id": "3733",
+    "university_name": "广西智能制造职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 250,
+    "min_rank": 203676
+  },
+  {
+    "school_id": "3731",
+    "university_name": "青海理工学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 491,
+    "min_rank": 59257
+  },
+  {
+    "school_id": "3731",
+    "university_name": "青海理工学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 491,
+    "min_rank": 59257
+  },
+  {
+    "school_id": "3731",
+    "university_name": "青海理工学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 491,
+    "min_rank": 59257
+  },
+  {
+    "school_id": "3731",
+    "university_name": "青海理工学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 491,
+    "min_rank": 59257
+  },
+  {
+    "school_id": "3731",
+    "university_name": "青海理工学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 491,
+    "min_rank": 59257
+  },
+  {
+    "school_id": "3731",
+    "university_name": "青海理工学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 491,
+    "min_rank": 59257
+  },
+  {
+    "school_id": "3728",
+    "university_name": "海南医科大学西英格兰学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 433,
+    "min_rank": 107506
+  },
+  {
+    "school_id": "3728",
+    "university_name": "海南医科大学西英格兰学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 433,
+    "min_rank": 107506
+  },
+  {
+    "school_id": "3728",
+    "university_name": "海南医科大学西英格兰学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 433,
+    "min_rank": 107506
+  },
+  {
+    "school_id": "3728",
+    "university_name": "海南医科大学西英格兰学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 433,
+    "min_rank": 107506
+  },
+  {
+    "school_id": "3728",
+    "university_name": "海南医科大学西英格兰学院",
+    "year": 2024,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 433,
+    "min_rank": 107506
+  },
+  {
+    "school_id": "3728",
+    "university_name": "海南医科大学西英格兰学院",
+    "year": 2024,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 433,
+    "min_rank": 107506
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 438,
+    "min_rank": 109536
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 227,
+    "min_rank": 204537
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 222,
+    "min_rank": 204658
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 438,
+    "min_rank": 109536
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 227,
+    "min_rank": 204537
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 222,
+    "min_rank": 204658
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 438,
+    "min_rank": 109536
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 227,
+    "min_rank": 204537
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 222,
+    "min_rank": 204658
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 438,
+    "min_rank": 109536
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 227,
+    "min_rank": 204537
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 222,
+    "min_rank": 204658
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 438,
+    "min_rank": 109536
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 227,
+    "min_rank": 204537
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 222,
+    "min_rank": 204658
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 438,
+    "min_rank": 109536
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 227,
+    "min_rank": 204537
+  },
+  {
+    "school_id": "3705",
+    "university_name": "新疆和田学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 222,
+    "min_rank": 204658
+  },
+  {
+    "school_id": "3701",
+    "university_name": "黔东南理工职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 181,
+    "min_rank": 204975
+  },
+  {
+    "school_id": "3701",
+    "university_name": "黔东南理工职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 181,
+    "min_rank": 204975
+  },
+  {
+    "school_id": "3701",
+    "university_name": "黔东南理工职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 181,
+    "min_rank": 204975
+  },
+  {
+    "school_id": "3701",
+    "university_name": "黔东南理工职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 181,
+    "min_rank": 204975
+  },
+  {
+    "school_id": "3701",
+    "university_name": "黔东南理工职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 181,
+    "min_rank": 204975
+  },
+  {
+    "school_id": "3701",
+    "university_name": "黔东南理工职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 181,
+    "min_rank": 204975
+  },
+  {
+    "school_id": "3700",
+    "university_name": "贵州生态能源职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 192,
+    "min_rank": 204943
+  },
+  {
+    "school_id": "3700",
+    "university_name": "贵州生态能源职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 192,
+    "min_rank": 204943
+  },
+  {
+    "school_id": "3700",
+    "university_name": "贵州生态能源职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 192,
+    "min_rank": 204943
+  },
+  {
+    "school_id": "3700",
+    "university_name": "贵州生态能源职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 192,
+    "min_rank": 204943
+  },
+  {
+    "school_id": "3700",
+    "university_name": "贵州生态能源职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 192,
+    "min_rank": 204943
+  },
+  {
+    "school_id": "3700",
+    "university_name": "贵州生态能源职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 192,
+    "min_rank": 204943
+  },
+  {
+    "school_id": "3693",
+    "university_name": "贵州传媒职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 189,
+    "min_rank": 204954
+  },
+  {
+    "school_id": "3693",
+    "university_name": "贵州传媒职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 189,
+    "min_rank": 204954
+  },
+  {
+    "school_id": "3693",
+    "university_name": "贵州传媒职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 189,
+    "min_rank": 204954
+  },
+  {
+    "school_id": "3693",
+    "university_name": "贵州传媒职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 189,
+    "min_rank": 204954
+  },
+  {
+    "school_id": "3693",
+    "university_name": "贵州传媒职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 189,
+    "min_rank": 204954
+  },
+  {
+    "school_id": "3693",
+    "university_name": "贵州传媒职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 189,
+    "min_rank": 204954
+  },
+  {
+    "school_id": "3681",
+    "university_name": "重庆数字产业职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 333,
+    "min_rank": 188818
+  },
+  {
+    "school_id": "3681",
+    "university_name": "重庆数字产业职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 333,
+    "min_rank": 188818
+  },
+  {
+    "school_id": "3681",
+    "university_name": "重庆数字产业职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 333,
+    "min_rank": 188818
+  },
+  {
+    "school_id": "3681",
+    "university_name": "重庆数字产业职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 333,
+    "min_rank": 188818
+  },
+  {
+    "school_id": "3681",
+    "university_name": "重庆数字产业职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 333,
+    "min_rank": 188818
+  },
+  {
+    "school_id": "3681",
+    "university_name": "重庆数字产业职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 333,
+    "min_rank": 188818
+  },
+  {
+    "school_id": "3680",
+    "university_name": "阿克苏工业职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 379,
+    "min_rank": 163615
+  },
+  {
+    "school_id": "3680",
+    "university_name": "阿克苏工业职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 379,
+    "min_rank": 163615
+  },
+  {
+    "school_id": "3680",
+    "university_name": "阿克苏工业职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 379,
+    "min_rank": 163615
+  },
+  {
+    "school_id": "3680",
+    "university_name": "阿克苏工业职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 379,
+    "min_rank": 163615
+  },
+  {
+    "school_id": "3680",
+    "university_name": "阿克苏工业职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 379,
+    "min_rank": 163615
+  },
+  {
+    "school_id": "3680",
+    "university_name": "阿克苏工业职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 379,
+    "min_rank": 163615
+  },
+  {
+    "school_id": "3679",
+    "university_name": "新疆司法警官职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 401,
+    "min_rank": 145222
+  },
+  {
+    "school_id": "3679",
+    "university_name": "新疆司法警官职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 401,
+    "min_rank": 145222
+  },
+  {
+    "school_id": "3679",
+    "university_name": "新疆司法警官职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 401,
+    "min_rank": 145222
+  },
+  {
+    "school_id": "3679",
+    "university_name": "新疆司法警官职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 401,
+    "min_rank": 145222
+  },
+  {
+    "school_id": "3679",
+    "university_name": "新疆司法警官职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 401,
+    "min_rank": 145222
+  },
+  {
+    "school_id": "3679",
+    "university_name": "新疆司法警官职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 401,
+    "min_rank": 145222
+  },
+  {
+    "school_id": "3678",
+    "university_name": "遂宁职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 278,
+    "min_rank": 205418
+  },
+  {
+    "school_id": "3678",
+    "university_name": "遂宁职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 278,
+    "min_rank": 205418
+  },
+  {
+    "school_id": "3678",
+    "university_name": "遂宁职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 278,
+    "min_rank": 205418
+  },
+  {
+    "school_id": "3678",
+    "university_name": "遂宁职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 278,
+    "min_rank": 205418
+  },
+  {
+    "school_id": "3678",
+    "university_name": "遂宁职业学院",
+    "year": 2024,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 278,
+    "min_rank": 205418
+  },
+  {
+    "school_id": "3678",
+    "university_name": "遂宁职业学院",
+    "year": 2024,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 278,
+    "min_rank": 205418
+  },
+  {
+    "school_id": "3677",
+    "university_name": "遂宁工程职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 331,
+    "min_rank": 189722
+  },
+  {
+    "school_id": "3677",
+    "university_name": "遂宁工程职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 331,
+    "min_rank": 189722
+  },
+  {
+    "school_id": "3677",
+    "university_name": "遂宁工程职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 331,
+    "min_rank": 189722
+  },
+  {
+    "school_id": "3677",
+    "university_name": "遂宁工程职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 331,
+    "min_rank": 189722
+  },
+  {
+    "school_id": "3677",
+    "university_name": "遂宁工程职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 331,
+    "min_rank": 189722
+  },
+  {
+    "school_id": "3677",
+    "university_name": "遂宁工程职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 331,
+    "min_rank": 189722
+  },
+  {
+    "school_id": "3674",
+    "university_name": "香港科技大学（广州）",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科提前批B段",
+    "recruit_type": "中外合作办学",
+    "min_score": 626,
+    "min_rank": 2803
+  },
+  {
+    "school_id": "3674",
+    "university_name": "香港科技大学（广州）",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科提前批B段",
+    "recruit_type": "中外合作办学",
+    "min_score": 626,
+    "min_rank": 2803
+  },
+  {
+    "school_id": "3674",
+    "university_name": "香港科技大学（广州）",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科提前批B段",
+    "recruit_type": "中外合作办学",
+    "min_score": 626,
+    "min_rank": 2803
+  },
+  {
+    "school_id": "3674",
+    "university_name": "香港科技大学（广州）",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科提前批B段",
+    "recruit_type": "中外合作办学",
+    "min_score": 626,
+    "min_rank": 2803
+  },
+  {
+    "school_id": "3674",
+    "university_name": "香港科技大学（广州）",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科提前批B段",
+    "recruit_type": "中外合作办学",
+    "min_score": 626,
+    "min_rank": 2803
+  },
+  {
+    "school_id": "3674",
+    "university_name": "香港科技大学（广州）",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科提前批B段",
+    "recruit_type": "中外合作办学",
+    "min_score": 626,
+    "min_rank": 2803
+  },
+  {
+    "school_id": "3672",
+    "university_name": "襄阳科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 261,
+    "min_rank": 202953
+  },
+  {
+    "school_id": "3672",
+    "university_name": "襄阳科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 261,
+    "min_rank": 202953
+  },
+  {
+    "school_id": "3672",
+    "university_name": "襄阳科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 261,
+    "min_rank": 202953
+  },
+  {
+    "school_id": "3672",
+    "university_name": "襄阳科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 261,
+    "min_rank": 202953
+  },
+  {
+    "school_id": "3672",
+    "university_name": "襄阳科技职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 261,
+    "min_rank": 202953
+  },
+  {
+    "school_id": "3672",
+    "university_name": "襄阳科技职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 261,
+    "min_rank": 202953
+  },
+  {
+    "school_id": "3665",
+    "university_name": "濮阳科技职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 276,
+    "min_rank": 205818
+  },
+  {
+    "school_id": "3665",
+    "university_name": "濮阳科技职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 276,
+    "min_rank": 205818
+  },
+  {
+    "school_id": "3665",
+    "university_name": "濮阳科技职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 276,
+    "min_rank": 205818
+  },
+  {
+    "school_id": "3665",
+    "university_name": "濮阳科技职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 276,
+    "min_rank": 205818
+  },
+  {
+    "school_id": "3665",
+    "university_name": "濮阳科技职业学院",
+    "year": 2024,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 276,
+    "min_rank": 205818
+  },
+  {
+    "school_id": "3665",
+    "university_name": "濮阳科技职业学院",
+    "year": 2024,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 276,
+    "min_rank": 205818
+  },
+  {
+    "school_id": "3653",
+    "university_name": "喀什理工职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 224,
+    "min_rank": 204597
+  },
+  {
+    "school_id": "3653",
+    "university_name": "喀什理工职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 224,
+    "min_rank": 204597
+  },
+  {
+    "school_id": "3653",
+    "university_name": "喀什理工职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 224,
+    "min_rank": 204597
+  },
+  {
+    "school_id": "3653",
+    "university_name": "喀什理工职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 224,
+    "min_rank": 204597
+  },
+  {
+    "school_id": "3653",
+    "university_name": "喀什理工职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 224,
+    "min_rank": 204597
+  },
+  {
+    "school_id": "3653",
+    "university_name": "喀什理工职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 224,
+    "min_rank": 204597
+  },
+  {
+    "school_id": "3651",
+    "university_name": "桂林信息工程职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 256,
+    "min_rank": 209144
+  },
+  {
+    "school_id": "3651",
+    "university_name": "桂林信息工程职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 256,
+    "min_rank": 209144
+  },
+  {
+    "school_id": "3651",
+    "university_name": "桂林信息工程职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 256,
+    "min_rank": 209144
+  },
+  {
+    "school_id": "3651",
+    "university_name": "桂林信息工程职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 256,
+    "min_rank": 209144
+  },
+  {
+    "school_id": "3651",
+    "university_name": "桂林信息工程职业学院",
+    "year": 2024,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 256,
+    "min_rank": 209144
+  },
+  {
+    "school_id": "3651",
+    "university_name": "桂林信息工程职业学院",
+    "year": 2024,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 256,
+    "min_rank": 209144
+  },
+  {
+    "school_id": "3649",
+    "university_name": "郴州思科职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 374,
+    "min_rank": 72330
+  },
+  {
+    "school_id": "3649",
+    "university_name": "郴州思科职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 374,
+    "min_rank": 72330
+  },
+  {
+    "school_id": "3649",
+    "university_name": "郴州思科职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 374,
+    "min_rank": 72330
+  },
+  {
+    "school_id": "3649",
+    "university_name": "郴州思科职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 374,
+    "min_rank": 72330
+  },
+  {
+    "school_id": "3649",
+    "university_name": "郴州思科职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 374,
+    "min_rank": 72330
+  },
+  {
+    "school_id": "3649",
+    "university_name": "郴州思科职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 374,
+    "min_rank": 72330
+  },
+  {
+    "school_id": "3648",
+    "university_name": "岳阳现代服务职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 225,
+    "min_rank": 204584
+  },
+  {
+    "school_id": "3648",
+    "university_name": "岳阳现代服务职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 225,
+    "min_rank": 204584
+  },
+  {
+    "school_id": "3648",
+    "university_name": "岳阳现代服务职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 225,
+    "min_rank": 204584
+  },
+  {
+    "school_id": "3648",
+    "university_name": "岳阳现代服务职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 225,
+    "min_rank": 204584
+  },
+  {
+    "school_id": "3648",
+    "university_name": "岳阳现代服务职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 225,
+    "min_rank": 204584
+  },
+  {
+    "school_id": "3648",
+    "university_name": "岳阳现代服务职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 225,
+    "min_rank": 204584
+  },
+  {
+    "school_id": "3646",
+    "university_name": "邵阳工业职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 280,
+    "min_rank": 201018
+  },
+  {
+    "school_id": "3646",
+    "university_name": "邵阳工业职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 280,
+    "min_rank": 201018
+  },
+  {
+    "school_id": "3646",
+    "university_name": "邵阳工业职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 280,
+    "min_rank": 201018
+  },
+  {
+    "school_id": "3646",
+    "university_name": "邵阳工业职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 280,
+    "min_rank": 201018
+  },
+  {
+    "school_id": "3646",
+    "university_name": "邵阳工业职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 280,
+    "min_rank": 201018
+  },
+  {
+    "school_id": "3646",
+    "university_name": "邵阳工业职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 280,
+    "min_rank": 201018
+  },
+  {
+    "school_id": "3645",
+    "university_name": "海南比勒费尔德应用科学大学",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 393,
+    "min_rank": 152169
+  },
+  {
+    "school_id": "3645",
+    "university_name": "海南比勒费尔德应用科学大学",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 393,
+    "min_rank": 152169
+  },
+  {
+    "school_id": "3645",
+    "university_name": "海南比勒费尔德应用科学大学",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 393,
+    "min_rank": 152169
+  },
+  {
+    "school_id": "3645",
+    "university_name": "海南比勒费尔德应用科学大学",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 393,
+    "min_rank": 152169
+  },
+  {
+    "school_id": "3645",
+    "university_name": "海南比勒费尔德应用科学大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 393,
+    "min_rank": 152169
+  },
+  {
+    "school_id": "3645",
+    "university_name": "海南比勒费尔德应用科学大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 393,
+    "min_rank": 152169
+  },
+  {
+    "school_id": "3639",
+    "university_name": "上饶卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 357,
+    "min_rank": 177596
+  },
+  {
+    "school_id": "3639",
+    "university_name": "上饶卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 336,
+    "min_rank": 187492
+  },
+  {
+    "school_id": "3639",
+    "university_name": "上饶卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 357,
+    "min_rank": 177596
+  },
+  {
+    "school_id": "3639",
+    "university_name": "上饶卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 336,
+    "min_rank": 187492
+  },
+  {
+    "school_id": "3639",
+    "university_name": "上饶卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 357,
+    "min_rank": 177596
+  },
+  {
+    "school_id": "3639",
+    "university_name": "上饶卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 336,
+    "min_rank": 187492
+  },
+  {
+    "school_id": "3639",
+    "university_name": "上饶卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 357,
+    "min_rank": 177596
+  },
+  {
+    "school_id": "3639",
+    "university_name": "上饶卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 336,
+    "min_rank": 187492
+  },
+  {
+    "school_id": "3639",
+    "university_name": "上饶卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 357,
+    "min_rank": 177596
+  },
+  {
+    "school_id": "3639",
+    "university_name": "上饶卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 336,
+    "min_rank": 187492
+  },
+  {
+    "school_id": "3639",
+    "university_name": "上饶卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 357,
+    "min_rank": 177596
+  },
+  {
+    "school_id": "3639",
+    "university_name": "上饶卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 336,
+    "min_rank": 187492
+  },
+  {
+    "school_id": "3637",
+    "university_name": "吉安幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 79012
+  },
+  {
+    "school_id": "3637",
+    "university_name": "吉安幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 79012
+  },
+  {
+    "school_id": "3637",
+    "university_name": "吉安幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 79012
+  },
+  {
+    "school_id": "3637",
+    "university_name": "吉安幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 79012
+  },
+  {
+    "school_id": "3637",
+    "university_name": "吉安幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 79012
+  },
+  {
+    "school_id": "3637",
+    "university_name": "吉安幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 79012
+  },
+  {
+    "school_id": "3636",
+    "university_name": "昆玉职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 261,
+    "min_rank": 202964
+  },
+  {
+    "school_id": "3636",
+    "university_name": "昆玉职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 261,
+    "min_rank": 202964
+  },
+  {
+    "school_id": "3636",
+    "university_name": "昆玉职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 261,
+    "min_rank": 202964
+  },
+  {
+    "school_id": "3636",
+    "university_name": "昆玉职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 261,
+    "min_rank": 202964
+  },
+  {
+    "school_id": "3636",
+    "university_name": "昆玉职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 261,
+    "min_rank": 202964
+  },
+  {
+    "school_id": "3636",
+    "university_name": "昆玉职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 261,
+    "min_rank": 202964
+  },
+  {
+    "school_id": "3635",
+    "university_name": "贵州铜仁数据职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 186,
+    "min_rank": 204959
+  },
+  {
+    "school_id": "3635",
+    "university_name": "贵州铜仁数据职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 186,
+    "min_rank": 204959
+  },
+  {
+    "school_id": "3635",
+    "university_name": "贵州铜仁数据职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 186,
+    "min_rank": 204959
+  },
+  {
+    "school_id": "3635",
+    "university_name": "贵州铜仁数据职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 186,
+    "min_rank": 204959
+  },
+  {
+    "school_id": "3635",
+    "university_name": "贵州铜仁数据职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 186,
+    "min_rank": 204959
+  },
+  {
+    "school_id": "3635",
+    "university_name": "贵州铜仁数据职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 186,
+    "min_rank": 204959
+  },
+  {
+    "school_id": "3631",
+    "university_name": "宜昌科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 222,
+    "min_rank": 204653
+  },
+  {
+    "school_id": "3631",
+    "university_name": "宜昌科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 222,
+    "min_rank": 204653
+  },
+  {
+    "school_id": "3631",
+    "university_name": "宜昌科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 222,
+    "min_rank": 204653
+  },
+  {
+    "school_id": "3631",
+    "university_name": "宜昌科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 222,
+    "min_rank": 204653
+  },
+  {
+    "school_id": "3631",
+    "university_name": "宜昌科技职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 222,
+    "min_rank": 204653
+  },
+  {
+    "school_id": "3631",
+    "university_name": "宜昌科技职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 222,
+    "min_rank": 204653
+  },
+  {
+    "school_id": "3624",
+    "university_name": "重庆中医药学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 468,
+    "min_rank": 78702
+  },
+  {
+    "school_id": "3624",
+    "university_name": "重庆中医药学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 474,
+    "min_rank": 73589
+  },
+  {
+    "school_id": "3624",
+    "university_name": "重庆中医药学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 468,
+    "min_rank": 78702
+  },
+  {
+    "school_id": "3624",
+    "university_name": "重庆中医药学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 474,
+    "min_rank": 73589
+  },
+  {
+    "school_id": "3624",
+    "university_name": "重庆中医药学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 468,
+    "min_rank": 78702
+  },
+  {
+    "school_id": "3624",
+    "university_name": "重庆中医药学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 474,
+    "min_rank": 73589
+  },
+  {
+    "school_id": "3624",
+    "university_name": "重庆中医药学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 468,
+    "min_rank": 78702
+  },
+  {
+    "school_id": "3624",
+    "university_name": "重庆中医药学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 474,
+    "min_rank": 73589
+  },
+  {
+    "school_id": "3624",
+    "university_name": "重庆中医药学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 468,
+    "min_rank": 78702
+  },
+  {
+    "school_id": "3624",
+    "university_name": "重庆中医药学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 474,
+    "min_rank": 73589
+  },
+  {
+    "school_id": "3624",
+    "university_name": "重庆中医药学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 468,
+    "min_rank": 78702
+  },
+  {
+    "school_id": "3624",
+    "university_name": "重庆中医药学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "护理类",
+    "min_score": 474,
+    "min_rank": 73589
+  },
+  {
+    "school_id": "3612",
+    "university_name": "贵州大学北阿拉巴马国际工程技术学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 491,
+    "min_rank": 58112
+  },
+  {
+    "school_id": "3612",
+    "university_name": "贵州大学北阿拉巴马国际工程技术学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 491,
+    "min_rank": 58112
+  },
+  {
+    "school_id": "3612",
+    "university_name": "贵州大学北阿拉巴马国际工程技术学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 491,
+    "min_rank": 58112
+  },
+  {
+    "school_id": "3612",
+    "university_name": "贵州大学北阿拉巴马国际工程技术学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 491,
+    "min_rank": 58112
+  },
+  {
+    "school_id": "3612",
+    "university_name": "贵州大学北阿拉巴马国际工程技术学院",
+    "year": 2024,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 491,
+    "min_rank": 58112
+  },
+  {
+    "school_id": "3612",
+    "university_name": "贵州大学北阿拉巴马国际工程技术学院",
+    "year": 2024,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 491,
+    "min_rank": 58112
+  },
+  {
+    "school_id": "3608",
+    "university_name": "益阳师范高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 264,
+    "min_rank": 202685
+  },
+  {
+    "school_id": "3608",
+    "university_name": "益阳师范高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 264,
+    "min_rank": 202685
+  },
+  {
+    "school_id": "3608",
+    "university_name": "益阳师范高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 264,
+    "min_rank": 202685
+  },
+  {
+    "school_id": "3608",
+    "university_name": "益阳师范高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 264,
+    "min_rank": 202685
+  },
+  {
+    "school_id": "3608",
+    "university_name": "益阳师范高等专科学校",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 264,
+    "min_rank": 202685
+  },
+  {
+    "school_id": "3608",
+    "university_name": "益阳师范高等专科学校",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 264,
+    "min_rank": 202685
+  },
+  {
+    "school_id": "3607",
+    "university_name": "重庆五一职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 318,
+    "min_rank": 193683
+  },
+  {
+    "school_id": "3607",
+    "university_name": "重庆五一职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 318,
+    "min_rank": 193683
+  },
+  {
+    "school_id": "3607",
+    "university_name": "重庆五一职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 318,
+    "min_rank": 193683
+  },
+  {
+    "school_id": "3607",
+    "university_name": "重庆五一职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 318,
+    "min_rank": 193683
+  },
+  {
+    "school_id": "3607",
+    "university_name": "重庆五一职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 318,
+    "min_rank": 193683
+  },
+  {
+    "school_id": "3607",
+    "university_name": "重庆五一职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 318,
+    "min_rank": 193683
+  },
+  {
+    "school_id": "3605",
+    "university_name": "重庆医科大学莱斯特大学联合学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 531,
+    "min_rank": 32984
+  },
+  {
+    "school_id": "3605",
+    "university_name": "重庆医科大学莱斯特大学联合学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 531,
+    "min_rank": 32984
+  },
+  {
+    "school_id": "3605",
+    "university_name": "重庆医科大学莱斯特大学联合学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 531,
+    "min_rank": 32984
+  },
+  {
+    "school_id": "3605",
+    "university_name": "重庆医科大学莱斯特大学联合学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 531,
+    "min_rank": 32984
+  },
+  {
+    "school_id": "3605",
+    "university_name": "重庆医科大学莱斯特大学联合学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 531,
+    "min_rank": 32984
+  },
+  {
+    "school_id": "3605",
+    "university_name": "重庆医科大学莱斯特大学联合学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 531,
+    "min_rank": 32984
+  },
+  {
+    "school_id": "3602",
+    "university_name": "烟台科技学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 406,
+    "min_rank": 140656
+  },
+  {
+    "school_id": "3602",
+    "university_name": "烟台科技学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 406,
+    "min_rank": 140656
+  },
+  {
+    "school_id": "3602",
+    "university_name": "烟台科技学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 406,
+    "min_rank": 140656
+  },
+  {
+    "school_id": "3602",
+    "university_name": "烟台科技学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 406,
+    "min_rank": 140656
+  },
+  {
+    "school_id": "3602",
+    "university_name": "烟台科技学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 406,
+    "min_rank": 140656
+  },
+  {
+    "school_id": "3602",
+    "university_name": "烟台科技学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 406,
+    "min_rank": 140656
+  },
+  {
+    "school_id": "3598",
+    "university_name": "宝鸡中北职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 272,
+    "min_rank": 201927
+  },
+  {
+    "school_id": "3598",
+    "university_name": "宝鸡中北职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 272,
+    "min_rank": 201927
+  },
+  {
+    "school_id": "3598",
+    "university_name": "宝鸡中北职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 272,
+    "min_rank": 201927
+  },
+  {
+    "school_id": "3598",
+    "university_name": "宝鸡中北职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 272,
+    "min_rank": 201927
+  },
+  {
+    "school_id": "3598",
+    "university_name": "宝鸡中北职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 272,
+    "min_rank": 201927
+  },
+  {
+    "school_id": "3598",
+    "university_name": "宝鸡中北职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 272,
+    "min_rank": 201927
+  },
+  {
+    "school_id": "3597",
+    "university_name": "贵州文化旅游职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 184,
+    "min_rank": 204968
+  },
+  {
+    "school_id": "3597",
+    "university_name": "贵州文化旅游职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 184,
+    "min_rank": 204968
+  },
+  {
+    "school_id": "3597",
+    "university_name": "贵州文化旅游职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 184,
+    "min_rank": 204968
+  },
+  {
+    "school_id": "3597",
+    "university_name": "贵州文化旅游职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 184,
+    "min_rank": 204968
+  },
+  {
+    "school_id": "3597",
+    "university_name": "贵州文化旅游职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 184,
+    "min_rank": 204968
+  },
+  {
+    "school_id": "3597",
+    "university_name": "贵州文化旅游职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 184,
+    "min_rank": 204968
+  },
+  {
+    "school_id": "3596",
+    "university_name": "自贡职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 299,
+    "min_rank": 198015
+  },
+  {
+    "school_id": "3596",
+    "university_name": "自贡职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 299,
+    "min_rank": 198015
+  },
+  {
+    "school_id": "3596",
+    "university_name": "自贡职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 299,
+    "min_rank": 198015
+  },
+  {
+    "school_id": "3596",
+    "university_name": "自贡职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 299,
+    "min_rank": 198015
+  },
+  {
+    "school_id": "3596",
+    "university_name": "自贡职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 299,
+    "min_rank": 198015
+  },
+  {
+    "school_id": "3596",
+    "university_name": "自贡职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 299,
+    "min_rank": 198015
+  },
+  {
+    "school_id": "3594",
+    "university_name": "重庆工信职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 174858
+  },
+  {
+    "school_id": "3594",
+    "university_name": "重庆工信职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 174858
+  },
+  {
+    "school_id": "3594",
+    "university_name": "重庆工信职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 174858
+  },
+  {
+    "school_id": "3594",
+    "university_name": "重庆工信职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 174858
+  },
+  {
+    "school_id": "3594",
+    "university_name": "重庆工信职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 174858
+  },
+  {
+    "school_id": "3594",
+    "university_name": "重庆工信职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 174858
+  },
+  {
+    "school_id": "3592",
+    "university_name": "广西农业工程职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 260,
+    "min_rank": 203049
+  },
+  {
+    "school_id": "3592",
+    "university_name": "广西农业工程职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 260,
+    "min_rank": 203049
+  },
+  {
+    "school_id": "3592",
+    "university_name": "广西农业工程职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 260,
+    "min_rank": 203049
+  },
+  {
+    "school_id": "3592",
+    "university_name": "广西农业工程职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 260,
+    "min_rank": 203049
+  },
+  {
+    "school_id": "3592",
+    "university_name": "广西农业工程职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 260,
+    "min_rank": 203049
+  },
+  {
+    "school_id": "3592",
+    "university_name": "广西农业工程职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 260,
+    "min_rank": 203049
+  },
+  {
+    "school_id": "3589",
+    "university_name": "广东肇庆航空职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 287,
+    "min_rank": 200038
+  },
+  {
+    "school_id": "3589",
+    "university_name": "广东肇庆航空职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 287,
+    "min_rank": 200038
+  },
+  {
+    "school_id": "3589",
+    "university_name": "广东肇庆航空职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 287,
+    "min_rank": 200038
+  },
+  {
+    "school_id": "3589",
+    "university_name": "广东肇庆航空职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 287,
+    "min_rank": 200038
+  },
+  {
+    "school_id": "3589",
+    "university_name": "广东肇庆航空职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 287,
+    "min_rank": 200038
+  },
+  {
+    "school_id": "3589",
+    "university_name": "广东肇庆航空职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 287,
+    "min_rank": 200038
+  },
+  {
+    "school_id": "3584",
+    "university_name": "湖北孝感美珈职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 351,
+    "min_rank": 78381
+  },
+  {
+    "school_id": "3584",
+    "university_name": "湖北孝感美珈职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 351,
+    "min_rank": 78381
+  },
+  {
+    "school_id": "3584",
+    "university_name": "湖北孝感美珈职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 351,
+    "min_rank": 78381
+  },
+  {
+    "school_id": "3584",
+    "university_name": "湖北孝感美珈职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 351,
+    "min_rank": 78381
+  },
+  {
+    "school_id": "3584",
+    "university_name": "湖北孝感美珈职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 351,
+    "min_rank": 78381
+  },
+  {
+    "school_id": "3584",
+    "university_name": "湖北孝感美珈职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 351,
+    "min_rank": 78381
+  },
+  {
+    "school_id": "3583",
+    "university_name": "郑州医药健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 283,
+    "min_rank": 200689
+  },
+  {
+    "school_id": "3583",
+    "university_name": "郑州医药健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 288,
+    "min_rank": 199873
+  },
+  {
+    "school_id": "3583",
+    "university_name": "郑州医药健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 283,
+    "min_rank": 200689
+  },
+  {
+    "school_id": "3583",
+    "university_name": "郑州医药健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 288,
+    "min_rank": 199873
+  },
+  {
+    "school_id": "3583",
+    "university_name": "郑州医药健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 283,
+    "min_rank": 200689
+  },
+  {
+    "school_id": "3583",
+    "university_name": "郑州医药健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 288,
+    "min_rank": 199873
+  },
+  {
+    "school_id": "3583",
+    "university_name": "郑州医药健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 283,
+    "min_rank": 200689
+  },
+  {
+    "school_id": "3583",
+    "university_name": "郑州医药健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 288,
+    "min_rank": 199873
+  },
+  {
+    "school_id": "3583",
+    "university_name": "郑州医药健康职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 283,
+    "min_rank": 200689
+  },
+  {
+    "school_id": "3583",
+    "university_name": "郑州医药健康职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 288,
+    "min_rank": 199873
+  },
+  {
+    "school_id": "3583",
+    "university_name": "郑州医药健康职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 283,
+    "min_rank": 200689
+  },
+  {
+    "school_id": "3583",
+    "university_name": "郑州医药健康职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 288,
+    "min_rank": 199873
+  },
+  {
+    "school_id": "3578",
+    "university_name": "滨州科技职业学院",
+    "year": 2023,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 228,
+    "min_rank": 212213
+  },
+  {
+    "school_id": "3578",
+    "university_name": "滨州科技职业学院",
+    "year": 2023,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 228,
+    "min_rank": 212213
+  },
+  {
+    "school_id": "3578",
+    "university_name": "滨州科技职业学院",
+    "year": 2023,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 228,
+    "min_rank": 212213
+  },
+  {
+    "school_id": "3578",
+    "university_name": "滨州科技职业学院",
+    "year": 2023,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 228,
+    "min_rank": 212213
+  },
+  {
+    "school_id": "3578",
+    "university_name": "滨州科技职业学院",
+    "year": 2023,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 228,
+    "min_rank": 212213
+  },
+  {
+    "school_id": "3578",
+    "university_name": "滨州科技职业学院",
+    "year": 2023,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 228,
+    "min_rank": 212213
+  },
+  {
+    "school_id": "3577",
+    "university_name": "和君职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 209,
+    "min_rank": 212367
+  },
+  {
+    "school_id": "3577",
+    "university_name": "和君职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 209,
+    "min_rank": 212367
+  },
+  {
+    "school_id": "3577",
+    "university_name": "和君职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 209,
+    "min_rank": 212367
+  },
+  {
+    "school_id": "3577",
+    "university_name": "和君职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 209,
+    "min_rank": 212367
+  },
+  {
+    "school_id": "3577",
+    "university_name": "和君职业学院",
+    "year": 2024,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 209,
+    "min_rank": 212367
+  },
+  {
+    "school_id": "3577",
+    "university_name": "和君职业学院",
+    "year": 2024,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 209,
+    "min_rank": 212367
+  },
+  {
+    "school_id": "3576",
+    "university_name": "宿州航空职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 369,
+    "min_rank": 163492
+  },
+  {
+    "school_id": "3576",
+    "university_name": "宿州航空职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 369,
+    "min_rank": 163492
+  },
+  {
+    "school_id": "3576",
+    "university_name": "宿州航空职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 369,
+    "min_rank": 163492
+  },
+  {
+    "school_id": "3576",
+    "university_name": "宿州航空职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 369,
+    "min_rank": 163492
+  },
+  {
+    "school_id": "3576",
+    "university_name": "宿州航空职业学院",
+    "year": 2024,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 369,
+    "min_rank": 163492
+  },
+  {
+    "school_id": "3576",
+    "university_name": "宿州航空职业学院",
+    "year": 2024,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 369,
+    "min_rank": 163492
+  },
+  {
+    "school_id": "3573",
+    "university_name": "通化医药健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 377,
+    "min_rank": 164837
+  },
+  {
+    "school_id": "3573",
+    "university_name": "通化医药健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 328,
+    "min_rank": 190436
+  },
+  {
+    "school_id": "3573",
+    "university_name": "通化医药健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 377,
+    "min_rank": 164837
+  },
+  {
+    "school_id": "3573",
+    "university_name": "通化医药健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 328,
+    "min_rank": 190436
+  },
+  {
+    "school_id": "3573",
+    "university_name": "通化医药健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 377,
+    "min_rank": 164837
+  },
+  {
+    "school_id": "3573",
+    "university_name": "通化医药健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 328,
+    "min_rank": 190436
+  },
+  {
+    "school_id": "3573",
+    "university_name": "通化医药健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 377,
+    "min_rank": 164837
+  },
+  {
+    "school_id": "3573",
+    "university_name": "通化医药健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 328,
+    "min_rank": 190436
+  },
+  {
+    "school_id": "3573",
+    "university_name": "通化医药健康职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 377,
+    "min_rank": 164837
+  },
+  {
+    "school_id": "3573",
+    "university_name": "通化医药健康职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 328,
+    "min_rank": 190436
+  },
+  {
+    "school_id": "3573",
+    "university_name": "通化医药健康职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 377,
+    "min_rank": 164837
+  },
+  {
+    "school_id": "3573",
+    "university_name": "通化医药健康职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 328,
+    "min_rank": 190436
+  },
+  {
+    "school_id": "3569",
+    "university_name": "重庆移通学院德国工程学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 425,
+    "min_rank": 122735
+  },
+  {
+    "school_id": "3569",
+    "university_name": "重庆移通学院德国工程学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 425,
+    "min_rank": 122735
+  },
+  {
+    "school_id": "3569",
+    "university_name": "重庆移通学院德国工程学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 425,
+    "min_rank": 122735
+  },
+  {
+    "school_id": "3569",
+    "university_name": "重庆移通学院德国工程学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 425,
+    "min_rank": 122735
+  },
+  {
+    "school_id": "3569",
+    "university_name": "重庆移通学院德国工程学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 425,
+    "min_rank": 122735
+  },
+  {
+    "school_id": "3569",
+    "university_name": "重庆移通学院德国工程学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 425,
+    "min_rank": 122735
+  },
+  {
+    "school_id": "3549",
+    "university_name": "贵州民用航空职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 186,
+    "min_rank": 204962
+  },
+  {
+    "school_id": "3549",
+    "university_name": "贵州民用航空职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 194,
+    "min_rank": 204937
+  },
+  {
+    "school_id": "3549",
+    "university_name": "贵州民用航空职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 186,
+    "min_rank": 204962
+  },
+  {
+    "school_id": "3549",
+    "university_name": "贵州民用航空职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 194,
+    "min_rank": 204937
+  },
+  {
+    "school_id": "3549",
+    "university_name": "贵州民用航空职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 186,
+    "min_rank": 204962
+  },
+  {
+    "school_id": "3549",
+    "university_name": "贵州民用航空职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 194,
+    "min_rank": 204937
+  },
+  {
+    "school_id": "3549",
+    "university_name": "贵州民用航空职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 186,
+    "min_rank": 204962
+  },
+  {
+    "school_id": "3549",
+    "university_name": "贵州民用航空职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 194,
+    "min_rank": 204937
+  },
+  {
+    "school_id": "3549",
+    "university_name": "贵州民用航空职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 186,
+    "min_rank": 204962
+  },
+  {
+    "school_id": "3549",
+    "university_name": "贵州民用航空职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 194,
+    "min_rank": 204937
+  },
+  {
+    "school_id": "3549",
+    "university_name": "贵州民用航空职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 186,
+    "min_rank": 204962
+  },
+  {
+    "school_id": "3549",
+    "university_name": "贵州民用航空职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 194,
+    "min_rank": 204937
+  },
+  {
+    "school_id": "3538",
+    "university_name": "榆林能源科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 333,
+    "min_rank": 188723
+  },
+  {
+    "school_id": "3538",
+    "university_name": "榆林能源科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 333,
+    "min_rank": 188723
+  },
+  {
+    "school_id": "3538",
+    "university_name": "榆林能源科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 333,
+    "min_rank": 188723
+  },
+  {
+    "school_id": "3538",
+    "university_name": "榆林能源科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 333,
+    "min_rank": 188723
+  },
+  {
+    "school_id": "3538",
+    "university_name": "榆林能源科技职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 333,
+    "min_rank": 188723
+  },
+  {
+    "school_id": "3538",
+    "university_name": "榆林能源科技职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 333,
+    "min_rank": 188723
+  },
+  {
+    "school_id": "3534",
+    "university_name": "塔城职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 317,
+    "min_rank": 193986
+  },
+  {
+    "school_id": "3534",
+    "university_name": "塔城职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 317,
+    "min_rank": 193986
+  },
+  {
+    "school_id": "3534",
+    "university_name": "塔城职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 317,
+    "min_rank": 193986
+  },
+  {
+    "school_id": "3534",
+    "university_name": "塔城职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 317,
+    "min_rank": 193986
+  },
+  {
+    "school_id": "3534",
+    "university_name": "塔城职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 317,
+    "min_rank": 193986
+  },
+  {
+    "school_id": "3534",
+    "university_name": "塔城职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 317,
+    "min_rank": 193986
+  },
+  {
+    "school_id": "3533",
+    "university_name": "塔里木职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 283,
+    "min_rank": 200717
+  },
+  {
+    "school_id": "3533",
+    "university_name": "塔里木职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 283,
+    "min_rank": 200717
+  },
+  {
+    "school_id": "3533",
+    "university_name": "塔里木职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 283,
+    "min_rank": 200717
+  },
+  {
+    "school_id": "3533",
+    "university_name": "塔里木职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 283,
+    "min_rank": 200717
+  },
+  {
+    "school_id": "3533",
+    "university_name": "塔里木职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 283,
+    "min_rank": 200717
+  },
+  {
+    "school_id": "3533",
+    "university_name": "塔里木职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 283,
+    "min_rank": 200717
+  },
+  {
+    "school_id": "3532",
+    "university_name": "贵州财经职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 300,
+    "min_rank": 197788
+  },
+  {
+    "school_id": "3532",
+    "university_name": "贵州财经职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 300,
+    "min_rank": 197788
+  },
+  {
+    "school_id": "3532",
+    "university_name": "贵州财经职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 300,
+    "min_rank": 197788
+  },
+  {
+    "school_id": "3532",
+    "university_name": "贵州财经职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 300,
+    "min_rank": 197788
+  },
+  {
+    "school_id": "3532",
+    "university_name": "贵州财经职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 300,
+    "min_rank": 197788
+  },
+  {
+    "school_id": "3532",
+    "university_name": "贵州财经职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 300,
+    "min_rank": 197788
+  },
+  {
+    "school_id": "3531",
+    "university_name": "贵州机电职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 207,
+    "min_rank": 204843
+  },
+  {
+    "school_id": "3531",
+    "university_name": "贵州机电职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 207,
+    "min_rank": 204843
+  },
+  {
+    "school_id": "3531",
+    "university_name": "贵州机电职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 207,
+    "min_rank": 204843
+  },
+  {
+    "school_id": "3531",
+    "university_name": "贵州机电职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 207,
+    "min_rank": 204843
+  },
+  {
+    "school_id": "3531",
+    "university_name": "贵州机电职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 207,
+    "min_rank": 204843
+  },
+  {
+    "school_id": "3531",
+    "university_name": "贵州机电职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 207,
+    "min_rank": 204843
+  },
+  {
+    "school_id": "3530",
+    "university_name": "泸州医疗器械职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 270,
+    "min_rank": 202174
+  },
+  {
+    "school_id": "3530",
+    "university_name": "泸州医疗器械职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 308,
+    "min_rank": 196129
+  },
+  {
+    "school_id": "3530",
+    "university_name": "泸州医疗器械职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 270,
+    "min_rank": 202174
+  },
+  {
+    "school_id": "3530",
+    "university_name": "泸州医疗器械职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 308,
+    "min_rank": 196129
+  },
+  {
+    "school_id": "3530",
+    "university_name": "泸州医疗器械职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 270,
+    "min_rank": 202174
+  },
+  {
+    "school_id": "3530",
+    "university_name": "泸州医疗器械职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 308,
+    "min_rank": 196129
+  },
+  {
+    "school_id": "3530",
+    "university_name": "泸州医疗器械职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 270,
+    "min_rank": 202174
+  },
+  {
+    "school_id": "3530",
+    "university_name": "泸州医疗器械职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 308,
+    "min_rank": 196129
+  },
+  {
+    "school_id": "3530",
+    "university_name": "泸州医疗器械职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 270,
+    "min_rank": 202174
+  },
+  {
+    "school_id": "3530",
+    "university_name": "泸州医疗器械职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 308,
+    "min_rank": 196129
+  },
+  {
+    "school_id": "3530",
+    "university_name": "泸州医疗器械职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 270,
+    "min_rank": 202174
+  },
+  {
+    "school_id": "3530",
+    "university_name": "泸州医疗器械职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 308,
+    "min_rank": 196129
+  },
+  {
+    "school_id": "3529",
+    "university_name": "德阳农业科技职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 199,
+    "min_rank": 212547
+  },
+  {
+    "school_id": "3529",
+    "university_name": "德阳农业科技职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 199,
+    "min_rank": 212547
+  },
+  {
+    "school_id": "3529",
+    "university_name": "德阳农业科技职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 199,
+    "min_rank": 212547
+  },
+  {
+    "school_id": "3529",
+    "university_name": "德阳农业科技职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 199,
+    "min_rank": 212547
+  },
+  {
+    "school_id": "3529",
+    "university_name": "德阳农业科技职业学院",
+    "year": 2024,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 199,
+    "min_rank": 212547
+  },
+  {
+    "school_id": "3529",
+    "university_name": "德阳农业科技职业学院",
+    "year": 2024,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 199,
+    "min_rank": 212547
+  },
+  {
+    "school_id": "3528",
+    "university_name": "绵阳飞行职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 272,
+    "min_rank": 202007
+  },
+  {
+    "school_id": "3528",
+    "university_name": "绵阳飞行职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 272,
+    "min_rank": 202007
+  },
+  {
+    "school_id": "3528",
+    "university_name": "绵阳飞行职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 272,
+    "min_rank": 202007
+  },
+  {
+    "school_id": "3528",
+    "university_name": "绵阳飞行职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 272,
+    "min_rank": 202007
+  },
+  {
+    "school_id": "3528",
+    "university_name": "绵阳飞行职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 272,
+    "min_rank": 202007
+  },
+  {
+    "school_id": "3528",
+    "university_name": "绵阳飞行职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 272,
+    "min_rank": 202007
+  },
+  {
+    "school_id": "3527",
+    "university_name": "南充电影工业职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 259,
+    "min_rank": 208758
+  },
+  {
+    "school_id": "3527",
+    "university_name": "南充电影工业职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 259,
+    "min_rank": 208758
+  },
+  {
+    "school_id": "3527",
+    "university_name": "南充电影工业职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 259,
+    "min_rank": 208758
+  },
+  {
+    "school_id": "3527",
+    "university_name": "南充电影工业职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 259,
+    "min_rank": 208758
+  },
+  {
+    "school_id": "3527",
+    "university_name": "南充电影工业职业学院",
+    "year": 2024,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 259,
+    "min_rank": 208758
+  },
+  {
+    "school_id": "3527",
+    "university_name": "南充电影工业职业学院",
+    "year": 2024,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 259,
+    "min_rank": 208758
+  },
+  {
+    "school_id": "3526",
+    "university_name": "南充文化旅游职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 328,
+    "min_rank": 190609
+  },
+  {
+    "school_id": "3526",
+    "university_name": "南充文化旅游职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 328,
+    "min_rank": 190609
+  },
+  {
+    "school_id": "3526",
+    "university_name": "南充文化旅游职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 328,
+    "min_rank": 190609
+  },
+  {
+    "school_id": "3526",
+    "university_name": "南充文化旅游职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 328,
+    "min_rank": 190609
+  },
+  {
+    "school_id": "3526",
+    "university_name": "南充文化旅游职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 328,
+    "min_rank": 190609
+  },
+  {
+    "school_id": "3526",
+    "university_name": "南充文化旅游职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 328,
+    "min_rank": 190609
+  },
+  {
+    "school_id": "3525",
+    "university_name": "重庆健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 201,
+    "min_rank": 204900
+  },
+  {
+    "school_id": "3525",
+    "university_name": "重庆健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 201,
+    "min_rank": 204900
+  },
+  {
+    "school_id": "3525",
+    "university_name": "重庆健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 201,
+    "min_rank": 204900
+  },
+  {
+    "school_id": "3525",
+    "university_name": "重庆健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 201,
+    "min_rank": 204900
+  },
+  {
+    "school_id": "3525",
+    "university_name": "重庆健康职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 201,
+    "min_rank": 204900
+  },
+  {
+    "school_id": "3525",
+    "university_name": "重庆健康职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 201,
+    "min_rank": 204900
+  },
+  {
+    "school_id": "3524",
+    "university_name": "重庆智能工程职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 259,
+    "min_rank": 203111
+  },
+  {
+    "school_id": "3524",
+    "university_name": "重庆智能工程职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 259,
+    "min_rank": 203111
+  },
+  {
+    "school_id": "3524",
+    "university_name": "重庆智能工程职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 259,
+    "min_rank": 203111
+  },
+  {
+    "school_id": "3524",
+    "university_name": "重庆智能工程职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 259,
+    "min_rank": 203111
+  },
+  {
+    "school_id": "3524",
+    "university_name": "重庆智能工程职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 259,
+    "min_rank": 203111
+  },
+  {
+    "school_id": "3524",
+    "university_name": "重庆智能工程职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 259,
+    "min_rank": 203111
+  },
+  {
+    "school_id": "3523",
+    "university_name": "重庆理工职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 247,
+    "min_rank": 203872
+  },
+  {
+    "school_id": "3523",
+    "university_name": "重庆理工职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 247,
+    "min_rank": 203872
+  },
+  {
+    "school_id": "3523",
+    "university_name": "重庆理工职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 247,
+    "min_rank": 203872
+  },
+  {
+    "school_id": "3523",
+    "university_name": "重庆理工职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 247,
+    "min_rank": 203872
+  },
+  {
+    "school_id": "3523",
+    "university_name": "重庆理工职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 247,
+    "min_rank": 203872
+  },
+  {
+    "school_id": "3523",
+    "university_name": "重庆理工职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 247,
+    "min_rank": 203872
+  },
+  {
+    "school_id": "3522",
+    "university_name": "广西物流职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 338,
+    "min_rank": 186955
+  },
+  {
+    "school_id": "3522",
+    "university_name": "广西物流职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 338,
+    "min_rank": 186955
+  },
+  {
+    "school_id": "3522",
+    "university_name": "广西物流职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 338,
+    "min_rank": 186955
+  },
+  {
+    "school_id": "3522",
+    "university_name": "广西物流职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 338,
+    "min_rank": 186955
+  },
+  {
+    "school_id": "3522",
+    "university_name": "广西物流职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 338,
+    "min_rank": 186955
+  },
+  {
+    "school_id": "3522",
+    "university_name": "广西物流职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 338,
+    "min_rank": 186955
+  },
+  {
+    "school_id": "3513",
+    "university_name": "南阳科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 263,
+    "min_rank": 202778
+  },
+  {
+    "school_id": "3513",
+    "university_name": "南阳科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 278,
+    "min_rank": 201253
+  },
+  {
+    "school_id": "3513",
+    "university_name": "南阳科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 263,
+    "min_rank": 202778
+  },
+  {
+    "school_id": "3513",
+    "university_name": "南阳科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 278,
+    "min_rank": 201253
+  },
+  {
+    "school_id": "3513",
+    "university_name": "南阳科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 263,
+    "min_rank": 202778
+  },
+  {
+    "school_id": "3513",
+    "university_name": "南阳科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 278,
+    "min_rank": 201253
+  },
+  {
+    "school_id": "3513",
+    "university_name": "南阳科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 263,
+    "min_rank": 202778
+  },
+  {
+    "school_id": "3513",
+    "university_name": "南阳科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 278,
+    "min_rank": 201253
+  },
+  {
+    "school_id": "3513",
+    "university_name": "南阳科技职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 263,
+    "min_rank": 202778
+  },
+  {
+    "school_id": "3513",
+    "university_name": "南阳科技职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 278,
+    "min_rank": 201253
+  },
+  {
+    "school_id": "3513",
+    "university_name": "南阳科技职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 263,
+    "min_rank": 202778
+  },
+  {
+    "school_id": "3513",
+    "university_name": "南阳科技职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 278,
+    "min_rank": 201253
+  },
+  {
+    "school_id": "3512",
+    "university_name": "濮阳石油化工职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 291,
+    "min_rank": 199487
+  },
+  {
+    "school_id": "3512",
+    "university_name": "濮阳石油化工职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 291,
+    "min_rank": 199487
+  },
+  {
+    "school_id": "3512",
+    "university_name": "濮阳石油化工职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 291,
+    "min_rank": 199487
+  },
+  {
+    "school_id": "3512",
+    "university_name": "濮阳石油化工职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 291,
+    "min_rank": 199487
+  },
+  {
+    "school_id": "3512",
+    "university_name": "濮阳石油化工职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 291,
+    "min_rank": 199487
+  },
+  {
+    "school_id": "3512",
+    "university_name": "濮阳石油化工职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 291,
+    "min_rank": 199487
+  },
+  {
+    "school_id": "3509",
+    "university_name": "潍坊环境工程职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 294,
+    "min_rank": 199019
+  },
+  {
+    "school_id": "3509",
+    "university_name": "潍坊环境工程职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 294,
+    "min_rank": 199019
+  },
+  {
+    "school_id": "3509",
+    "university_name": "潍坊环境工程职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 294,
+    "min_rank": 199019
+  },
+  {
+    "school_id": "3509",
+    "university_name": "潍坊环境工程职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 294,
+    "min_rank": 199019
+  },
+  {
+    "school_id": "3509",
+    "university_name": "潍坊环境工程职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 294,
+    "min_rank": 199019
+  },
+  {
+    "school_id": "3509",
+    "university_name": "潍坊环境工程职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 294,
+    "min_rank": 199019
+  },
+  {
+    "school_id": "3508",
+    "university_name": "青岛航空科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 182212
+  },
+  {
+    "school_id": "3508",
+    "university_name": "青岛航空科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 182212
+  },
+  {
+    "school_id": "3508",
+    "university_name": "青岛航空科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 182212
+  },
+  {
+    "school_id": "3508",
+    "university_name": "青岛航空科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 182212
+  },
+  {
+    "school_id": "3508",
+    "university_name": "青岛航空科技职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 182212
+  },
+  {
+    "school_id": "3508",
+    "university_name": "青岛航空科技职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 182212
+  },
+  {
+    "school_id": "3507",
+    "university_name": "临沂科技职业学院",
+    "year": 2023,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 233,
+    "min_rank": 211448
+  },
+  {
+    "school_id": "3507",
+    "university_name": "临沂科技职业学院",
+    "year": 2023,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 233,
+    "min_rank": 211448
+  },
+  {
+    "school_id": "3507",
+    "university_name": "临沂科技职业学院",
+    "year": 2023,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 233,
+    "min_rank": 211448
+  },
+  {
+    "school_id": "3507",
+    "university_name": "临沂科技职业学院",
+    "year": 2023,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 233,
+    "min_rank": 211448
+  },
+  {
+    "school_id": "3507",
+    "university_name": "临沂科技职业学院",
+    "year": 2023,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 233,
+    "min_rank": 211448
+  },
+  {
+    "school_id": "3507",
+    "university_name": "临沂科技职业学院",
+    "year": 2023,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 233,
+    "min_rank": 211448
+  },
+  {
+    "school_id": "3505",
+    "university_name": "九江理工职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 235,
+    "min_rank": 211315
+  },
+  {
+    "school_id": "3505",
+    "university_name": "九江理工职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 235,
+    "min_rank": 211315
+  },
+  {
+    "school_id": "3505",
+    "university_name": "九江理工职业学院",
+    "year": 2024,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 235,
+    "min_rank": 211315
+  },
+  {
+    "school_id": "3505",
+    "university_name": "九江理工职业学院",
+    "year": 2024,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 235,
+    "min_rank": 211315
+  },
+  {
+    "school_id": "3505",
+    "university_name": "九江理工职业学院",
+    "year": 2024,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 235,
+    "min_rank": 211315
+  },
+  {
+    "school_id": "3505",
+    "university_name": "九江理工职业学院",
+    "year": 2024,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 235,
+    "min_rank": 211315
+  },
+  {
+    "school_id": "3504",
+    "university_name": "南昌健康职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 339,
+    "min_rank": 186488
+  },
+  {
+    "school_id": "3504",
+    "university_name": "南昌健康职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 372,
+    "min_rank": 168881
+  },
+  {
+    "school_id": "3504",
+    "university_name": "南昌健康职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 339,
+    "min_rank": 186488
+  },
+  {
+    "school_id": "3504",
+    "university_name": "南昌健康职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 372,
+    "min_rank": 168881
+  },
+  {
+    "school_id": "3504",
+    "university_name": "南昌健康职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 339,
+    "min_rank": 186488
+  },
+  {
+    "school_id": "3504",
+    "university_name": "南昌健康职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 372,
+    "min_rank": 168881
+  },
+  {
+    "school_id": "3504",
+    "university_name": "南昌健康职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 339,
+    "min_rank": 186488
+  },
+  {
+    "school_id": "3504",
+    "university_name": "南昌健康职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 372,
+    "min_rank": 168881
+  },
+  {
+    "school_id": "3504",
+    "university_name": "南昌健康职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 339,
+    "min_rank": 186488
+  },
+  {
+    "school_id": "3504",
+    "university_name": "南昌健康职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 372,
+    "min_rank": 168881
+  },
+  {
+    "school_id": "3504",
+    "university_name": "南昌健康职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 339,
+    "min_rank": 186488
+  },
+  {
+    "school_id": "3504",
+    "university_name": "南昌健康职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 372,
+    "min_rank": 168881
+  },
+  {
+    "school_id": "3501",
+    "university_name": "长春早期教育职业学院",
+    "year": 2023,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 306,
+    "min_rank": 113771
+  },
+  {
+    "school_id": "3501",
+    "university_name": "长春早期教育职业学院",
+    "year": 2023,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 306,
+    "min_rank": 113771
+  },
+  {
+    "school_id": "3501",
+    "university_name": "长春早期教育职业学院",
+    "year": 2023,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 306,
+    "min_rank": 113771
+  },
+  {
+    "school_id": "3501",
+    "university_name": "长春早期教育职业学院",
+    "year": 2023,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 306,
+    "min_rank": 113771
+  },
+  {
+    "school_id": "3501",
+    "university_name": "长春早期教育职业学院",
+    "year": 2023,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 306,
+    "min_rank": 113771
+  },
+  {
+    "school_id": "3501",
+    "university_name": "长春早期教育职业学院",
+    "year": 2023,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 306,
+    "min_rank": 113771
+  },
+  {
+    "school_id": "3494",
+    "university_name": "梧州医学高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 260,
+    "min_rank": 203022
+  },
+  {
+    "school_id": "3494",
+    "university_name": "梧州医学高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 284,
+    "min_rank": 200541
+  },
+  {
+    "school_id": "3494",
+    "university_name": "梧州医学高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 260,
+    "min_rank": 203022
+  },
+  {
+    "school_id": "3494",
+    "university_name": "梧州医学高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 284,
+    "min_rank": 200541
+  },
+  {
+    "school_id": "3494",
+    "university_name": "梧州医学高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 260,
+    "min_rank": 203022
+  },
+  {
+    "school_id": "3494",
+    "university_name": "梧州医学高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 284,
+    "min_rank": 200541
+  },
+  {
+    "school_id": "3494",
+    "university_name": "梧州医学高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 260,
+    "min_rank": 203022
+  },
+  {
+    "school_id": "3494",
+    "university_name": "梧州医学高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 284,
+    "min_rank": 200541
+  },
+  {
+    "school_id": "3494",
+    "university_name": "梧州医学高等专科学校",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 260,
+    "min_rank": 203022
+  },
+  {
+    "school_id": "3494",
+    "university_name": "梧州医学高等专科学校",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 284,
+    "min_rank": 200541
+  },
+  {
+    "school_id": "3494",
+    "university_name": "梧州医学高等专科学校",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 260,
+    "min_rank": 203022
+  },
+  {
+    "school_id": "3494",
+    "university_name": "梧州医学高等专科学校",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 284,
+    "min_rank": 200541
+  },
+  {
+    "school_id": "3493",
+    "university_name": "钦州幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 249,
+    "min_rank": 203748
+  },
+  {
+    "school_id": "3493",
+    "university_name": "钦州幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 249,
+    "min_rank": 203748
+  },
+  {
+    "school_id": "3493",
+    "university_name": "钦州幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 249,
+    "min_rank": 203748
+  },
+  {
+    "school_id": "3493",
+    "university_name": "钦州幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 249,
+    "min_rank": 203748
+  },
+  {
+    "school_id": "3493",
+    "university_name": "钦州幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 249,
+    "min_rank": 203748
+  },
+  {
+    "school_id": "3493",
+    "university_name": "钦州幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 249,
+    "min_rank": 203748
+  },
+  {
+    "school_id": "3490",
+    "university_name": "永州师范高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 329,
+    "min_rank": 190384
+  },
+  {
+    "school_id": "3490",
+    "university_name": "永州师范高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 329,
+    "min_rank": 190384
+  },
+  {
+    "school_id": "3490",
+    "university_name": "永州师范高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 329,
+    "min_rank": 190384
+  },
+  {
+    "school_id": "3490",
+    "university_name": "永州师范高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 329,
+    "min_rank": 190384
+  },
+  {
+    "school_id": "3490",
+    "university_name": "永州师范高等专科学校",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 329,
+    "min_rank": 190384
+  },
+  {
+    "school_id": "3490",
+    "university_name": "永州师范高等专科学校",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 329,
+    "min_rank": 190384
+  },
+  {
+    "school_id": "3487",
+    "university_name": "邯郸幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 350,
+    "min_rank": 181327
+  },
+  {
+    "school_id": "3487",
+    "university_name": "邯郸幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 350,
+    "min_rank": 181327
+  },
+  {
+    "school_id": "3487",
+    "university_name": "邯郸幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 350,
+    "min_rank": 181327
+  },
+  {
+    "school_id": "3487",
+    "university_name": "邯郸幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 350,
+    "min_rank": 181327
+  },
+  {
+    "school_id": "3487",
+    "university_name": "邯郸幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 350,
+    "min_rank": 181327
+  },
+  {
+    "school_id": "3487",
+    "university_name": "邯郸幼儿师范高等专科学校",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 350,
+    "min_rank": 181327
+  },
+  {
+    "school_id": "3485",
+    "university_name": "海南卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 359,
+    "min_rank": 176613
+  },
+  {
+    "school_id": "3485",
+    "university_name": "海南卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 377,
+    "min_rank": 165242
+  },
+  {
+    "school_id": "3485",
+    "university_name": "海南卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 359,
+    "min_rank": 176613
+  },
+  {
+    "school_id": "3485",
+    "university_name": "海南卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 377,
+    "min_rank": 165242
+  },
+  {
+    "school_id": "3485",
+    "university_name": "海南卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 359,
+    "min_rank": 176613
+  },
+  {
+    "school_id": "3485",
+    "university_name": "海南卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 377,
+    "min_rank": 165242
+  },
+  {
+    "school_id": "3485",
+    "university_name": "海南卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 359,
+    "min_rank": 176613
+  },
+  {
+    "school_id": "3485",
+    "university_name": "海南卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 377,
+    "min_rank": 165242
+  },
+  {
+    "school_id": "3485",
+    "university_name": "海南卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 359,
+    "min_rank": 176613
+  },
+  {
+    "school_id": "3485",
+    "university_name": "海南卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 377,
+    "min_rank": 165242
+  },
+  {
+    "school_id": "3485",
+    "university_name": "海南卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 359,
+    "min_rank": 176613
+  },
+  {
+    "school_id": "3485",
+    "university_name": "海南卫生健康职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 377,
+    "min_rank": 165242
+  },
+  {
+    "school_id": "3483",
+    "university_name": "江苏海洋大学",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 455,
+    "min_rank": 91147
+  },
+  {
+    "school_id": "3483",
+    "university_name": "江苏海洋大学",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 455,
+    "min_rank": 91147
+  },
+  {
+    "school_id": "3483",
+    "university_name": "江苏海洋大学",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 455,
+    "min_rank": 91147
+  },
+  {
+    "school_id": "3483",
+    "university_name": "江苏海洋大学",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 455,
+    "min_rank": 91147
+  },
+  {
+    "school_id": "3483",
+    "university_name": "江苏海洋大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 455,
+    "min_rank": 91147
+  },
+  {
+    "school_id": "3483",
+    "university_name": "江苏海洋大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 455,
+    "min_rank": 91147
+  },
+  {
+    "school_id": "3477",
+    "university_name": "阿勒泰职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 267,
+    "min_rank": 202422
+  },
+  {
+    "school_id": "3477",
+    "university_name": "阿勒泰职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 338,
+    "min_rank": 186626
+  },
+  {
+    "school_id": "3477",
+    "university_name": "阿勒泰职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 267,
+    "min_rank": 202422
+  },
+  {
+    "school_id": "3477",
+    "university_name": "阿勒泰职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 338,
+    "min_rank": 186626
+  },
+  {
+    "school_id": "3477",
+    "university_name": "阿勒泰职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 267,
+    "min_rank": 202422
+  },
+  {
+    "school_id": "3477",
+    "university_name": "阿勒泰职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 338,
+    "min_rank": 186626
+  },
+  {
+    "school_id": "3477",
+    "university_name": "阿勒泰职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 267,
+    "min_rank": 202422
+  },
+  {
+    "school_id": "3477",
+    "university_name": "阿勒泰职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 338,
+    "min_rank": 186626
+  },
+  {
+    "school_id": "3477",
+    "university_name": "阿勒泰职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 267,
+    "min_rank": 202422
+  },
+  {
+    "school_id": "3477",
+    "university_name": "阿勒泰职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 338,
+    "min_rank": 186626
+  },
+  {
+    "school_id": "3477",
+    "university_name": "阿勒泰职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 267,
+    "min_rank": 202422
+  },
+  {
+    "school_id": "3477",
+    "university_name": "阿勒泰职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 338,
+    "min_rank": 186626
+  },
+  {
+    "school_id": "3475",
+    "university_name": "克孜勒苏职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 270,
+    "min_rank": 202138
+  },
+  {
+    "school_id": "3475",
+    "university_name": "克孜勒苏职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 270,
+    "min_rank": 202138
+  },
+  {
+    "school_id": "3475",
+    "university_name": "克孜勒苏职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 270,
+    "min_rank": 202138
+  },
+  {
+    "school_id": "3475",
+    "university_name": "克孜勒苏职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 270,
+    "min_rank": 202138
+  },
+  {
+    "school_id": "3475",
+    "university_name": "克孜勒苏职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 270,
+    "min_rank": 202138
+  },
+  {
+    "school_id": "3475",
+    "university_name": "克孜勒苏职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 270,
+    "min_rank": 202138
+  },
+  {
+    "school_id": "3474",
+    "university_name": "宝鸡三和职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 349,
+    "min_rank": 181813
+  },
+  {
+    "school_id": "3474",
+    "university_name": "宝鸡三和职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 339,
+    "min_rank": 186205
+  },
+  {
+    "school_id": "3474",
+    "university_name": "宝鸡三和职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 349,
+    "min_rank": 181813
+  },
+  {
+    "school_id": "3474",
+    "university_name": "宝鸡三和职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 339,
+    "min_rank": 186205
+  },
+  {
+    "school_id": "3474",
+    "university_name": "宝鸡三和职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 349,
+    "min_rank": 181813
+  },
+  {
+    "school_id": "3474",
+    "university_name": "宝鸡三和职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 339,
+    "min_rank": 186205
+  },
+  {
+    "school_id": "3474",
+    "university_name": "宝鸡三和职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 349,
+    "min_rank": 181813
+  },
+  {
+    "school_id": "3474",
+    "university_name": "宝鸡三和职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 339,
+    "min_rank": 186205
+  },
+  {
+    "school_id": "3474",
+    "university_name": "宝鸡三和职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 349,
+    "min_rank": 181813
+  },
+  {
+    "school_id": "3474",
+    "university_name": "宝鸡三和职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 339,
+    "min_rank": 186205
+  },
+  {
+    "school_id": "3474",
+    "university_name": "宝鸡三和职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 349,
+    "min_rank": 181813
+  },
+  {
+    "school_id": "3474",
+    "university_name": "宝鸡三和职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 339,
+    "min_rank": 186205
+  },
+  {
+    "school_id": "3473",
+    "university_name": "神木职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 284,
+    "min_rank": 200550
+  },
+  {
+    "school_id": "3473",
+    "university_name": "神木职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 310,
+    "min_rank": 195693
+  },
+  {
+    "school_id": "3473",
+    "university_name": "神木职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 284,
+    "min_rank": 200550
+  },
+  {
+    "school_id": "3473",
+    "university_name": "神木职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 310,
+    "min_rank": 195693
+  },
+  {
+    "school_id": "3473",
+    "university_name": "神木职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 284,
+    "min_rank": 200550
+  },
+  {
+    "school_id": "3473",
+    "university_name": "神木职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 310,
+    "min_rank": 195693
+  },
+  {
+    "school_id": "3473",
+    "university_name": "神木职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 284,
+    "min_rank": 200550
+  },
+  {
+    "school_id": "3473",
+    "university_name": "神木职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 310,
+    "min_rank": 195693
+  },
+  {
+    "school_id": "3473",
+    "university_name": "神木职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 284,
+    "min_rank": 200550
+  },
+  {
+    "school_id": "3473",
+    "university_name": "神木职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 310,
+    "min_rank": 195693
+  },
+  {
+    "school_id": "3473",
+    "university_name": "神木职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 284,
+    "min_rank": 200550
+  },
+  {
+    "school_id": "3473",
+    "university_name": "神木职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 310,
+    "min_rank": 195693
+  },
+  {
+    "school_id": "3471",
+    "university_name": "攀枝花攀西职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 267,
+    "min_rank": 202447
+  },
+  {
+    "school_id": "3471",
+    "university_name": "攀枝花攀西职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 267,
+    "min_rank": 202447
+  },
+  {
+    "school_id": "3471",
+    "university_name": "攀枝花攀西职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 267,
+    "min_rank": 202447
+  },
+  {
+    "school_id": "3471",
+    "university_name": "攀枝花攀西职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 267,
+    "min_rank": 202447
+  },
+  {
+    "school_id": "3471",
+    "university_name": "攀枝花攀西职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 267,
+    "min_rank": 202447
+  },
+  {
+    "school_id": "3471",
+    "university_name": "攀枝花攀西职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 267,
+    "min_rank": 202447
+  },
+  {
+    "school_id": "3470",
+    "university_name": "广西自然资源职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 307,
+    "min_rank": 196372
+  },
+  {
+    "school_id": "3470",
+    "university_name": "广西自然资源职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 307,
+    "min_rank": 196372
+  },
+  {
+    "school_id": "3470",
+    "university_name": "广西自然资源职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 307,
+    "min_rank": 196372
+  },
+  {
+    "school_id": "3470",
+    "university_name": "广西自然资源职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 307,
+    "min_rank": 196372
+  },
+  {
+    "school_id": "3470",
+    "university_name": "广西自然资源职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 307,
+    "min_rank": 196372
+  },
+  {
+    "school_id": "3470",
+    "university_name": "广西自然资源职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 307,
+    "min_rank": 196372
+  },
+  {
+    "school_id": "3464",
+    "university_name": "江西软件职业技术大学",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 296,
+    "min_rank": 198671
+  },
+  {
+    "school_id": "3464",
+    "university_name": "江西软件职业技术大学",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 296,
+    "min_rank": 198671
+  },
+  {
+    "school_id": "3464",
+    "university_name": "江西软件职业技术大学",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 296,
+    "min_rank": 198671
+  },
+  {
+    "school_id": "3464",
+    "university_name": "江西软件职业技术大学",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 296,
+    "min_rank": 198671
+  },
+  {
+    "school_id": "3464",
+    "university_name": "江西软件职业技术大学",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 296,
+    "min_rank": 198671
+  },
+  {
+    "school_id": "3464",
+    "university_name": "江西软件职业技术大学",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 296,
+    "min_rank": 198671
+  },
+  {
+    "school_id": "3463",
+    "university_name": "福建技术师范学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 453,
+    "min_rank": 93910
+  },
+  {
+    "school_id": "3463",
+    "university_name": "福建技术师范学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 453,
+    "min_rank": 93910
+  },
+  {
+    "school_id": "3463",
+    "university_name": "福建技术师范学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 453,
+    "min_rank": 93910
+  },
+  {
+    "school_id": "3463",
+    "university_name": "福建技术师范学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 453,
+    "min_rank": 93910
+  },
+  {
+    "school_id": "3463",
+    "university_name": "福建技术师范学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 453,
+    "min_rank": 93910
+  },
+  {
+    "school_id": "3463",
+    "university_name": "福建技术师范学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 453,
+    "min_rank": 93910
+  },
+  {
+    "school_id": "3454",
+    "university_name": "和田职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 205,
+    "min_rank": 204870
+  },
+  {
+    "school_id": "3454",
+    "university_name": "和田职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 205,
+    "min_rank": 204870
+  },
+  {
+    "school_id": "3454",
+    "university_name": "和田职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 205,
+    "min_rank": 204870
+  },
+  {
+    "school_id": "3454",
+    "university_name": "和田职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 205,
+    "min_rank": 204870
+  },
+  {
+    "school_id": "3454",
+    "university_name": "和田职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 205,
+    "min_rank": 204870
+  },
+  {
+    "school_id": "3454",
+    "university_name": "和田职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 205,
+    "min_rank": 204870
+  },
+  {
+    "school_id": "3443",
+    "university_name": "中国人民武装警察部队特种警察学院",
+    "year": 2023,
+    "subject_type": "物理类",
+    "batch": "本科提前批",
+    "recruit_type": "男生",
+    "min_score": 473,
+    "min_rank": 43510
+  },
+  {
+    "school_id": "3443",
+    "university_name": "中国人民武装警察部队特种警察学院",
+    "year": 2023,
+    "subject_type": "历史类",
+    "batch": "本科提前批",
+    "recruit_type": "男生",
+    "min_score": 473,
+    "min_rank": 43510
+  },
+  {
+    "school_id": "3443",
+    "university_name": "中国人民武装警察部队特种警察学院",
+    "year": 2023,
+    "subject_type": "物理类",
+    "batch": "本科提前批",
+    "recruit_type": "男生",
+    "min_score": 473,
+    "min_rank": 43510
+  },
+  {
+    "school_id": "3443",
+    "university_name": "中国人民武装警察部队特种警察学院",
+    "year": 2023,
+    "subject_type": "历史类",
+    "batch": "本科提前批",
+    "recruit_type": "男生",
+    "min_score": 473,
+    "min_rank": 43510
+  },
+  {
+    "school_id": "3443",
+    "university_name": "中国人民武装警察部队特种警察学院",
+    "year": 2023,
+    "subject_type": "理科",
+    "batch": "本科提前批",
+    "recruit_type": "男生",
+    "min_score": 473,
+    "min_rank": 43510
+  },
+  {
+    "school_id": "3443",
+    "university_name": "中国人民武装警察部队特种警察学院",
+    "year": 2023,
+    "subject_type": "文科",
+    "batch": "本科提前批",
+    "recruit_type": "男生",
+    "min_score": 473,
+    "min_rank": 43510
+  },
+  {
+    "school_id": "3439",
+    "university_name": "资阳口腔职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 174968
+  },
+  {
+    "school_id": "3439",
+    "university_name": "资阳口腔职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 174968
+  },
+  {
+    "school_id": "3439",
+    "university_name": "资阳口腔职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 174968
+  },
+  {
+    "school_id": "3439",
+    "university_name": "资阳口腔职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 174968
+  },
+  {
+    "school_id": "3439",
+    "university_name": "资阳口腔职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 174968
+  },
+  {
+    "school_id": "3439",
+    "university_name": "资阳口腔职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 174968
+  },
+  {
+    "school_id": "3438",
+    "university_name": "喀什职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 232,
+    "min_rank": 204427
+  },
+  {
+    "school_id": "3438",
+    "university_name": "喀什职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 315,
+    "min_rank": 194518
+  },
+  {
+    "school_id": "3438",
+    "university_name": "喀什职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 232,
+    "min_rank": 204427
+  },
+  {
+    "school_id": "3438",
+    "university_name": "喀什职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 315,
+    "min_rank": 194518
+  },
+  {
+    "school_id": "3438",
+    "university_name": "喀什职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 232,
+    "min_rank": 204427
+  },
+  {
+    "school_id": "3438",
+    "university_name": "喀什职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 315,
+    "min_rank": 194518
+  },
+  {
+    "school_id": "3438",
+    "university_name": "喀什职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 232,
+    "min_rank": 204427
+  },
+  {
+    "school_id": "3438",
+    "university_name": "喀什职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 315,
+    "min_rank": 194518
+  },
+  {
+    "school_id": "3438",
+    "university_name": "喀什职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 232,
+    "min_rank": 204427
+  },
+  {
+    "school_id": "3438",
+    "university_name": "喀什职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 315,
+    "min_rank": 194518
+  },
+  {
+    "school_id": "3438",
+    "university_name": "喀什职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 232,
+    "min_rank": 204427
+  },
+  {
+    "school_id": "3438",
+    "university_name": "喀什职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "护理类",
+    "min_score": 315,
+    "min_rank": 194518
+  },
+  {
+    "school_id": "3437",
+    "university_name": "云南理工职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 254,
+    "min_rank": 203423
+  },
+  {
+    "school_id": "3437",
+    "university_name": "云南理工职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 254,
+    "min_rank": 203423
+  },
+  {
+    "school_id": "3437",
+    "university_name": "云南理工职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 254,
+    "min_rank": 203423
+  },
+  {
+    "school_id": "3437",
+    "university_name": "云南理工职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 254,
+    "min_rank": 203423
+  },
+  {
+    "school_id": "3437",
+    "university_name": "云南理工职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 254,
+    "min_rank": 203423
+  },
+  {
+    "school_id": "3437",
+    "university_name": "云南理工职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 254,
+    "min_rank": 203423
+  },
+  {
+    "school_id": "3436",
+    "university_name": "资阳环境科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 296,
+    "min_rank": 86001
+  },
+  {
+    "school_id": "3436",
+    "university_name": "资阳环境科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 296,
+    "min_rank": 86001
+  },
+  {
+    "school_id": "3436",
+    "university_name": "资阳环境科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 296,
+    "min_rank": 86001
+  },
+  {
+    "school_id": "3436",
+    "university_name": "资阳环境科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 296,
+    "min_rank": 86001
+  },
+  {
+    "school_id": "3436",
+    "university_name": "资阳环境科技职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 296,
+    "min_rank": 86001
+  },
+  {
+    "school_id": "3436",
+    "university_name": "资阳环境科技职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 296,
+    "min_rank": 86001
+  },
+  {
+    "school_id": "3435",
+    "university_name": "南充科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 243,
+    "min_rank": 204060
+  },
+  {
+    "school_id": "3435",
+    "university_name": "南充科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 243,
+    "min_rank": 204060
+  },
+  {
+    "school_id": "3435",
+    "university_name": "南充科技职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 243,
+    "min_rank": 204060
+  },
+  {
+    "school_id": "3435",
+    "university_name": "南充科技职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 243,
+    "min_rank": 204060
+  },
+  {
+    "school_id": "3435",
+    "university_name": "南充科技职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 243,
+    "min_rank": 204060
+  },
+  {
+    "school_id": "3435",
+    "university_name": "南充科技职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 243,
+    "min_rank": 204060
+  },
+  {
+    "school_id": "3434",
+    "university_name": "内江卫生与健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 175276
+  },
+  {
+    "school_id": "3434",
+    "university_name": "内江卫生与健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 175276
+  },
+  {
+    "school_id": "3434",
+    "university_name": "内江卫生与健康职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 175276
+  },
+  {
+    "school_id": "3434",
+    "university_name": "内江卫生与健康职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 175276
+  },
+  {
+    "school_id": "3434",
+    "university_name": "内江卫生与健康职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 175276
+  },
+  {
+    "school_id": "3434",
+    "university_name": "内江卫生与健康职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 362,
+    "min_rank": 175276
+  },
+  {
+    "school_id": "3432",
+    "university_name": "赣州职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 182296
+  },
+  {
+    "school_id": "3432",
+    "university_name": "赣州职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 182296
+  },
+  {
+    "school_id": "3432",
+    "university_name": "赣州职业技术学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 182296
+  },
+  {
+    "school_id": "3432",
+    "university_name": "赣州职业技术学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 182296
+  },
+  {
+    "school_id": "3432",
+    "university_name": "赣州职业技术学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 182296
+  },
+  {
+    "school_id": "3432",
+    "university_name": "赣州职业技术学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 348,
+    "min_rank": 182296
+  },
+  {
+    "school_id": "3431",
+    "university_name": "江西婺源茶业职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 256,
+    "min_rank": 203295
+  },
+  {
+    "school_id": "3431",
+    "university_name": "江西婺源茶业职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 256,
+    "min_rank": 203295
+  },
+  {
+    "school_id": "3431",
+    "university_name": "江西婺源茶业职业学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 256,
+    "min_rank": 203295
+  },
+  {
+    "school_id": "3431",
+    "university_name": "江西婺源茶业职业学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 256,
+    "min_rank": 203295
+  },
+  {
+    "school_id": "3431",
+    "university_name": "江西婺源茶业职业学院",
+    "year": 2025,
+    "subject_type": "理科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 256,
+    "min_rank": 203295
+  },
+  {
+    "school_id": "3431",
+    "university_name": "江西婺源茶业职业学院",
+    "year": 2025,
+    "subject_type": "文科",
+    "batch": "专科批",
+    "recruit_type": "普通类",
+    "min_score": 256,
+    "min_rank": 203295
+  }
+]

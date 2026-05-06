@@ -1,0 +1,24 @@
+[
+  {
+    "school_id": "3881",
+    "university_name": "海南热带海洋学院国际学院",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 563,
+    "min_rank": 6358,
+    "type_code": "2074"
+  },
+  {
+    "school_id": "3828",
+    "university_name": "北京交通大学（威海校区）",
+    "year": 2025,
+    "subject_type": "历史类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 563,
+    "min_rank": 6358,
+    "type_code": "2074"
+  }
+]

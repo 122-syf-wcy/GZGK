@@ -1,0 +1,68 @@
+[
+  {
+    "school_id": "3881",
+    "university_name": "海南热带海洋学院国际学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 555,
+    "min_rank": 21408,
+    "type_code": "2073"
+  },
+  {
+    "school_id": "3881",
+    "university_name": "海南热带海洋学院国际学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 599,
+    "min_rank": 7413,
+    "type_code": "2073"
+  },
+  {
+    "school_id": "3881",
+    "university_name": "海南热带海洋学院国际学院",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "国家专项计划",
+    "min_score": 556,
+    "min_rank": 21027,
+    "type_code": "2073"
+  },
+  {
+    "school_id": "3828",
+    "university_name": "北京交通大学（威海校区）",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "普通类",
+    "min_score": 555,
+    "min_rank": 21408,
+    "type_code": "2073"
+  },
+  {
+    "school_id": "3828",
+    "university_name": "北京交通大学（威海校区）",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "中外合作办学",
+    "min_score": 599,
+    "min_rank": 7413,
+    "type_code": "2073"
+  },
+  {
+    "school_id": "3828",
+    "university_name": "北京交通大学（威海校区）",
+    "year": 2025,
+    "subject_type": "物理类",
+    "batch": "本科批",
+    "recruit_type": "国家专项计划",
+    "min_score": 556,
+    "min_rank": 21027,
+    "type_code": "2073"
+  }
+]
