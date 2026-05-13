@@ -23,7 +23,7 @@ class VolunteerServiceMainPipelineTest {
     private VolunteerService newService() {
         return new VolunteerService(
                 null, null, null, null, null,
-                null, new ObjectMapper(), null, new VolunteerMetricsRecorder(), new ProvincePolicyService(), null,
+                null, new ObjectMapper(), null, new VolunteerMetricsRecorder(), null, new ProvincePolicyService(), null,
                 new CandidateFilterEngine(),
                 new FeatureBuildEngine(),
                 new FallbackRulePredictionEngine(),

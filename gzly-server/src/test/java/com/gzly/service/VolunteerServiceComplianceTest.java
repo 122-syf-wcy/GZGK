@@ -26,7 +26,7 @@ class VolunteerServiceComplianceTest {
     void setUp() throws Exception {
         service = new VolunteerService(
                 null, null, null, null, null,
-                null, new ObjectMapper(), null, new VolunteerMetricsRecorder(), new ProvincePolicyService(), null,
+                null, new ObjectMapper(), null, new VolunteerMetricsRecorder(), null, new ProvincePolicyService(), null,
                 null, null, null, null, null);
         validateGenerateRequest = VolunteerService.class.getDeclaredMethod("validateGenerateRequest", GenerateRequest.class);
         validateGenerateRequest.setAccessible(true);
@@ -83,7 +83,7 @@ class VolunteerServiceComplianceTest {
         ProvinceRankService rankService = mock(ProvinceRankService.class);
         VolunteerService serviceWithRank = new VolunteerService(
                 null, null, null, null, null,
-                null, new ObjectMapper(), null, new VolunteerMetricsRecorder(), new ProvincePolicyService(), rankService,
+                null, new ObjectMapper(), null, new VolunteerMetricsRecorder(), null, new ProvincePolicyService(), rankService,
                 null, null, null, null, null);
         GenerateRequest req = validRequest();
         req.setProvinceRank(0);

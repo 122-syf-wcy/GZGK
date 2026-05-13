@@ -139,7 +139,7 @@ class VolunteerServiceGenerateIntegrationTest {
         service = new VolunteerService(
                 scoreLineService, algorithmService, bizUserMapper, planHistoryMapper, majorRequirementGzMapper,
                 officialLinkService, new ObjectMapper(), stringRedisTemplate,
-                new VolunteerMetricsRecorder(), provincePolicyService, provinceRankService,
+                new VolunteerMetricsRecorder(), new SafetyCodeService(), provincePolicyService, provinceRankService,
                 new CandidateFilterEngine(),
                 new FeatureBuildEngine(),
                 new FallbackRulePredictionEngine(),
@@ -150,7 +150,6 @@ class VolunteerServiceGenerateIntegrationTest {
         ReflectionTestUtils.setField(service, "generateCacheSeconds", 30L);
         ReflectionTestUtils.setField(service, "generateLockSeconds", 30L);
         ReflectionTestUtils.setField(service, "generateWaitMillis", 100L);
-        ReflectionTestUtils.setField(service, "jwtSecret", "integration-test-secret-key-change-me");
     }
 
     @Test
