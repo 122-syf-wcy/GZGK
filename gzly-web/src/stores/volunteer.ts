@@ -4,6 +4,8 @@ import type {
   ManualReviewItem,
   PlanMetrics,
   RankEstimateSummary,
+  RecommendationPhase,
+  SupportLevel,
   VolunteerFormData,
   VolunteerItem,
   VolunteerPlan,
@@ -53,6 +55,15 @@ export const useVolunteerStore = defineStore('volunteer', () => {
   const policy = ref<VolunteerPlan['policy'] | null>(null)
   const modelInfo = ref<VolunteerPlan['modelInfo'] | null>(null)
   const warnings = ref<string[]>([])
+  const recommendationPhase = ref<RecommendationPhase | ''>('')
+  const supportLevel = ref<SupportLevel | ''>('')
+  const estimateMode = ref(false)
+  const officialDataReady = ref(false)
+  const modelRetrained = ref(false)
+  const targetYear = ref<number | null>(null)
+  const activeAdmissionYear = ref<number | null>(null)
+  const latestOfficialDataYear = ref<number | null>(null)
+  const dataSourceYears = ref<number[]>([])
   const aiContent = ref('')
   const generating = ref(false)
 
@@ -76,6 +87,15 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     policy.value = plan.policy ?? null
     modelInfo.value = plan.modelInfo ?? null
     warnings.value = plan.warnings || []
+    recommendationPhase.value = plan.recommendationPhase || ''
+    supportLevel.value = plan.supportLevel || ''
+    estimateMode.value = plan.estimateMode === true
+    officialDataReady.value = plan.officialDataReady === true
+    modelRetrained.value = plan.modelRetrained === true
+    targetYear.value = plan.targetYear ?? null
+    activeAdmissionYear.value = plan.activeAdmissionYear ?? null
+    latestOfficialDataYear.value = plan.latestOfficialDataYear ?? null
+    dataSourceYears.value = plan.dataSourceYears || []
     aiContent.value = ''
     localStorage.setItem(PLAN_META_KEY, JSON.stringify({ planId: plan.id, safetyCode: credential, accessKey: plan.accessKey || '' }))
   }
@@ -117,6 +137,15 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     policy.value = null
     modelInfo.value = null
     warnings.value = []
+    recommendationPhase.value = ''
+    supportLevel.value = ''
+    estimateMode.value = false
+    officialDataReady.value = false
+    modelRetrained.value = false
+    targetYear.value = null
+    activeAdmissionYear.value = null
+    latestOfficialDataYear.value = null
+    dataSourceYears.value = []
     aiContent.value = ''
     gradientRangeSummary.value = null
     rankEstimate.value = null
@@ -152,6 +181,15 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     policy,
     modelInfo,
     warnings,
+    recommendationPhase,
+    supportLevel,
+    estimateMode,
+    officialDataReady,
+    modelRetrained,
+    targetYear,
+    activeAdmissionYear,
+    latestOfficialDataYear,
+    dataSourceYears,
     aiContent,
     generating,
     setFormData,

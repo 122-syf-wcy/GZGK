@@ -205,7 +205,21 @@ const planProvinceConfig = computed(() => getProvinceConfig(planProvinceCode.val
 const isProfessionalGroupPlan = computed(() => planProvinceConfig.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45')
 const planProvinceName = computed(() => planProvinceConfig.value.shortName)
 const planUnitLabel = computed(() => (isProfessionalGroupPlan.value ? '院校专业组' : '志愿'))
-const planTitle = computed(() => `${planProvinceName.value}${planUnitLabel.value}方案`)
+// 2026 预估阶段：标题明示“预估参考”、不出现“官方正式推荐”字样。
+const planTargetYear = computed(() => volunteerStore.targetYear ?? volunteerStore.activeAdmissionYear ?? null)
+const planTitle = computed(() => {
+  if (volunteerStore.estimateMode) {
+    return planTargetYear.value
+      ? `${planTargetYear.value} 志愿预估参考`
+      : '志愿预估参考'
+  }
+  return `${planProvinceName.value}${planUnitLabel.value}方案`
+})
+const dataSourceYearsLabel = computed(() => (
+  volunteerStore.dataSourceYears && volunteerStore.dataSourceYears.length
+    ? volunteerStore.dataSourceYears.join('/')
+    : '2024/2025'
+))
 const targetCountText = computed(() => `${volunteerStore.planMetrics?.targetCount || planProvinceConfig.value.targetCount} 个`)
 const rankHeroText = computed(() => {
   const rank = volunteerStore.formData.provinceRank
@@ -656,6 +670,19 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </div>
       <div v-for="warning in volunteerStore.warnings" :key="warning" class="result-warning">
         {{ warning }}
+      </div>
+      <div v-if="volunteerStore.estimateMode" class="estimate-banner">
+        <ShieldAlert :size="16" />
+        <div class="estimate-banner__text">
+          <strong>2026 志愿预估参考 · 非正式推荐</strong>
+          <span>当前基于 {{ dataSourceYearsLabel }} 历史数据进行模拟测算。2026 官方数据发布并导入后，请重新生成正式志愿方案。</span>
+        </div>
+      </div>
+      <div v-if="volunteerStore.estimateMode" class="estimate-tags">
+        <span class="estimate-tag estimate-tag--primary">预估参考</span>
+        <span class="estimate-tag">非正式推荐</span>
+        <span class="estimate-tag">数据来源：{{ dataSourceYearsLabel }}</span>
+        <span class="estimate-tag">目标年份：{{ planTargetYear ?? volunteerStore.activeAdmissionYear ?? '—' }}</span>
       </div>
       <div v-if="rankEstimateSummary" class="rank-estimate-banner" :class="{ 'rank-estimate-banner--auto': rankEstimateSummary.rankEstimated }">
         <ShieldAlert :size="16" />
@@ -1250,6 +1277,56 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   border-color: #fed7aa;
   background: #fff7ed;
   color: #9a3412;
+}
+
+.estimate-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #fde68a;
+  border-radius: 16px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.estimate-banner__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.estimate-banner__text strong {
+  font-size: 13px;
+  color: #b45309;
+}
+
+.estimate-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.estimate-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.estimate-tag--primary {
+  border-color: #f59e0b;
+  background: #f59e0b;
+  color: #ffffff;
+  font-weight: 600;
 }
 
 .hero-main {

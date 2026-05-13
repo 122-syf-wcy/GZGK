@@ -643,7 +643,32 @@ export interface VolunteerPlan {
     fallbackReason?: string
   }
   warnings?: string[]
+  /** 推荐阶段：PRE_OFFICIAL_DATA / OFFICIAL_DATA_PARTIAL / OFFICIAL_DATA_IMPORTED / MODEL_RETRAINED */
+  recommendationPhase?: RecommendationPhase
+  /** 当前批次的 supportLevel：ESTIMATE_RECOMMEND / TRIAL_RECOMMEND / FULL_RECOMMEND / QUERY_ONLY */
+  supportLevel?: SupportLevel
+  /** 是否为 2026 志愿预估参考（非正式推荐） */
+  estimateMode?: boolean
+  /** 2026 官方数据是否就绪 */
+  officialDataReady?: boolean
+  /** 模型是否已基于 2026 官方数据完成重训 */
+  modelRetrained?: boolean
+  /** 目标录取年份（考生填报年份） */
+  targetYear?: number
+  /** 当前活跃录取年份 */
+  activeAdmissionYear?: number
+  /** 最近一年已有完整官方数据的年份 */
+  latestOfficialDataYear?: number
+  /** 本次预估实际使用的数据年份 */
+  dataSourceYears?: number[]
 }
+
+export type SupportLevel =
+  | 'FULL_RECOMMEND'
+  | 'ESTIMATE_RECOMMEND'
+  | 'TRIAL_RECOMMEND'
+  | 'QUERY_ONLY'
+  | 'UNSUPPORTED'
 
 export type RecommendationPhase =
   | 'PRE_OFFICIAL_DATA'

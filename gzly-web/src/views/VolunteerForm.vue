@@ -1005,7 +1005,7 @@ async function submitPlan() {
         </button>
 
         <button class="submit-btn" :class="{ disabled: !canSubmit || generating }" :disabled="!canSubmit || generating" @click="onSubmit">
-          <span>{{ isGenerateLocked ? '生成能力暂未开放' : generating ? '生成中…' : hasCurrentDisclaimer ? `生成 ${targetVolunteerCount} 个${volunteerUnitLabel}` : '阅读风险告知并生成' }}</span>
+          <span>{{ isGenerateLocked ? '生成能力暂未开放' : generating ? '生成中…' : hasCurrentDisclaimer ? '生成 AI 志愿预估参考' : '阅读风险告知并生成 AI 志愿预估参考' }}</span>
           <ArrowRight :size="18" />
         </button>
         <p class="submit-hint">
