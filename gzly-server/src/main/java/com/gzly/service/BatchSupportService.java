@@ -106,11 +106,13 @@ public class BatchSupportService {
         boolean hasHistory = item.getScoreLineCount() + item.getMajorScoreCount() > 0;
         boolean isOrdinary = rule.category() == BatchRuleRegistry.CandidateCategory.ORDINARY;
         if (targetYear && !officialReady) {
-            // PRE_OFFICIAL_DATA 阶段：仅普通本/专科 + 政策已配 + 有历史数据 + 历史训练就绪时开放 ESTIMATE_RECOMMEND，
+            // PRE_OFFICIAL_DATA 阶段：仅普通本/专科 + 政策已配 + 历史训练就绪时开放 ESTIMATE_RECOMMEND，
+            // 不再要求 year=targetYear 的 score_line/major_score 行数 — 目标年份的官方数据本来就为空，
+            // 历史数据可用性由 readiness.historicalTrainingReady 这一管理侧 flag 统一表达，
+            // 与 VolunteerRecommendController.resolveSupportLevel 在 /recommend 路径上的判定口径保持一致。
             // 其余（含 OFFICIAL_DATA_PARTIAL）仍走 QUERY_ONLY。
             if (isOrdinary
                     && item.isPolicyConfigured()
-                    && hasHistory
                     && readiness != null
                     && readiness.isHistoricalTrainingReady()
                     && admissionYearService.isPreOfficialDataPhase(readiness.getRecommendationPhase())) {

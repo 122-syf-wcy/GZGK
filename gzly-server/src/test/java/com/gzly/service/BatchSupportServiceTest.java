@@ -411,6 +411,147 @@ class BatchSupportServiceTest {
         assertThat((long) retrained.getSummary().get("FULL_RECOMMEND")).isGreaterThanOrEqualTo(2L);
     }
 
+    // === 修复 batch-support summary 与 /recommend 出口口径一致（生产线 2026 score_line/major_score 表为空） ===
+
+    @Test
+    void PRE_OFFICIAL_DATA_normalUndergraduate_batchSupportShouldShowEstimateRecommend() {
+        // 模拟生产真实状态：policy_rule_config 已配，但 2026 年的 score_line / major_score 表为空。
+        BatchSupportService.BatchSupportResponse response =
+                serviceWithEmptyTargetYearHistory().supportMatrix("GZ", 2026, true);
+
+        BatchSupportService.BatchSupportItem item = item(response, "NORMAL_UNDERGRADUATE");
+        assertThat(item.getSupportLevel()).isEqualTo("ESTIMATE_RECOMMEND");
+        assertThat(item.getRecommendMode()).isEqualTo("PARALLEL_MAJOR");
+    }
+
+    @Test
+    void PRE_OFFICIAL_DATA_normalSpecialty_batchSupportShouldShowEstimateRecommend() {
+        BatchSupportService.BatchSupportResponse response =
+                serviceWithEmptyTargetYearHistory().supportMatrix("GZ", 2026, true);
+
+        BatchSupportService.BatchSupportItem item = item(response, "NORMAL_SPECIALTY");
+        assertThat(item.getSupportLevel()).isEqualTo("ESTIMATE_RECOMMEND");
+        assertThat(item.getRecommendMode()).isEqualTo("PARALLEL_MAJOR");
+    }
+
+    @Test
+    void PRE_OFFICIAL_DATA_summaryShouldHaveEstimateRecommend2() {
+        BatchSupportService.BatchSupportResponse response =
+                serviceWithEmptyTargetYearHistory().supportMatrix("GZ", 2026, true);
+
+        assertThat(response.getSummary()).containsEntry("FULL_RECOMMEND", 0L);
+        assertThat(response.getSummary()).containsEntry("TRIAL_RECOMMEND", 0L);
+        assertThat(response.getSummary().get("ESTIMATE_RECOMMEND")).isEqualTo(2L);
+    }
+
+    @Test
+    void PRE_OFFICIAL_DATA_nonNormalShouldStillQueryOnly16() {
+        BatchSupportService.BatchSupportResponse response =
+                serviceWithEmptyTargetYearHistory().supportMatrix("GZ", 2026, true);
+
+        assertThat(response.getSummary().get("QUERY_ONLY")).isEqualTo(16L);
+        for (String code : List.of(
+                "EARLY_A_B", "EARLY_C", "SPECIALTY_EARLY",
+                "ART_UNDERGRADUATE_A", "ART_UNDERGRADUATE_B", "ART_SPECIALTY",
+                "SPORTS_UNDERGRADUATE", "SPORTS_SPECIALTY",
+                "NATIONAL_SPECIAL", "LOCAL_SPECIAL", "UNIVERSITY_SPECIAL",
+                "ETHNIC_CLASS", "PREPARATORY", "ORIENTED",
+                "FREE_MEDICAL", "TEACHER_EXCELLENCE")) {
+            assertThat(item(response, code).getSupportLevel()).as(code).isEqualTo("QUERY_ONLY");
+        }
+    }
+
+    @Test
+    void PRE_OFFICIAL_DATA_shouldNotRequire2026ScoreLineOrMajorScore() {
+        // 双重保险：即便 2026 年 score_line 与 major_score 计数为 0，仍应返回 ESTIMATE_RECOMMEND。
+        BatchSupportService service = serviceWithEmptyTargetYearHistory();
+        BatchSupportService.BatchSupportResponse response = service.supportMatrix("GZ", 2026, true);
+        BatchSupportService.BatchSupportItem item = item(response, "NORMAL_UNDERGRADUATE");
+
+        assertThat(item.getScoreLineCount()).isEqualTo(0L);
+        assertThat(item.getMajorScoreCount()).isEqualTo(0L);
+        assertThat(item.getSupportLevel()).isEqualTo("ESTIMATE_RECOMMEND");
+    }
+
+    @Test
+    void fullRecommend_shouldStillOnlyAfterModelRetrained() {
+        // 即便 2026 表为空（模拟生产），FULL_RECOMMEND 仍必须等到 MODEL_RETRAINED + mlTrainingReady。
+        BatchSupportService.BatchSupportResponse preOfficial =
+                serviceWithEmptyTargetYearHistory().supportMatrix("GZ", 2026, true);
+        BatchSupportService.BatchSupportResponse retrained = serviceWithReadiness(
+                readinessRow(AdmissionYearService.PHASE_MODEL_RETRAINED, true)
+        ).supportMatrix("GZ", 2026, true);
+
+        assertThat(preOfficial.getSummary()).containsEntry("FULL_RECOMMEND", 0L);
+        assertThat(item(preOfficial, "NORMAL_UNDERGRADUATE").getSupportLevel()).isEqualTo("ESTIMATE_RECOMMEND");
+        assertThat(item(retrained, "NORMAL_UNDERGRADUATE").getSupportLevel()).isEqualTo("FULL_RECOMMEND");
+    }
+
+    /**
+     * 模拟生产真实状态：data_year_readiness 行存在（PRE_OFFICIAL_DATA + historical_training_ready=1），
+     * policy_rule_config 已配，但 data_score_line_gz / data_major_score_gz 在 year=2026 上 0 行
+     * （历史数据在 2024/2025，目标年份未发布是预期状态）。
+     */
+    private BatchSupportService serviceWithEmptyTargetYearHistory() {
+        Map<String, Object> readiness = readinessRow(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA, false);
+        readiness.put("policy_ready", 0);
+        readiness.put("score_segment_ready", 0);
+        readiness.put("admission_plan_ready", 0);
+        readiness.put("major_requirement_ready", 0);
+        readiness.put("major_meta_ready", 0);
+        readiness.put("historical_training_ready", 1);
+        return new BatchSupportService(new EmptyTargetYearJdbcTemplate(readiness), admissionYearService());
+    }
+
+    /**
+     * 生产口径 fake JDBC：policy / readiness 行存在，2026 year 的 score_line / major_score / plan 全 0 行。
+     */
+    private static class EmptyTargetYearJdbcTemplate extends JdbcTemplate {
+        private final Map<String, Object> readinessRow;
+
+        EmptyTargetYearJdbcTemplate(Map<String, Object> readinessRow) {
+            this.readinessRow = readinessRow;
+        }
+
+        @Override
+        public <T> T queryForObject(String sql, Class<T> requiredType, Object... args) {
+            if (Long.class.equals(requiredType)) {
+                if (sql.contains("information_schema.tables")) {
+                    return requiredType.cast(1L);
+                }
+                if (sql.contains("information_schema.columns")) {
+                    String table = String.valueOf(args[0]);
+                    String column = String.valueOf(args[1]);
+                    if (("data_admission_plan_gz".equals(table) || "admission_plan".equals(table)) && "batch_code".equals(column)) {
+                        return requiredType.cast(1L);
+                    }
+                    if (("data_score_line_gz".equals(table) || "data_major_score_gz".equals(table)) && "batch".equals(column)) {
+                        return requiredType.cast(1L);
+                    }
+                    return requiredType.cast(0L);
+                }
+                return requiredType.cast(0L);
+            }
+            return null;
+        }
+
+        @Override
+        public List<Map<String, Object>> queryForList(String sql, Object... args) {
+            if (sql.contains("FROM data_year_readiness")) {
+                return List.of(readinessRow);
+            }
+            if (sql.startsWith("SELECT policy_status")) {
+                return List.of(Map.of(
+                        "policy_status", "pending_confirm",
+                        "max_volunteer_count", 96,
+                        "major_per_school_count", 0,
+                        "has_adjustment", 0));
+            }
+            // 关键：年份目标 2026 上无任何历史数据行（数据本来就还没发布）。
+            return List.of();
+        }
+    }
+
     private BatchSupportService serviceWithNoDatabaseRows() {
         return new BatchSupportService(new FakeJdbcTemplate(false), admissionYearService());
     }
