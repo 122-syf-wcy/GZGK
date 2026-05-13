@@ -57,6 +57,8 @@ export const useVolunteerStore = defineStore('volunteer', () => {
   const warnings = ref<string[]>([])
   const recommendationPhase = ref<RecommendationPhase | ''>('')
   const supportLevel = ref<SupportLevel | ''>('')
+  const supportReason = ref<string>('')
+  const missingData = ref<string[]>([])
   const estimateMode = ref(false)
   const officialDataReady = ref(false)
   const modelRetrained = ref(false)
@@ -89,6 +91,8 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     warnings.value = plan.warnings || []
     recommendationPhase.value = plan.recommendationPhase || ''
     supportLevel.value = plan.supportLevel || ''
+    supportReason.value = plan.supportReason || ''
+    missingData.value = plan.missingData || []
     estimateMode.value = plan.estimateMode === true
     officialDataReady.value = plan.officialDataReady === true
     modelRetrained.value = plan.modelRetrained === true
@@ -139,6 +143,8 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     warnings.value = []
     recommendationPhase.value = ''
     supportLevel.value = ''
+    supportReason.value = ''
+    missingData.value = []
     estimateMode.value = false
     officialDataReady.value = false
     modelRetrained.value = false
@@ -183,6 +189,8 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     warnings,
     recommendationPhase,
     supportLevel,
+    supportReason,
+    missingData,
     estimateMode,
     officialDataReady,
     modelRetrained,

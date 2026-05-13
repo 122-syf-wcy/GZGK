@@ -99,6 +99,7 @@ public class VolunteerRecommendController {
         plan.setModelInfo(mlResult.toMap());
         plan.setWarnings(warnings);
         applyRecommendationMeta(plan, readiness, supportLevel, resolvedYear);
+        applyBatchSupportMeta(plan, provinceCode, resolvedYear, rule.batchCode());
         return Result.ok(plan);
     }
 
@@ -124,7 +125,38 @@ public class VolunteerRecommendController {
         plan.setWarnings(warnings);
         plan.setSupportLevel(BatchRuleRegistry.SupportLevel.QUERY_ONLY.name());
         applyRecommendationMeta(plan, readiness, BatchRuleRegistry.SupportLevel.QUERY_ONLY.name(), resolvedYear);
+        applyBatchSupportMeta(plan, provinceCode, resolvedYear, rule.batchCode());
         return plan;
+    }
+
+    /**
+     * 从 batch-support 矩阵中取出同批次的 supportReason / missingData / supportNote，
+     * 写入 plan，让前端能在推荐结果页直接展示后端权威文案。静默失败（如 SQL 异常）不阻断主流程。
+     */
+    private void applyBatchSupportMeta(VolunteerService.PlanResult plan,
+                                       String provinceCode,
+                                       int resolvedYear,
+                                       String batchCode) {
+        try {
+            BatchSupportService.BatchSupportResponse matrix =
+                    batchSupportService.supportMatrix(provinceCode, resolvedYear, true);
+            if (matrix == null || matrix.getItems() == null) {
+                return;
+            }
+            for (BatchSupportService.BatchSupportItem item : matrix.getItems()) {
+                if (batchCode != null && batchCode.equals(item.getBatchCode())) {
+                    if (item.getSupportReason() != null && !item.getSupportReason().isBlank()) {
+                        plan.setSupportReason(item.getSupportReason());
+                    }
+                    if (item.getMissingData() != null) {
+                        plan.setMissingData(new ArrayList<>(item.getMissingData()));
+                    }
+                    return;
+                }
+            }
+        } catch (Exception ignored) {
+            // batch-support 矩阵不可用不阻断 recommend 主流程
+        }
     }
 
     /**

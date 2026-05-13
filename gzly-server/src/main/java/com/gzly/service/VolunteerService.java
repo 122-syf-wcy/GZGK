@@ -493,6 +493,10 @@ public class VolunteerService {
         private String recommendationPhase;
         /** 当前批次的 supportLevel：ESTIMATE_RECOMMEND / TRIAL_RECOMMEND / FULL_RECOMMEND / QUERY_ONLY */
         private String supportLevel;
+        /** 当前批次的支持说明（用于前端展示规则/数据缺口原因，与 batch-support 矩阵同源） */
+        private String supportReason;
+        /** 当前批次的缺口数据列表（policy_rule_config / data_score_line_gz 等表名标签） */
+        private List<String> missingData;
         /** 是否为 2026 志愿预估参考（true=非正式，待官方数据出后须重新生成） */
         private Boolean estimateMode;
         /** 2026 官方数据是否已导入并通过关键质检 */

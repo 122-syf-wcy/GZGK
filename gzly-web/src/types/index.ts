@@ -649,6 +649,10 @@ export interface VolunteerPlan {
   recommendationPhase?: RecommendationPhase
   /** 当前批次的 supportLevel：ESTIMATE_RECOMMEND / TRIAL_RECOMMEND / FULL_RECOMMEND / QUERY_ONLY */
   supportLevel?: SupportLevel
+  /** 当前批次的支持说明文案（与 batch-support 矩阵同源） */
+  supportReason?: string
+  /** 当前批次的缺口数据列表（表名 / 字段名标签） */
+  missingData?: string[]
   /** 是否为 2026 志愿预估参考（非正式推荐） */
   estimateMode?: boolean
   /** 2026 官方数据是否就绪 */
