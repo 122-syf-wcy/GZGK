@@ -335,6 +335,8 @@ export interface VolunteerFormData {
   firstSubject: '物理' | '历史'
   /** 再选科目（最多2门） */
   resubjects: string[]
+  /** 当前选择的批次代码（默认 NORMAL_UNDERGRADUATE） */
+  batchCode?: string
   /** 意向专业 */
   preferredMajors: string[]
   /** 意向地区 */
@@ -669,6 +671,64 @@ export type SupportLevel =
   | 'TRIAL_RECOMMEND'
   | 'QUERY_ONLY'
   | 'UNSUPPORTED'
+
+export type BatchCategory =
+  | 'ORDINARY'
+  | 'EARLY'
+  | 'ART'
+  | 'SPORTS'
+  | 'SPECIAL_PROGRAM'
+  | 'OTHER'
+
+export interface BatchSupportItem {
+  batchCode: string
+  batchName: string
+  candidateType: string
+  category: BatchCategory | string
+  supportLevel: SupportLevel
+  recommendMode?: string
+  engine?: string
+  engineName?: string
+  targetCount?: number
+  maxVolunteerCount?: number
+  majorPerSchoolCount?: number
+  hasAdjustment?: boolean
+  volunteerMode?: string
+  policyConfigured?: boolean
+  policyStatus?: string
+  scoreLineCount?: number
+  majorScoreCount?: number
+  planCount?: number
+  requirementCount?: number
+  supportNote?: string
+  supportReason?: string
+  missingData?: string[]
+  warnings?: string[]
+  dataStatus?: {
+    status?: string
+    ready?: boolean
+    detail?: string
+  }
+}
+
+export interface BatchSupportResponse {
+  provinceCode: string
+  year: number
+  activeAdmissionYear: number
+  latestOfficialDataYear: number
+  targetYear: number
+  futureImportYear?: number
+  historyYears: number[]
+  trainingYears: number[]
+  dataSourceYears: number[]
+  recommendationPhase: RecommendationPhase
+  estimateMode: boolean
+  officialDataReady: boolean
+  publicYearLocked?: boolean
+  items: BatchSupportItem[]
+  summary: Record<string, number>
+  dataReadiness?: DataYearReadiness
+}
 
 export type RecommendationPhase =
   | 'PRE_OFFICIAL_DATA'

@@ -2,14 +2,21 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useVolunteerStore } from '@/stores/volunteer'
-import { generateVolunteerPlan, rankCheck } from '@/api/volunteer'
+import { fetchGzBatchSupport, generateVolunteerPlan, rankCheck } from '@/api/volunteer'
 import { getHotMajors, type HotMajor } from '@/api/scoreLine'
 import DisclaimerDialog from '@/components/DisclaimerDialog.vue'
-import type { GradientRangeKey, GradientRanges } from '@/types'
+import type {
+  BatchCategory,
+  BatchSupportItem,
+  BatchSupportResponse,
+  GradientRangeKey,
+  GradientRanges,
+  RecommendationPhase,
+  SupportLevel,
+} from '@/types'
 import {
   getProvinceConfig,
   normalizeProvinceCode,
-  PROVINCE_LIST,
   type ProvinceCode,
 } from '@/constants/provinces'
 import {
@@ -92,11 +99,116 @@ const strategyOptions = [
   { key: '冲刺型', title: '冲刺型', desc: '接受更高波动，优先争取平台或热门方向' },
 ] as const
 
-const provinceOptions = PROVINCE_LIST.map(item => ({
-  key: item.code,
-  title: item.shortName,
-  desc: `${item.targetBatch}，${item.volunteerUnit} · ${item.statusLabel}`,
-}))
+// 入口省份锁定：贵州专区只通过 /volunteer?provinceCode=GZ 进入；不再展示省份卡片选择器，
+// 也不允许 localStorage 旧 provinceCode 覆盖 URL 来源。
+const provinceFromUrl = computed<ProvinceCode>(() => normalizeProvinceCode(route.query.provinceCode))
+const provinceLabel = computed(() => `${currentProvince.value.name} (${currentProvince.value.code})`)
+
+// === batch-support 接入：直接消费后端 /api/volunteer/gz/batch-support 返回的 18 个真实批次 ===
+const batchItems = ref<BatchSupportItem[]>([])
+const batchSupportLoading = ref(false)
+const batchSupportError = ref('')
+const batchSupportPhase = ref<RecommendationPhase | ''>('')
+const batchSupportEstimateMode = ref(false)
+const batchSupportDataSourceYears = ref<number[]>([])
+const batchSupportTargetYear = ref<number | null>(null)
+const batchSupportOfficialReady = ref(false)
+
+// 默认普通本科批；用户可以在分组列表里切换到普通专科批，其他批次只读说明、按钮禁用。
+const selectedBatchCode = ref<string>(
+  volunteerStore.formData.batchCode && volunteerStore.formData.batchCode.length > 0
+    ? volunteerStore.formData.batchCode
+    : 'NORMAL_UNDERGRADUATE',
+)
+
+// 按 candidate category 分组，渲染时与产品规范的【普通类 / 艺术类 / 体育类】一致。
+const BATCH_CATEGORY_GROUPS: Array<{ key: BatchCategory[]; title: string; tone: 'ordinary' | 'art' | 'sports' | 'special' }> = [
+  { key: ['ORDINARY'], title: '普通类', tone: 'ordinary' },
+  { key: ['ART'], title: '艺术类', tone: 'art' },
+  { key: ['SPORTS'], title: '体育类', tone: 'sports' },
+  { key: ['EARLY', 'SPECIAL_PROGRAM', 'OTHER'], title: '提前批 / 资格类', tone: 'special' },
+]
+const batchGroups = computed(() => {
+  return BATCH_CATEGORY_GROUPS.map(group => ({
+    title: group.title,
+    tone: group.tone,
+    items: batchItems.value.filter(it => group.key.includes((it.category as BatchCategory))),
+  })).filter(g => g.items.length > 0)
+})
+const selectedBatchItem = computed<BatchSupportItem | undefined>(() => (
+  batchItems.value.find(it => it.batchCode === selectedBatchCode.value)
+))
+const selectedSupportLevel = computed<SupportLevel | ''>(() => (
+  selectedBatchItem.value?.supportLevel ?? ''
+))
+const canGenerateCurrentBatch = computed(() => (
+  selectedSupportLevel.value === 'ESTIMATE_RECOMMEND'
+  || selectedSupportLevel.value === 'TRIAL_RECOMMEND'
+  || selectedSupportLevel.value === 'FULL_RECOMMEND'
+))
+const currentBatchHint = computed(() => {
+  const item = selectedBatchItem.value
+  if (!item) return ''
+  if (item.supportLevel === 'QUERY_ONLY') {
+    return item.supportReason || item.supportNote || '当前批次仅支持规则和数据缺口说明，暂不生成志愿方案'
+  }
+  return item.supportReason || ''
+})
+
+async function loadBatchSupport() {
+  if (provinceCode.value !== 'GZ') return
+  batchSupportLoading.value = true
+  batchSupportError.value = ''
+  try {
+    const res = await fetchGzBatchSupport()
+    if (res.data.code !== 0 || !res.data.data) {
+      batchSupportError.value = res.data.message || '批次支持数据加载失败，请稍后重试'
+      return
+    }
+    const payload: BatchSupportResponse = res.data.data
+    batchItems.value = payload.items || []
+    batchSupportPhase.value = payload.recommendationPhase || ''
+    batchSupportEstimateMode.value = payload.estimateMode === true
+    batchSupportDataSourceYears.value = payload.dataSourceYears || []
+    batchSupportTargetYear.value = payload.targetYear ?? null
+    batchSupportOfficialReady.value = payload.officialDataReady === true
+    const stillExists = batchItems.value.some(it => it.batchCode === selectedBatchCode.value)
+    if (!stillExists && batchItems.value.length > 0) {
+      const normal = batchItems.value.find(it => it.batchCode === 'NORMAL_UNDERGRADUATE')
+      selectedBatchCode.value = (normal || batchItems.value[0]).batchCode
+    }
+  } catch (err: any) {
+    batchSupportError.value = err?.message || '批次支持数据加载失败，请稍后重试'
+  } finally {
+    batchSupportLoading.value = false
+  }
+}
+
+function selectBatch(code: string): void {
+  if (selectedBatchCode.value !== code) {
+    selectedBatchCode.value = code
+    volunteerStore.setFormData({ batchCode: code })
+  }
+}
+
+function supportLevelLabel(level: SupportLevel | string | undefined): string {
+  switch (level) {
+    case 'ESTIMATE_RECOMMEND': return '可生成预估参考'
+    case 'TRIAL_RECOMMEND': return '试推荐'
+    case 'FULL_RECOMMEND': return '完整推荐'
+    case 'QUERY_ONLY': return '规则/数据缺口说明'
+    default: return '暂不支持'
+  }
+}
+function supportLevelClass(level: SupportLevel | string | undefined): string {
+  switch (level) {
+    case 'ESTIMATE_RECOMMEND': return 'batch-level batch-level--estimate'
+    case 'TRIAL_RECOMMEND': return 'batch-level batch-level--trial'
+    case 'FULL_RECOMMEND': return 'batch-level batch-level--full'
+    case 'QUERY_ONLY': return 'batch-level batch-level--query'
+    default: return 'batch-level'
+  }
+}
 
 const gradientRangeRows: Array<{ key: GradientRangeKey; label: '冲' | '稳' | '保' | '垫'; desc: string }> = [
   { key: 'chong', label: '冲', desc: '尝试更高层次院校或热门方向' },
@@ -172,7 +284,9 @@ const formReady = computed(() => {
     !rangeValidationMessage.value
   )
 })
-const canSubmit = computed(() => formReady.value && !isGenerateLocked.value)
+const canSubmit = computed(() => (
+  formReady.value && !isGenerateLocked.value && canGenerateCurrentBatch.value
+))
 
 const missingItems = computed(() => {
   const items: string[] = []
@@ -311,8 +425,12 @@ async function loadHotMajors() {
 }
 
 watch([firstSubject, provinceCode], loadHotMajors)
-onMounted(loadHotMajors)
+onMounted(() => {
+  loadHotMajors()
+  loadBatchSupport()
+})
 
+// URL 是 provinceCode 的唯一权威来源；store 持久化的 formData.provinceCode 不会反向覆盖。
 watch(() => route.query.provinceCode, (value) => {
   const next = normalizeProvinceCode(value)
   if (provinceCode.value !== next) {
@@ -322,6 +440,12 @@ watch(() => route.query.provinceCode, (value) => {
 
 watch(provinceCode, (code) => {
   volunteerStore.setFormData({ provinceCode: code })
+  // 切换省份时重新拉批次列表（当前贵州独占；其他省份占位）。
+  loadBatchSupport()
+})
+
+watch(selectedBatchCode, (code) => {
+  volunteerStore.setFormData({ batchCode: code })
 })
 
 watch(strategyMode, (mode) => {
@@ -428,6 +552,7 @@ function setRangeMode(mode: 'preset' | 'custom') {
   }
 }
 
+// 入口省份锁定后不再需要 selectProvince；保留兼容备用（routing 路径如 /region/:code 仍可调用）。
 function selectProvince(code: ProvinceCode): void {
   if (provinceCode.value !== code) {
     provinceCode.value = code
@@ -505,6 +630,8 @@ async function submitPlan() {
       provinceRank: provinceRank.value && provinceRank.value > 0 ? provinceRank.value : 0,
       firstSubject: firstSubject.value,
       resubjects: [...resubjects.value],
+      batchCode: selectedBatchCode.value,
+      candidateType: selectedBatchItem.value?.candidateType || '普通类',
       preferredMajors: [...preferredMajors.value],
       preferredRegions: [...preferredRegions.value],
       strategyMode: strategyMode.value,
@@ -552,9 +679,11 @@ async function submitPlan() {
           <ArrowLeft :size="20" />
         </button>
         <div class="gz-shell-heading">
-          <div class="gz-shell-title">智能志愿填报</div>
+          <div class="gz-shell-title">{{ provinceName }} AI 志愿预估参考</div>
           <div class="gz-shell-subtitle">
-            {{ isGenerateLocked ? '查看地区口径、表单字段和数据准备状态' : `把会影响推荐结果的条件一次性填全，再生成 ${targetVolunteerCount} 个${volunteerUnitLabel}草稿` }}
+            {{ isGenerateLocked
+              ? '查看地区口径、表单字段和数据准备状态'
+              : `当前面向 ${batchSupportTargetYear ?? 2026} 届${provinceName}高考，基于 ${batchSupportDataSourceYears.join('/') || '2024/2025'} 历史数据进行预估参考。` }}
           </div>
         </div>
         <div class="gz-shell-header-extra">{{ progressRatio }}%</div>
@@ -607,23 +736,49 @@ async function submitPlan() {
               <span class="volunteer-section__index">01</span>
             </div>
 
+            <!--
+              入口省份锁定：从 /volunteer?provinceCode=GZ 进入即固定贵州专区，
+              不再展示 4 张省份卡片选择器，避免误回旧的省份选择流程。
+            -->
             <div class="option-group">
               <div class="volunteer-block__label">填报省份</div>
-              <div class="option-grid option-grid--double">
-                <button
-                  v-for="opt in provinceOptions"
-                  :key="opt.key"
-                  type="button"
-                  class="option-card"
-                  :class="{ active: provinceCode === opt.key }"
-                  @click="selectProvince(opt.key)"
-                >
-                  <span class="option-card__title">{{ opt.title }}</span>
-                  <span class="option-card__desc">{{ opt.desc }}</span>
-                </button>
+              <div class="province-badge" role="status" aria-live="polite">
+                <span class="province-badge__title">{{ provinceLabel }}</span>
+                <span v-if="batchSupportEstimateMode" class="province-badge__phase">AI 志愿预估参考 · {{ batchSupportDataSourceYears.join('/') || '2024/2025' }} 历史数据</span>
+                <span v-else class="province-badge__phase">{{ currentProvince.statusLabel }}</span>
               </div>
               <div v-if="currentProvince.volunteerUnitType === 'PROFESSIONAL_GROUP_45'" class="volunteer-note">
                 {{ currentProvince.shortName }}当前按{{ currentProvince.targetBatch }}院校专业组建模；公开可核验数据不足 45 个时，系统会提示补数据，不会伪装完整方案。
+              </div>
+            </div>
+
+            <!--
+              批次选择：直接消费后端 /api/volunteer/gz/batch-support 返回的 18 个真实批次，
+              按【普通类 / 艺术类 / 体育类 / 提前批 资格类】分组。普通本/专科可生成预估参考，其他批次只读说明。
+            -->
+            <div class="option-group">
+              <div class="volunteer-block__label">报考批次</div>
+              <div v-if="batchSupportLoading" class="volunteer-note">正在加载批次支持矩阵…</div>
+              <div v-else-if="batchSupportError" class="volunteer-note volunteer-note--warn">{{ batchSupportError }}</div>
+              <div v-else class="batch-groups">
+                <div v-for="group in batchGroups" :key="group.title" class="batch-group" :class="`batch-group--${group.tone}`">
+                  <div class="batch-group__title">{{ group.title }}</div>
+                  <div class="batch-grid">
+                    <button
+                      v-for="b in group.items"
+                      :key="b.batchCode"
+                      type="button"
+                      class="batch-card"
+                      :class="{ active: selectedBatchCode === b.batchCode, 'batch-card--query': b.supportLevel === 'QUERY_ONLY' }"
+                      @click="selectBatch(b.batchCode)"
+                    >
+                      <span class="batch-card__title">{{ b.batchName }}</span>
+                      <span :class="supportLevelClass(b.supportLevel)">{{ supportLevelLabel(b.supportLevel) }}</span>
+                      <span class="batch-card__mode">{{ b.recommendMode }}</span>
+                    </button>
+                  </div>
+                </div>
+                <p v-if="currentBatchHint" class="batch-hint">{{ currentBatchHint }}</p>
               </div>
             </div>
 
@@ -1005,7 +1160,19 @@ async function submitPlan() {
         </button>
 
         <button class="submit-btn" :class="{ disabled: !canSubmit || generating }" :disabled="!canSubmit || generating" @click="onSubmit">
-          <span>{{ isGenerateLocked ? '生成能力暂未开放' : generating ? '生成中…' : hasCurrentDisclaimer ? '生成 AI 志愿预估参考' : '阅读风险告知并生成 AI 志愿预估参考' }}</span>
+          <span>
+            {{
+              isGenerateLocked
+                ? '生成能力暂未开放'
+                : !canGenerateCurrentBatch
+                  ? '当前批次仅支持规则和数据缺口说明，暂不生成志愿方案'
+                  : generating
+                    ? '生成中…'
+                    : hasCurrentDisclaimer
+                      ? '生成 AI 志愿预估参考'
+                      : '阅读风险告知并生成 AI 志愿预估参考'
+            }}
+          </span>
           <ArrowRight :size="18" />
         </button>
         <p class="submit-hint">
@@ -1580,6 +1747,109 @@ async function submitPlan() {
   font-size: 12px;
   line-height: 1.7;
   color: #64748b;
+}
+
+.province-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  margin-top: 4px;
+}
+.province-badge__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #92400e;
+}
+.province-badge__phase {
+  font-size: 12px;
+  color: #b45309;
+}
+
+.batch-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 6px;
+}
+.batch-group {
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+.batch-group--ordinary { border-color: #bfdbfe; background: #eff6ff; }
+.batch-group--art      { border-color: #fbcfe8; background: #fdf2f8; }
+.batch-group--sports   { border-color: #bbf7d0; background: #f0fdf4; }
+.batch-group--special  { border-color: #fde68a; background: #fffbeb; }
+.batch-group__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 8px;
+}
+.batch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.batch-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.batch-card:hover { border-color: #2563eb; }
+.batch-card.active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.batch-card--query {
+  background: #f9fafb;
+  color: #6b7280;
+  cursor: pointer;
+}
+.batch-card--query.active {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+}
+.batch-card__title { font-size: 13px; font-weight: 600; line-height: 1.3; color: inherit; }
+.batch-card__mode { font-size: 11px; color: #94a3b8; }
+.batch-level {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.batch-level--estimate { background: #f59e0b; color: #fff; }
+.batch-level--trial    { background: #2563eb; color: #fff; }
+.batch-level--full     { background: #16a34a; color: #fff; }
+.batch-level--query    { background: #e2e8f0; color: #475569; }
+.batch-hint {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.volunteer-note--warn {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
 }
 
 .volunteer-note {

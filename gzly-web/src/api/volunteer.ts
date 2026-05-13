@@ -1,5 +1,11 @@
 import http from './request'
-import type { GradientRanges, Result, VolunteerPlan, RankCheckResponse } from '@/types'
+import type {
+  BatchSupportResponse,
+  GradientRanges,
+  RankCheckResponse,
+  Result,
+  VolunteerPlan,
+} from '@/types'
 import type { ProvinceCode } from '@/constants/provinces'
 
 /** 生成志愿方案：新链路会先校验年度政策，再返回机会指数口径的方案 */
@@ -9,6 +15,10 @@ export function generateVolunteerPlan(data: {
   provinceRank: number
   firstSubject: '物理' | '历史'
   resubjects: string[]
+  /** 当前选择的批次代码，默认 NORMAL_UNDERGRADUATE */
+  batchCode?: string
+  /** 当前选择的考生类别，默认 普通类 */
+  candidateType?: string
   preferredMajors?: string[]
   preferredRegions?: string[]
   strategyMode?: '保守型' | '均衡型' | '冲刺型'
@@ -22,6 +32,15 @@ export function generateVolunteerPlan(data: {
   gradientRanges?: GradientRanges
 }) {
   return http.post<Result<VolunteerPlan>>('/volunteer/recommend', data)
+}
+
+/**
+ * 公共 batch-support 端点：拉取当前年度的批次支持矩阵。
+ * 返回 18 个贵州批次 + 各 supportLevel + recommendationPhase / estimateMode 元数据。
+ * 公共调用强制锁到 activeAdmissionYear（后端忽略客户端传的非当前年份）。
+ */
+export function fetchGzBatchSupport() {
+  return http.get<Result<BatchSupportResponse>>('/volunteer/gz/batch-support')
 }
 
 /** 查询历史方案 */
