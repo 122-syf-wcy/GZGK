@@ -645,6 +645,46 @@ export interface VolunteerPlan {
   warnings?: string[]
 }
 
+export type RecommendationPhase =
+  | 'PRE_OFFICIAL_DATA'
+  | 'OFFICIAL_DATA_PARTIAL'
+  | 'OFFICIAL_DATA_IMPORTED'
+  | 'MODEL_RETRAINED'
+  | string
+
+export interface DataYearReadiness {
+  provinceCode?: string
+  year?: number
+  policyReady: boolean
+  scoreSegmentReady: boolean
+  admissionPlanReady: boolean
+  majorRequirementReady: boolean
+  majorMetaReady: boolean
+  mlTrainingReady: boolean
+  historicalTrainingReady: boolean
+  recommendationPhase: RecommendationPhase
+  latestImportBatchId?: string
+  lastCheckedAt?: string
+  remarks?: string
+}
+
+/** 管理员只读 readiness DTO（GET /admin/data-year-readiness） */
+export interface DataYearReadinessDto {
+  provinceCode: string
+  year: number
+  activeAdmissionYear: number
+  latestOfficialDataYear: number
+  trainingYears: number[]
+  dataSourceYears: number[]
+  recommendationPhase: RecommendationPhase
+  officialDataReady: boolean
+  modelRetrained: boolean
+  estimateMode: boolean
+  dataReadiness: DataYearReadiness
+  phaseDescription: string
+  nextActions: string[]
+}
+
 /** 推荐院校项 */
 export interface RecommendItem {
   schoolId: string

@@ -6,6 +6,7 @@ import type {
   AdminAiConfigTestResult,
   AdminOfficialLinkListData,
   Announcement,
+  DataYearReadinessDto,
   Result,
   SaveAdminAiConfigRequest,
 } from '@/types'
@@ -123,4 +124,10 @@ export function fetchAdminEncouragementMessages(page = 1, size = 20, status?: nu
 
 export function deleteAdminEncouragementMessage(id: number) {
   return request.delete<Result<string>>(`/admin/encouragement-messages/${id}`)
+}
+
+export function fetchAdminDataYearReadiness(provinceCode = 'GZ', year = 2026) {
+  return request.get<Result<DataYearReadinessDto>>('/admin/data-year-readiness', {
+    params: { provinceCode, year },
+  })
 }

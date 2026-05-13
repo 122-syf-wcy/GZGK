@@ -60,6 +60,7 @@ function doLogout() {
 
 const navItems = [
   { key: 'dashboard', label: '数据看板', iconImg: '/admin-dashboard.png', path: '/admin' },
+  { key: 'data-year-readiness', label: '数据准备进度', iconImg: '/admin-dashboard.png', path: '/admin/data-year-readiness' },
   { key: 'users', label: '用户管理', iconImg: '/admin-users.png', path: '/admin/users' },
   { key: 'plans', label: '方案记录', iconImg: '/admin-plans.png', path: '/admin/plans' },
   { key: 'universities', label: '院校管理', iconImg: '/admin-university.png', path: '/admin/universities' },
