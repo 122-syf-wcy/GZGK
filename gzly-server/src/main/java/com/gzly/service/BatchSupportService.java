@@ -97,19 +97,34 @@ public class BatchSupportService {
 
     private String resolveSupportLevel(BatchRuleRegistry.BatchRule rule, BatchSupportItem item, DataReadiness readiness, int year) {
         if (!rule.mainRankEngine()) {
+            // 非主链路批次（提前批/艺/体/专项）始终保持 baseSupportLevel(=QUERY_ONLY)，
+            // 即便 PRE_OFFICIAL_DATA 阶段开放普通本/专科预估，这类批次也不允许预估。
             return rule.baseSupportLevel().name();
         }
-        if (year == admissionYearService.getTargetYear() && !admissionYearService.isOfficialDataReady(readiness)) {
+        boolean targetYear = year == admissionYearService.getTargetYear();
+        boolean officialReady = admissionYearService.isOfficialDataReady(readiness);
+        boolean hasHistory = item.getScoreLineCount() + item.getMajorScoreCount() > 0;
+        boolean isOrdinary = rule.category() == BatchRuleRegistry.CandidateCategory.ORDINARY;
+        if (targetYear && !officialReady) {
+            // PRE_OFFICIAL_DATA 阶段：仅普通本/专科 + 政策已配 + 有历史数据 + 历史训练就绪时开放 ESTIMATE_RECOMMEND，
+            // 其余（含 OFFICIAL_DATA_PARTIAL）仍走 QUERY_ONLY。
+            if (isOrdinary
+                    && item.isPolicyConfigured()
+                    && hasHistory
+                    && readiness != null
+                    && readiness.isHistoricalTrainingReady()
+                    && admissionYearService.isPreOfficialDataPhase(readiness.getRecommendationPhase())) {
+                return BatchRuleRegistry.SupportLevel.ESTIMATE_RECOMMEND.name();
+            }
             return BatchRuleRegistry.SupportLevel.QUERY_ONLY.name();
         }
-        boolean hasHistory = item.getScoreLineCount() + item.getMajorScoreCount() > 0;
         if (!item.isPolicyConfigured() || !hasHistory) {
             return BatchRuleRegistry.SupportLevel.QUERY_ONLY.name();
         }
-        if (year == admissionYearService.getTargetYear() && !readiness.isMlTrainingReady()) {
+        if (targetYear && !readiness.isMlTrainingReady()) {
             return BatchRuleRegistry.SupportLevel.TRIAL_RECOMMEND.name();
         }
-        if (year == admissionYearService.getTargetYear()
+        if (targetYear
                 && (!admissionYearService.isModelRetrainedPhase(readiness.getRecommendationPhase())
                 || !readiness.isMajorMetaReady()
                 || item.getPlanCount() <= 0
@@ -131,6 +146,9 @@ public class BatchSupportService {
             if (admissionYearService.isOfficialDataPartialPhase(readiness.getRecommendationPhase())) {
                 dataStatus.setStatus(AdmissionYearService.PHASE_OFFICIAL_DATA_PARTIAL);
                 dataStatus.setDetail("目标年份官方数据正在分批导入和质检，关键数据尚未全部就绪");
+            } else if (BatchRuleRegistry.SupportLevel.ESTIMATE_RECOMMEND.name().equals(item.getSupportLevel())) {
+                dataStatus.setStatus(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+                dataStatus.setDetail("2026 官方数据未发布，基于 2024/2025 历史数据提供预估参考");
             } else {
                 dataStatus.setStatus(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
                 dataStatus.setDetail("目标年份官方招生计划、一分一段表或政策数据尚未全部就绪");
@@ -171,9 +189,13 @@ public class BatchSupportService {
             return rule.supportNote();
         }
         if (year == admissionYearService.getTargetYear() && !admissionYearService.isOfficialDataReady(readiness)) {
-            return admissionYearService.isOfficialDataPartialPhase(readiness.getRecommendationPhase())
-                    ? AdmissionYearService.OFFICIAL_DATA_PARTIAL_WARNING
-                    : AdmissionYearService.PRE_OFFICIAL_DATA_WARNING;
+            if (admissionYearService.isOfficialDataPartialPhase(readiness.getRecommendationPhase())) {
+                return AdmissionYearService.OFFICIAL_DATA_PARTIAL_WARNING;
+            }
+            if (BatchRuleRegistry.SupportLevel.ESTIMATE_RECOMMEND.name().equals(item.getSupportLevel())) {
+                return AdmissionYearService.PRE_OFFICIAL_DATA_ESTIMATE_WARNING;
+            }
+            return AdmissionYearService.PRE_OFFICIAL_DATA_WARNING;
         }
         if (!item.isPolicyConfigured()) {
             return "当前批次政策未落库，仅展示内置规则和数据缺口";
@@ -199,9 +221,13 @@ public class BatchSupportService {
     private List<String> warnings(BatchRuleRegistry.BatchRule rule, BatchSupportItem item, DataReadiness readiness, int year) {
         List<String> warnings = new ArrayList<>();
         if (year == admissionYearService.getTargetYear() && !admissionYearService.isOfficialDataReady(readiness)) {
-            warnings.add(admissionYearService.isOfficialDataPartialPhase(readiness.getRecommendationPhase())
-                    ? AdmissionYearService.OFFICIAL_DATA_PARTIAL_WARNING
-                    : AdmissionYearService.PRE_OFFICIAL_DATA_WARNING);
+            if (admissionYearService.isOfficialDataPartialPhase(readiness.getRecommendationPhase())) {
+                warnings.add(AdmissionYearService.OFFICIAL_DATA_PARTIAL_WARNING);
+            } else if (BatchRuleRegistry.SupportLevel.ESTIMATE_RECOMMEND.name().equals(item.getSupportLevel())) {
+                warnings.add(AdmissionYearService.PRE_OFFICIAL_DATA_ESTIMATE_WARNING);
+            } else {
+                warnings.add(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING);
+            }
         } else if (year == admissionYearService.getTargetYear() && rule.mainRankEngine() && !readiness.isMlTrainingReady()) {
             warnings.add(AdmissionYearService.OFFICIAL_DATA_IMPORTED_TRIAL_WARNING);
         }
@@ -260,7 +286,7 @@ public class BatchSupportService {
 
     private Map<String, Long> buildSummary(List<BatchSupportItem> items) {
         Map<String, Long> summary = new LinkedHashMap<>();
-        for (String level : List.of("FULL_RECOMMEND", "TRIAL_RECOMMEND", "QUERY_ONLY", "UNSUPPORTED")) {
+        for (String level : List.of("FULL_RECOMMEND", "ESTIMATE_RECOMMEND", "TRIAL_RECOMMEND", "QUERY_ONLY", "UNSUPPORTED")) {
             summary.put(level, items.stream().filter(item -> level.equals(item.getSupportLevel())).count());
         }
         return summary;

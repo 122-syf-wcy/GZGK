@@ -489,6 +489,24 @@ public class VolunteerService {
         private Map<String, Object> modelInfo;
         /** 新规范接口返回的警告列表 */
         private List<String> warnings;
+        /** PRE_OFFICIAL_DATA / OFFICIAL_DATA_* / MODEL_RETRAINED 当前推荐阶段 */
+        private String recommendationPhase;
+        /** 当前批次的 supportLevel：ESTIMATE_RECOMMEND / TRIAL_RECOMMEND / FULL_RECOMMEND / QUERY_ONLY */
+        private String supportLevel;
+        /** 是否为 2026 志愿预估参考（true=非正式，待官方数据出后须重新生成） */
+        private Boolean estimateMode;
+        /** 2026 官方数据是否已导入并通过关键质检 */
+        private Boolean officialDataReady;
+        /** 模型是否已基于 2026 官方数据完成重训 */
+        private Boolean modelRetrained;
+        /** 当前批次方案所对应的目标年份（即考生填报年份） */
+        private Integer targetYear;
+        /** 当前活跃录取年份配置 */
+        private Integer activeAdmissionYear;
+        /** 最近一年已有完整官方数据的年份 */
+        private Integer latestOfficialDataYear;
+        /** 本次预估实际使用的数据年份（例如 [2024, 2025]） */
+        private List<Integer> dataSourceYears;
         /**
          * VolunteerDiagnosisEngine 13 维诊断输出：totalCount / policyMaxCount / gradientCount /
          * overallRisk / summary / diagnosis / warnings / longestHighRiskRun / eliteCount。

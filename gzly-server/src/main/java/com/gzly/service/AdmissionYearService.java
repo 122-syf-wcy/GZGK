@@ -19,6 +19,7 @@ public class AdmissionYearService {
     public static final String PHASE_OFFICIAL_DATA_IMPORTED = "OFFICIAL_DATA_IMPORTED";
     public static final String PHASE_MODEL_RETRAINED = "MODEL_RETRAINED";
     public static final String PRE_OFFICIAL_DATA_WARNING = "2026 官方数据尚未发布，当前仅基于 2024/2025 历史数据提供趋势分析和预估参考。";
+    public static final String PRE_OFFICIAL_DATA_ESTIMATE_WARNING = "当前为 2026 志愿预估参考，2026 官方招生计划和一分一段表尚未发布，结果基于 2024/2025 历史数据、院校专业录取趋势和计划变化进行模拟测算。待 2026 官方数据导入后，请重新生成正式志愿方案。";
     public static final String OFFICIAL_DATA_PARTIAL_WARNING = "2026 官方数据正在分批导入和质检，当前仍仅支持政策、趋势和数据缺口说明；完整推荐会在关键数据齐备后开放。";
     public static final String OFFICIAL_DATA_IMPORTED_TRIAL_WARNING = "2026 官方数据已导入并通过关键质检，当前处于试推荐阶段；模型重训和规则校验完成后再开放完整推荐。";
 

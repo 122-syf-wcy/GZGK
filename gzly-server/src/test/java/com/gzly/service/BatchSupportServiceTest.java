@@ -162,28 +162,33 @@ class BatchSupportServiceTest {
     }
 
     @Test
-    void publicActiveYear_shouldNotExposeFullRecommendBeforeOfficialDataReady() {
+    void publicActiveYear_shouldExposeEstimateRecommendForNormalBatchesBeforeOfficialDataReady() {
         BatchSupportService.BatchSupportItem item = item(readyService().supportMatrix("GZ", 2026, true), "NORMAL_UNDERGRADUATE");
 
-        assertThat(item.getSupportLevel()).isEqualTo("QUERY_ONLY");
+        assertThat(item.getSupportLevel()).isEqualTo("ESTIMATE_RECOMMEND");
         assertThat(item.getDataStatus().getStatus()).isEqualTo("PRE_OFFICIAL_DATA");
-        assertThat(item.getSupportReason()).isEqualTo(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING);
-        assertThat(item.getWarnings()).contains(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING);
+        assertThat(item.getSupportReason()).isEqualTo(AdmissionYearService.PRE_OFFICIAL_DATA_ESTIMATE_WARNING);
+        assertThat(item.getWarnings()).contains(AdmissionYearService.PRE_OFFICIAL_DATA_ESTIMATE_WARNING);
     }
 
     @Test
-    void PRE_OFFICIAL_DATA_shouldForceAllPublicBatchesQueryOnly() {
+    void PRE_OFFICIAL_DATA_shouldNotExposeFullOrTrialAndShouldOnlyEstimateForNormalBatches() {
         BatchSupportService.BatchSupportResponse response = readyService().supportMatrix("GZ", 2026, true);
 
         assertThat(response.getSummary()).containsEntry("FULL_RECOMMEND", 0L);
         assertThat(response.getSummary()).containsEntry("TRIAL_RECOMMEND", 0L);
-        assertThat(response.getSummary().get("QUERY_ONLY")).isEqualTo((long) response.getItems().size());
+        assertThat(response.getSummary().get("ESTIMATE_RECOMMEND")).isEqualTo(2L);
         assertThat(response.getRecommendationPhase()).isEqualTo(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
         assertThat(response.isOfficialDataReady()).isFalse();
         assertThat(response.isEstimateMode()).isTrue();
-        assertThat(response.getItems()).allSatisfy(item -> {
-            assertThat(item.getSupportLevel()).isEqualTo("QUERY_ONLY");
-            assertThat(item.getWarnings()).contains(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING);
+        response.getItems().forEach(item -> {
+            String code = item.getBatchCode();
+            if ("NORMAL_UNDERGRADUATE".equals(code) || "NORMAL_SPECIALTY".equals(code)) {
+                assertThat(item.getSupportLevel()).as(code).isEqualTo("ESTIMATE_RECOMMEND");
+                assertThat(item.getWarnings()).as(code).contains(AdmissionYearService.PRE_OFFICIAL_DATA_ESTIMATE_WARNING);
+            } else {
+                assertThat(item.getSupportLevel()).as(code).isEqualTo("QUERY_ONLY");
+            }
         });
     }
 
@@ -303,6 +308,107 @@ class BatchSupportServiceTest {
         assertThat(response.getRecommendationPhase()).isEqualTo("MODEL_RETRAINED");
         assertThat(response.isEstimateMode()).isFalse();
         assertThat(response.isPublicYearLocked()).isFalse();
+    }
+
+    // === 2026 预估推荐策略：PRE_OFFICIAL_DATA 普通本/专科开放 ESTIMATE_RECOMMEND，非普通批保持 QUERY_ONLY ===
+
+    @Test
+    void PRE_OFFICIAL_DATA_normalUndergraduate_shouldAllowEstimateRecommend() {
+        BatchSupportService.BatchSupportItem item = item(readyService().supportMatrix("GZ", 2026, true), "NORMAL_UNDERGRADUATE");
+
+        assertThat(item.getSupportLevel()).isEqualTo("ESTIMATE_RECOMMEND");
+        assertThat(item.getRecommendMode()).isEqualTo("PARALLEL_MAJOR");
+    }
+
+    @Test
+    void PRE_OFFICIAL_DATA_normalSpecialty_shouldAllowEstimateRecommend() {
+        BatchSupportService.BatchSupportItem item = item(readyService().supportMatrix("GZ", 2026, true), "NORMAL_SPECIALTY");
+
+        assertThat(item.getSupportLevel()).isEqualTo("ESTIMATE_RECOMMEND");
+        assertThat(item.getRecommendMode()).isEqualTo("PARALLEL_MAJOR");
+    }
+
+    @Test
+    void PRE_OFFICIAL_DATA_earlyBatch_shouldStayQueryOnly() {
+        BatchSupportService.BatchSupportResponse response = readyService().supportMatrix("GZ", 2026, true);
+
+        assertThat(item(response, "EARLY_A_B").getSupportLevel()).isEqualTo("QUERY_ONLY");
+        assertThat(item(response, "EARLY_C").getSupportLevel()).isEqualTo("QUERY_ONLY");
+        assertThat(item(response, "SPECIALTY_EARLY").getSupportLevel()).isEqualTo("QUERY_ONLY");
+    }
+
+    @Test
+    void PRE_OFFICIAL_DATA_artSports_shouldStayQueryOnly() {
+        BatchSupportService.BatchSupportResponse response = readyService().supportMatrix("GZ", 2026, true);
+
+        for (String code : List.of("ART_UNDERGRADUATE_A", "ART_UNDERGRADUATE_B", "ART_SPECIALTY",
+                "SPORTS_UNDERGRADUATE", "SPORTS_SPECIALTY")) {
+            assertThat(item(response, code).getSupportLevel()).as(code).isEqualTo("QUERY_ONLY");
+        }
+    }
+
+    @Test
+    void PRE_OFFICIAL_DATA_specialPlans_shouldStayQueryOnly() {
+        BatchSupportService.BatchSupportResponse response = readyService().supportMatrix("GZ", 2026, true);
+
+        for (String code : List.of("NATIONAL_SPECIAL", "LOCAL_SPECIAL", "UNIVERSITY_SPECIAL",
+                "ETHNIC_CLASS", "PREPARATORY", "ORIENTED", "FREE_MEDICAL", "TEACHER_EXCELLENCE")) {
+            assertThat(item(response, code).getSupportLevel()).as(code).isEqualTo("QUERY_ONLY");
+        }
+    }
+
+    @Test
+    void estimateRecommend_shouldSetEstimateModeTrue() {
+        BatchSupportService.BatchSupportResponse response = readyService().supportMatrix("GZ", 2026, true);
+
+        assertThat(response.isEstimateMode()).isTrue();
+        assertThat(response.getRecommendationPhase()).isEqualTo(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+        assertThat(response.isOfficialDataReady()).isFalse();
+    }
+
+    @Test
+    void estimateRecommend_shouldUseDataSourceYears2024And2025() {
+        BatchSupportService.BatchSupportResponse response = readyService().supportMatrix("GZ", 2026, true);
+
+        assertThat(response.getDataSourceYears()).containsExactly(2024, 2025);
+        assertThat(response.getDataSourceYears()).doesNotContain(2026);
+    }
+
+    @Test
+    void estimateRecommend_shouldNotMarkFullRecommend() {
+        BatchSupportService.BatchSupportResponse response = readyService().supportMatrix("GZ", 2026, true);
+
+        assertThat(response.getSummary()).containsEntry("FULL_RECOMMEND", 0L);
+        assertThat(response.getItems())
+                .noneSatisfy(item -> assertThat(item.getSupportLevel()).isEqualTo("FULL_RECOMMEND"));
+    }
+
+    @Test
+    void estimateRecommend_shouldAddOfficialDataWarning() {
+        BatchSupportService.BatchSupportItem item = item(readyService().supportMatrix("GZ", 2026, true), "NORMAL_UNDERGRADUATE");
+
+        assertThat(item.getSupportLevel()).isEqualTo("ESTIMATE_RECOMMEND");
+        assertThat(item.getWarnings()).contains(AdmissionYearService.PRE_OFFICIAL_DATA_ESTIMATE_WARNING);
+        assertThat(item.getSupportReason()).isEqualTo(AdmissionYearService.PRE_OFFICIAL_DATA_ESTIMATE_WARNING);
+    }
+
+    @Test
+    void fullRecommend_shouldOnlyAllowedAfterOfficialDataReadyAndModelRetrained() {
+        BatchSupportService.BatchSupportResponse preOfficial = readyService().supportMatrix("GZ", 2026, true);
+        BatchSupportService.BatchSupportResponse imported = serviceWithReadiness(
+                readinessRow(AdmissionYearService.PHASE_OFFICIAL_DATA_IMPORTED, false)
+        ).supportMatrix("GZ", 2026, true);
+        BatchSupportService.BatchSupportResponse retrained = serviceWithReadiness(
+                readinessRow(AdmissionYearService.PHASE_MODEL_RETRAINED, true)
+        ).supportMatrix("GZ", 2026, true);
+
+        assertThat(item(preOfficial, "NORMAL_UNDERGRADUATE").getSupportLevel()).isEqualTo("ESTIMATE_RECOMMEND");
+        assertThat(item(imported, "NORMAL_UNDERGRADUATE").getSupportLevel()).isEqualTo("TRIAL_RECOMMEND");
+        assertThat(item(retrained, "NORMAL_UNDERGRADUATE").getSupportLevel()).isEqualTo("FULL_RECOMMEND");
+
+        assertThat(preOfficial.getSummary()).containsEntry("FULL_RECOMMEND", 0L);
+        assertThat(imported.getSummary()).containsEntry("FULL_RECOMMEND", 0L);
+        assertThat((long) retrained.getSummary().get("FULL_RECOMMEND")).isGreaterThanOrEqualTo(2L);
     }
 
     private BatchSupportService serviceWithNoDatabaseRows() {

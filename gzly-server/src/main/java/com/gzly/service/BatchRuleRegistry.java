@@ -15,6 +15,7 @@ public final class BatchRuleRegistry {
 
     public enum SupportLevel {
         FULL_RECOMMEND,
+        ESTIMATE_RECOMMEND,
         TRIAL_RECOMMEND,
         QUERY_ONLY,
         UNSUPPORTED
