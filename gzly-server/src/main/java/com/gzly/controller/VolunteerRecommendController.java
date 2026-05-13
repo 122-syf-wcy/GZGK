@@ -29,9 +29,22 @@ public class VolunteerRecommendController {
     private final ProvincePolicyService provincePolicyService;
     private final PolicyRuleService policyRuleService;
     private final MlPredictionService mlPredictionService;
+    private final BatchSupportService batchSupportService;
     private final AdmissionYearService admissionYearService;
     private final DataYearReadinessService dataYearReadinessService;
     private final JwtUtil jwtUtil;
+
+    /**
+     * 公共 batch-support 端点：给前端志愿入口展示当前年度的批次支持矩阵
+     * （ESTIMATE_RECOMMEND / TRIAL_RECOMMEND / FULL_RECOMMEND / QUERY_ONLY 分布）。
+     * 公共调用强制锁到 activeAdmissionYear，历史年份只允许从 admin 入口走 backtest。
+     * 只读，不写库、不触发推荐生成、不调用 ML、不产生 plan history。
+     */
+    @GetMapping("/gz/batch-support")
+    public Result<BatchSupportService.BatchSupportResponse> gzBatchSupport(@RequestParam(required = false) Integer year) {
+        int publicYear = admissionYearService.normalizePublicYear(year);
+        return Result.ok(batchSupportService.supportMatrix("GZ", publicYear, true));
+    }
 
     @PostMapping("/recommend")
     public Result<VolunteerService.PlanResult> recommend(@RequestBody VolunteerService.GenerateRequest req,
