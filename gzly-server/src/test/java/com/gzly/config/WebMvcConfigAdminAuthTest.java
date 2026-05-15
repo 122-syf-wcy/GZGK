@@ -94,4 +94,32 @@ class WebMvcConfigAdminAuthTest {
         assertThat(interceptor.preHandle(adminToken, adminTokenResponse, new Object())).isTrue();
         assertThat(adminToken.getAttribute("authRole")).isEqualTo("admin");
     }
+
+    @Test
+    void adminImportJobPathRequiresAdminToken() throws Exception {
+        JwtUtil jwtUtil = mock(JwtUtil.class);
+        WebMvcConfig.AuthInterceptor interceptor = new WebMvcConfig.AuthInterceptor(jwtUtil, "admin");
+
+        MockHttpServletRequest noToken = new MockHttpServletRequest("GET", "/admin/import-jobs");
+        MockHttpServletResponse noTokenResponse = new MockHttpServletResponse();
+        assertThat(interceptor.preHandle(noToken, noTokenResponse, new Object())).isFalse();
+        assertThat(noTokenResponse.getStatus()).isEqualTo(401);
+
+        when(jwtUtil.isValid("user-token")).thenReturn(true);
+        when(jwtUtil.getRole("user-token")).thenReturn("user");
+        MockHttpServletRequest userToken = new MockHttpServletRequest("POST", "/admin/import-jobs");
+        userToken.addHeader("Authorization", "Bearer user-token");
+        MockHttpServletResponse userTokenResponse = new MockHttpServletResponse();
+        assertThat(interceptor.preHandle(userToken, userTokenResponse, new Object())).isFalse();
+        assertThat(userTokenResponse.getStatus()).isEqualTo(403);
+
+        when(jwtUtil.isValid("admin-token")).thenReturn(true);
+        when(jwtUtil.getRole("admin-token")).thenReturn("admin");
+        when(jwtUtil.getUserId("admin-token")).thenReturn(0L);
+        MockHttpServletRequest adminToken = new MockHttpServletRequest("POST", "/admin/import-jobs/1/quality-check");
+        adminToken.addHeader("Authorization", "Bearer admin-token");
+        MockHttpServletResponse adminTokenResponse = new MockHttpServletResponse();
+        assertThat(interceptor.preHandle(adminToken, adminTokenResponse, new Object())).isTrue();
+        assertThat(adminToken.getAttribute("authRole")).isEqualTo("admin");
+    }
 }

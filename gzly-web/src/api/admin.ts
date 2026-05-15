@@ -4,8 +4,15 @@ import type {
   AdminEncouragementMessageListData,
   AdminAiModelListResult,
   AdminAiConfigTestResult,
+  AdminImportJobDetail,
+  AdminImportJobListData,
+  AdminImportJobQualityResult,
+  AdminImportJobRollbackPlanResult,
+  AdminImportJobSqlPackageResult,
+  AdminImportJobStagingResult,
   AdminOfficialLinkListData,
   Announcement,
+  CreateAdminImportJobRequest,
   DataYearReadinessDto,
   Result,
   SaveAdminAiConfigRequest,
@@ -130,4 +137,38 @@ export function fetchAdminDataYearReadiness(provinceCode = 'GZ', year = 2026) {
   return request.get<Result<DataYearReadinessDto>>('/admin/data-year-readiness', {
     params: { provinceCode, year },
   })
+}
+
+export function createAdminImportJob(data: CreateAdminImportJobRequest) {
+  return request.post<Result<AdminImportJobDetail>>('/admin/import-jobs', data)
+}
+
+export function fetchAdminImportJobs(params: {
+  page?: number
+  size?: number
+  provinceCode?: string
+  year?: number
+  status?: string
+} = {}) {
+  return request.get<Result<AdminImportJobListData>>('/admin/import-jobs', { params })
+}
+
+export function fetchAdminImportJobDetail(jobId: number) {
+  return request.get<Result<AdminImportJobDetail>>(`/admin/import-jobs/${jobId}`)
+}
+
+export function generateAdminImportJobStaging(jobId: number) {
+  return request.post<Result<AdminImportJobStagingResult>>(`/admin/import-jobs/${jobId}/staging`)
+}
+
+export function runAdminImportJobQualityCheck(jobId: number) {
+  return request.post<Result<AdminImportJobQualityResult>>(`/admin/import-jobs/${jobId}/quality-check`)
+}
+
+export function generateAdminImportJobFormalSql(jobId: number) {
+  return request.post<Result<AdminImportJobSqlPackageResult>>(`/admin/import-jobs/${jobId}/generate-formal-sql`)
+}
+
+export function generateAdminImportJobRollbackPlan(jobId: number) {
+  return request.post<Result<AdminImportJobRollbackPlanResult>>(`/admin/import-jobs/${jobId}/rollback-plan`)
 }

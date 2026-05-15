@@ -179,6 +179,12 @@ const router = createRouter({
           meta: { title: '数据准备进度 - 管理后台' },
         },
         {
+          path: 'import-jobs',
+          name: 'AdminImportJobs',
+          component: () => import('@/views/admin/ImportJobs.vue'),
+          meta: { title: '导入任务 - 管理后台' },
+        },
+        {
           path: 'feedbacks',
           name: 'AdminFeedbacks',
           component: () => import('@/views/admin/Feedbacks.vue'),

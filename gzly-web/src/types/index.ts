@@ -774,6 +774,129 @@ export interface DataYearReadinessDto {
   nextActions: string[]
 }
 
+export type AdminImportJobStatus =
+  | 'CREATED'
+  | 'FILES_REGISTERED'
+  | 'PRECHECK_PASSED'
+  | 'STAGING_GENERATED'
+  | 'QUALITY_PASSED'
+  | 'PACKAGE_GENERATED'
+  | 'READY_FOR_MANUAL_CONFIRMATION'
+  | 'CLOSED'
+  | 'FAILED'
+  | string
+
+export interface AdminImportJobSummary {
+  id: number
+  provinceCode: string
+  year: number
+  batchCode?: string
+  subjectType?: string
+  importType?: string
+  sourceType?: string
+  status: AdminImportJobStatus
+  sourceDir?: string
+  outputDir?: string
+  createdBy?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface AdminImportJobFile {
+  id: number
+  jobId: number
+  fileName: string
+  filePath: string
+  sha256: string
+  fileSize: number
+  fileType: string
+  sourceUrl?: string
+  createdAt?: string
+}
+
+export interface AdminImportJobGate {
+  id: number
+  jobId: number
+  gateName: string
+  gateStatus: 'PASS' | 'FAIL' | string
+  expectedValue?: string
+  actualValue?: string
+  samplePath?: string
+  createdAt?: string
+}
+
+export interface AdminImportJobArtifact {
+  id: number
+  jobId: number
+  artifactType: string
+  artifactPath: string
+  sha256: string
+  createdAt?: string
+}
+
+export interface AdminImportJobDetail {
+  job: AdminImportJobSummary
+  files: AdminImportJobFile[]
+  gates: AdminImportJobGate[]
+  artifacts: AdminImportJobArtifact[]
+}
+
+export interface AdminImportJobListData {
+  items: AdminImportJobSummary[]
+  total: number
+  page: number
+  size: number
+}
+
+export interface CreateAdminImportJobRequest {
+  provinceCode: string
+  year: number
+  batchCode?: string
+  subjectType?: string
+  importType?: string
+  sourceType?: string
+  sourceDir?: string
+  outputDir?: string
+}
+
+export interface AdminImportJobStagingResult {
+  jobId: number
+  status: AdminImportJobStatus
+  dryRun: boolean
+  stagingPath: string
+  fileCount: number
+  files: AdminImportJobFile[]
+  artifact?: AdminImportJobArtifact
+}
+
+export interface AdminImportJobQualityResult {
+  jobId: number
+  status: AdminImportJobStatus
+  passed: boolean
+  gates: AdminImportJobGate[]
+  artifact?: AdminImportJobArtifact
+}
+
+export interface AdminImportJobSqlPackageResult {
+  jobId: number
+  status: AdminImportJobStatus
+  formalSqlPath: string
+  formalSqlSha256?: string
+  rollbackSqlPath: string
+  rollbackSqlSha256?: string
+  cleanRowCount: number
+}
+
+export interface AdminImportJobRollbackPlanResult {
+  jobId: number
+  status: AdminImportJobStatus
+  rollbackSqlPath: string
+  rollbackSqlSha256?: string
+  rollbackPlanPath: string
+  rollbackPlanSha256?: string
+  expectedDeleteRows: number
+}
+
 /** 推荐院校项 */
 export interface RecommendItem {
   schoolId: string
