@@ -40,7 +40,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 SERVICE_DIR = SCRIPT_DIR.parent
 sys.path.insert(0, str(SERVICE_DIR))
 
-from app.models.chance_score_model import train_chance_model  # noqa: E402
+from app.models.chance_score_model import train_chance_model, train_chance_model_xgb  # noqa: E402
 from app.models.rank_prediction_model import train_rank_model  # noqa: E402
 
 
@@ -175,6 +175,37 @@ def train_chance(csv: Path, output_dir: Path, train_year_range: str | None,
     return result
 
 
+def train_chance_xgb(csv: Path, output_dir: Path, train_year_range: str | None,
+                     status: str, register: bool) -> dict[str, Any]:
+    """训练 chance-score 的 XGBoost 副本，对应贵州研究报告 R5'概率融合 XGBoost 主模型'。"""
+    print("[train] training chance-score XGBoost model ...", flush=True)
+    result = train_chance_model_xgb(str(csv), str(output_dir))
+    if result.get("status") != "ok":
+        print(f"[train] chance-score-xgb failed: {result}", file=sys.stderr)
+        return result
+    version = stamped_version("chance-score-xgb")
+    payload = {
+        "modelName": "chance-score-xgb",
+        "modelType": result.get("modelType", "XGBClassifier"),
+        "modelVersion": version,
+        "trainYearRange": train_year_range or "",
+        "trainDataCount": int(result.get("trainDataCount", 0)),
+        "metrics": result.get("metrics", {}),
+        "featureSchema": result.get("featureSchema", {}),
+        "modelFilePath": result.get("modelFilePath", ""),
+        "status": status,
+    }
+    if register:
+        try:
+            registered = post_register(payload)
+            print(f"[train] chance-score-xgb registered: {registered}", flush=True)
+            result["registry"] = registered
+        except Exception as exc:
+            print(f"[train] chance-score-xgb register failed: {exc}", file=sys.stderr, flush=True)
+            result["registryError"] = str(exc)
+    return result
+
+
 def write_plan_trend_report(csv: Path, report_path: Path, train_year_range: str | None) -> dict[str, Any]:
     """生成 plan trend 规则评估报告；本骨架不产出/激活真实模型文件。"""
     import pandas as pd  # noqa: WPS433 仅 plan trend 报告需要
@@ -236,7 +267,8 @@ def write_plan_trend_report(csv: Path, report_path: Path, train_year_range: str 
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="GZLY 服务器端 ML 模型训练 + 注册")
     parser.add_argument("--models", nargs="+", default=["rank", "chance"],
-                        choices=["rank", "chance", "plan-trend"], help="要训练或评估的模型集合")
+                        choices=["rank", "chance", "chance-xgb", "plan-trend"],
+                        help="要训练或评估的模型集合；chance-xgb 走 XGBoost 副本")
     parser.add_argument("--csv", default="data/training_rank.csv", help="训练用 CSV 路径")
     parser.add_argument("--output-dir", default="/var/lib/gzly-ml/models",
                         help="模型 .joblib 输出目录")
@@ -279,6 +311,9 @@ def main(argv: Iterable[str] | None = None) -> int:
     if "chance" in args.models:
         summary["chance"] = train_chance(csv_path, output_dir, args.train_year_range,
                                          args.status, args.register)
+    if "chance-xgb" in args.models:
+        summary["chance-xgb"] = train_chance_xgb(csv_path, output_dir, args.train_year_range,
+                                                 args.status, args.register)
     if "plan-trend" in args.models:
         plan_report = Path(args.plan_trend_report) if args.plan_trend_report else output_dir / "plan_trend_evaluation_report.md"
         summary["plan-trend"] = write_plan_trend_report(csv_path, plan_report, args.train_year_range)

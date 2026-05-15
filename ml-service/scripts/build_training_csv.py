@@ -141,6 +141,10 @@ def normalize(df: pd.DataFrame) -> pd.DataFrame:
     df["major_hot_score"] = 0.0
     df["school_ranking_score"] = df["is_985"] * 50 + df["is_211"] * 30 + df["is_double_first_class"] * 15
     df["employment_score"] = df["is_public"] * 60 + df["is_985"] * 25 + df["is_211"] * 10
+    # 贵州 2024 起切 "3+1+2" 新高考；2021-2023 是旧文/理。两套口径下科类/计划/位次曲线差异显著，
+    # 显式标记 subject_regime 让 chance-score 模型在 categorical 特征里区分对待，避免老制度数据
+    # 把新制度推断带偏。这里只标记，不强删旧数据，保留样本量；推理永远走 "new"。
+    df["subject_regime"] = df["year"].astype(int).map(lambda y: "new" if y >= 2024 else "old")
     return df
 
 
@@ -196,7 +200,7 @@ def select_export(df: pd.DataFrame) -> pd.DataFrame:
         "year", "tuition", "current_plan_count", "last_year_plan_count", "plan_change_rate",
         "min_rank_lag_1", "min_rank_lag_2", "min_rank_lag_3", "avg_rank_lag_3", "median_rank_lag_3",
         "rank_volatility_3y", "rank_trend_3y", "major_hot_score", "school_ranking_score", "employment_score",
-        "batch_code", "candidate_type", "subject_type", "school_code", "major_code", "school_level",
+        "batch_code", "candidate_type", "subject_type", "subject_regime", "school_code", "major_code", "school_level",
         "is_985", "is_211", "is_double_first_class", "is_public", "school_city", "major_category",
         "has_supplement_lag_1", "first_round_full_lag_1",
         "min_rank",

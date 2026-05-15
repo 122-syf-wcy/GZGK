@@ -51,6 +51,10 @@ CHANCE_CATEGORICAL_COLUMNS: list[str] = [
     "batch_code",
     "candidate_type",
     "subject_type",
+    # subject_regime: "new" = 2024 起贵州 3+1+2 新高考；"old" = 2021-2023 文/理。
+    # 推理永远走 "new"，让模型用 categorical 维度自适应历史样本权重，避免老制度位次曲线
+    # 直接拉偏新制度推断。
+    "subject_regime",
     "school_level",
 ]
 
@@ -58,7 +62,7 @@ CHANCE_FORBIDDEN_LEAK_COLUMNS: frozenset[str] = frozenset(
     {"min_rank", "label", "sample_weight"}
 )
 
-CHANCE_MODEL_VERSION = "chance-score-v2.0.0"
+CHANCE_MODEL_VERSION = "chance-score-v2.1.0"
 
 
 def chance_from_rank_diff(rank_diff: int, candidate_rank: int, item: dict[str, Any]) -> dict[str, Any]:
@@ -289,6 +293,110 @@ def train_chance_model(data_path: str | None, output_dir: str) -> dict:
         "status": "ok",
         "modelVersion": CHANCE_MODEL_VERSION,
         "modelType": "LightGBMClassifier",
+        "modelPath": str(model_path),
+        "modelFilePath": str(model_path),
+        "trainDataCount": int(len(df)),
+        "metrics": metrics,
+        "featureSchema": payload["featureSchema"],
+    }
+
+
+def train_chance_model_xgb(data_path: str | None, output_dir: str) -> dict:
+    """与 train_chance_model 同口径但用 XGBoost，对应贵州研究报告"概率融合 XGBoost 主模型"。
+
+    特征工程 / 时间切分 / candidate_rank 扩样策略与 LightGBM 路径完全一致，仅替换底层学习器；
+    输出 ``chance_score_xgb.joblib``，metrics 含 auc/brier/ece/hitRate@K，可与 LightGBM 同期对比。
+    """
+    try:
+        from xgboost import XGBClassifier
+    except Exception as exc:  # noqa: BLE001 - record import failure
+        return {"status": "failed", "reason": f"xgboost unavailable: {exc}"}
+
+    if not data_path:
+        return {"status": "skipped", "reason": "dataPath is required"}
+    df = pd.read_csv(data_path)
+    if "min_rank" not in df.columns:
+        return {"status": "failed", "reason": "training CSV missing min_rank label column"}
+
+    leak_present = [c for c in CHANCE_FORBIDDEN_LEAK_COLUMNS if c in df.columns and c != "min_rank"]
+    if leak_present:
+        df = df.drop(columns=leak_present)
+
+    df = df[pd.to_numeric(df["min_rank"], errors="coerce").gt(0)].copy()
+    if df.empty:
+        return {"status": "failed", "reason": "no rows with positive min_rank label"}
+
+    train_raw, test_raw = _train_test_split_by_year(df)
+    if train_raw.empty or test_raw.empty:
+        return {"status": "failed", "reason": "insufficient rows after train/test split"}
+
+    expanded_train = _expand_candidate_rank_samples(train_raw, samples_per_row=5, rng_seed=42)
+    expanded_test = _expand_candidate_rank_samples(test_raw, samples_per_row=3, rng_seed=7)
+
+    if expanded_train["label"].nunique() < 2 or expanded_test["label"].nunique() < 2:
+        return {"status": "failed", "reason": "expanded labels are degenerate (single class)"}
+
+    X_train_df, train_columns = _prepare_feature_frame(expanded_train)
+    X_test_df, test_columns = _prepare_feature_frame(expanded_test)
+    all_columns = list(dict.fromkeys(train_columns + test_columns))
+    X_train_df = X_train_df.reindex(columns=all_columns, fill_value=0)
+    X_test_df = X_test_df.reindex(columns=all_columns, fill_value=0)
+
+    y_train = expanded_train["label"].astype(int).to_numpy()
+    y_test = expanded_test["label"].astype(int).to_numpy()
+    w_train = expanded_train["sample_weight"].astype(float).to_numpy()
+
+    if X_train_df.shape[1] == 0:
+        return {"status": "failed", "reason": "no usable feature columns after leak guard"}
+
+    model = XGBClassifier(
+        n_estimators=300,
+        max_depth=6,
+        learning_rate=0.05,
+        subsample=0.85,
+        colsample_bytree=0.85,
+        reg_lambda=1.0,
+        random_state=42,
+        eval_metric="logloss",
+        n_jobs=2,
+        tree_method="hist",
+    )
+    model.fit(X_train_df, y_train, sample_weight=w_train)
+    proba_test = model.predict_proba(X_test_df)[:, 1]
+
+    metrics: dict[str, float] = {
+        "brier": float(brier_score_loss(y_test, proba_test)),
+        "ece": expected_calibration_error(y_test, proba_test, n_bins=10),
+        "hitRate@10": hit_rate_at_k(y_test, proba_test, k=10),
+        "hitRate@30": hit_rate_at_k(y_test, proba_test, k=30),
+        "positiveRate": float(np.mean(y_test == 1)),
+        "trainRows": int(len(X_train_df)),
+        "testRows": int(len(X_test_df)),
+    }
+    if pd.Series(y_test).nunique() > 1:
+        metrics["auc"] = float(roc_auc_score(y_test, proba_test))
+
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    model_path = out / "chance_score_xgb.joblib"
+    version = CHANCE_MODEL_VERSION.replace("v2", "xgb-v2")
+    payload = {
+        "model": model,
+        "columns": list(X_train_df.columns),
+        "modelVersion": version,
+        "featureSchema": {
+            "numeric": [c for c in CHANCE_FEATURE_COLUMNS if c in df.columns],
+            "categorical": [c for c in CHANCE_CATEGORICAL_COLUMNS if c in df.columns],
+            "label": "candidate_rank <= min_rank (expanded weak supervision)",
+            "leakGuard": sorted(CHANCE_FORBIDDEN_LEAK_COLUMNS),
+            "engine": "xgboost",
+        },
+    }
+    joblib.dump(payload, model_path)
+    return {
+        "status": "ok",
+        "modelVersion": version,
+        "modelType": "XGBClassifier",
         "modelPath": str(model_path),
         "modelFilePath": str(model_path),
         "trainDataCount": int(len(df)),

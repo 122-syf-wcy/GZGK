@@ -45,6 +45,7 @@ class _ModelHolder:
 
 _RANK_HOLDER = _ModelHolder(DEFAULT_MODELS_DIR / "rank_prediction_lgbm.joblib")
 _CHANCE_HOLDER = _ModelHolder(DEFAULT_MODELS_DIR / "chance_score_lgbm.joblib")
+_CHANCE_XGB_HOLDER = _ModelHolder(DEFAULT_MODELS_DIR / "chance_score_xgb.joblib")
 
 
 def get_rank_model() -> dict | None:
@@ -53,13 +54,22 @@ def get_rank_model() -> dict | None:
 
 
 def get_chance_model() -> dict | None:
-    """Returns the chance-score model dict {"model": Classifier, "columns": [...]} or None."""
+    """Returns the chance-score LightGBM model dict {"model": Classifier, "columns": [...]} or None."""
     return _CHANCE_HOLDER.get()
+
+
+def get_chance_xgb_model() -> dict | None:
+    """Returns the chance-score XGBoost model dict (R5 报告 '概率融合 XGBoost 主模型')。
+
+    用于与 LightGBM 做平均/对比融合；缺失时 caller 走 LightGBM 单模型不报错。
+    """
+    return _CHANCE_XGB_HOLDER.get()
 
 
 def model_status() -> dict[str, Any]:
     return {
         "rankModelLoaded": get_rank_model() is not None,
         "chanceModelLoaded": get_chance_model() is not None,
+        "chanceXgbModelLoaded": get_chance_xgb_model() is not None,
         "modelsDir": str(DEFAULT_MODELS_DIR.resolve()),
     }

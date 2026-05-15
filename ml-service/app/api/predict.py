@@ -14,7 +14,12 @@ from app.models.chance_score_model import (
     chance_from_rank_diff,
 )
 from app.models.rank_prediction_model import predict_min_rank
-from app.utils.model_loader import get_chance_model, get_rank_model, model_status
+from app.utils.model_loader import (
+    get_chance_model,
+    get_chance_xgb_model,
+    get_rank_model,
+    model_status,
+)
 
 router = APIRouter()
 
@@ -39,13 +44,17 @@ def predict_batch(req: PredictRequest) -> dict:
 
     rank_model_payload = get_rank_model()
     chance_model_payload = get_chance_model()
+    chance_xgb_payload = get_chance_xgb_model()
 
     rank_predictions = _batch_predict_rank(req.items, rank_model_payload)
-    chance_predictions = _batch_predict_chance(req.items, candidate_rank, rank_predictions, chance_model_payload)
+    chance_predictions = _batch_predict_chance(
+        req.items, candidate_rank, rank_predictions, chance_model_payload, chance_xgb_payload,
+    )
 
     using_rank_model = rank_model_payload is not None
     using_chance_model = chance_model_payload is not None
-    model_version = _resolve_model_version(using_rank_model, using_chance_model)
+    using_chance_xgb = chance_xgb_payload is not None
+    model_version = _resolve_model_version(using_rank_model, using_chance_model, using_chance_xgb)
 
     out = []
     for idx, item in enumerate(req.items):
@@ -79,6 +88,7 @@ def predict_batch(req: PredictRequest) -> dict:
         "modelVersion": model_version,
         "rankModelUsed": using_rank_model,
         "chanceModelUsed": using_chance_model,
+        "chanceXgbModelUsed": using_chance_xgb,
         "predictions": out,
     }
 
@@ -113,44 +123,81 @@ def _batch_predict_rank(items: list[dict[str, Any]], payload: dict | None) -> li
 def _batch_predict_chance(items: list[dict[str, Any]],
                           candidate_rank: int,
                           rank_predictions: list[tuple[int, float]],
-                          payload: dict | None) -> list[dict[str, Any]]:
-    """ChanceScore 永远先用规则公式（合规可解释）；如果模型可用则做加权融合：0.5*rule + 0.5*model。"""
+                          payload: dict | None,
+                          payload_xgb: dict | None = None) -> list[dict[str, Any]]:
+    """ChanceScore 永远先用规则公式（合规可解释）；可用模型按贵州研究报告 R5 做概率融合：
+
+    - 仅规则：rule.internal
+    - 规则 + LightGBM：0.5*rule + 0.5*lgbm
+    - 规则 + LightGBM + XGBoost：0.4*rule + 0.3*lgbm + 0.3*xgb
+    - 规则 + 仅 XGBoost：0.5*rule + 0.5*xgb
+
+    候选 ML 模型为空或推理报错时静默回落到规则结果，保持线上稳定。
+    """
     rule_results: list[dict[str, Any]] = []
     for idx, item in enumerate(items):
         predicted_rank, _ = rank_predictions[idx]
         rank_diff = predicted_rank - candidate_rank if candidate_rank > 0 and predicted_rank > 0 else 0
         rule_results.append(chance_from_rank_diff(rank_diff, candidate_rank, item))
 
-    if not payload or not items:
+    if not items or (payload is None and payload_xgb is None):
         return rule_results
 
+    feature_rows = []
+    cat_rows = []
+    for item in items:
+        row = {col: _coerce_float(item.get(_snake_to_camel(col), item.get(col))) for col in CHANCE_FEATURE_COLUMNS}
+        row["candidate_rank"] = float(candidate_rank or row.get("candidate_rank") or 30000)
+        feature_rows.append(row)
+        cat_rows.append({col: str(item.get(_snake_to_camel(col), item.get(col)) or "UNKNOWN")
+                         for col in CHANCE_CATEGORICAL_COLUMNS})
+    numeric_df = pd.DataFrame(feature_rows).fillna(0)
+    cat_df = pd.get_dummies(pd.DataFrame(cat_rows).fillna("UNKNOWN"), prefix=CHANCE_CATEGORICAL_COLUMNS)
+    base_df = pd.concat([numeric_df.reset_index(drop=True), cat_df.reset_index(drop=True)], axis=1)
+
+    proba_lgbm = _safe_predict_proba(payload, base_df)
+    proba_xgb = _safe_predict_proba(payload_xgb, base_df)
+
+    if proba_lgbm is None and proba_xgb is None:
+        return rule_results
+
+    weight_rule, weight_lgbm, weight_xgb = _resolve_blend_weights(proba_lgbm is not None, proba_xgb is not None)
+    for idx, rule in enumerate(rule_results):
+        blended = weight_rule * rule["internal"]
+        if proba_lgbm is not None:
+            blended += weight_lgbm * float(proba_lgbm[idx])
+        if proba_xgb is not None:
+            blended += weight_xgb * float(proba_xgb[idx])
+        blended = float(np.clip(blended, 0.01, 0.99))
+        score = int(round(blended * 100))
+        rule["internal"] = blended
+        rule["chanceScore"] = score
+        level, risk = _level_from_score(score)
+        rule["chanceLevel"] = level
+        rule["riskLevel"] = risk
+    return rule_results
+
+
+def _safe_predict_proba(payload: dict | None, base_df: pd.DataFrame) -> np.ndarray | None:
+    if not payload:
+        return None
     try:
         model = payload["model"]
         columns = payload.get("columns") or []
-        feature_rows = []
-        cat_rows = []
-        for idx, item in enumerate(items):
-            row = {col: _coerce_float(item.get(_snake_to_camel(col), item.get(col))) for col in CHANCE_FEATURE_COLUMNS}
-            row["candidate_rank"] = float(candidate_rank or row.get("candidate_rank") or 30000)
-            feature_rows.append(row)
-            cat_rows.append({col: str(item.get(_snake_to_camel(col), item.get(col)) or "UNKNOWN")
-                             for col in CHANCE_CATEGORICAL_COLUMNS})
-        numeric_df = pd.DataFrame(feature_rows).fillna(0)
-        cat_df = pd.get_dummies(pd.DataFrame(cat_rows).fillna("UNKNOWN"), prefix=CHANCE_CATEGORICAL_COLUMNS)
-        df = pd.concat([numeric_df.reset_index(drop=True), cat_df.reset_index(drop=True)], axis=1)
-        df = df.reindex(columns=columns, fill_value=0)
-        proba = model.predict_proba(df)[:, 1]
-        for idx, p in enumerate(proba):
-            rule = rule_results[idx]
-            blended = float(np.clip(0.5 * rule["internal"] + 0.5 * float(p), 0.01, 0.99))
-            score = int(round(blended * 100))
-            rule["internal"] = blended
-            rule["chanceScore"] = score
-            rule["chanceLevel"] = _level_from_score(score)[0]
-            rule["riskLevel"] = _level_from_score(score)[1]
-        return rule_results
-    except Exception:  # noqa: BLE001 - defensive
-        return rule_results
+        df = base_df.reindex(columns=columns, fill_value=0)
+        return model.predict_proba(df)[:, 1]
+    except Exception:  # noqa: BLE001 - defensive: any model failure → silently skip
+        return None
+
+
+def _resolve_blend_weights(has_lgbm: bool, has_xgb: bool) -> tuple[float, float, float]:
+    if has_lgbm and has_xgb:
+        return 0.4, 0.3, 0.3
+    if has_lgbm:
+        return 0.5, 0.5, 0.0
+    if has_xgb:
+        return 0.5, 0.0, 0.5
+    return 1.0, 0.0, 0.0
 
 
 def _level_from_score(score: int) -> tuple[str, str]:
@@ -187,9 +234,13 @@ def _coerce_float(value: Any) -> float:
         return 0.0
 
 
-def _resolve_model_version(rank_used: bool, chance_used: bool) -> str:
+def _resolve_model_version(rank_used: bool, chance_used: bool, xgb_used: bool = False) -> str:
+    if rank_used and chance_used and xgb_used:
+        return f"{CHANCE_MODEL_VERSION}+xgb"
     if rank_used and chance_used:
         return CHANCE_MODEL_VERSION
     if rank_used or chance_used:
         return f"{CHANCE_MODEL_VERSION}-partial"
+    if xgb_used:
+        return CHANCE_MODEL_VERSION.replace("v2", "xgb-v2")
     return "fallback-rule-v1"
