@@ -172,32 +172,31 @@ public class AdminImportJobService {
             result.setArtifact(artifactView(artifact));
             return result;
         } catch (IOException e) {
-            updateStatus(job, STATUS_FAILED);
+            markFailedQuiet(job);
             throw new BizException("生成 staging dry-run 失败: " + e.getMessage());
         } catch (RuntimeException e) {
-            // 没了 @Transactional，DB 异常不会自动回滚状态，显式把 job 标 FAILED 再抛。
-            try {
-                updateStatus(job, STATUS_FAILED);
-            } catch (RuntimeException ignored) {
-                // 状态更新本身失败时不要遮蔽原始异常
-            }
+            // 没了 @Transactional, DB 异常不会自动回滚状态, 显式把 job 标 FAILED 再抛。
+            markFailedQuiet(job);
             throw e;
         }
     }
 
-    @Transactional
+    // 同 generateStagingDryRun: 不再用类级 @Transactional 包住文件 IO,
+    // 避免 gate / artifact 表的行锁在 Files.writeString / sha256 期间被长时间持有。
+    // 每个 insertGate / insertArtifact / updateStatus 走 auto-commit 短事务,
+    // 出错时显式把 job 标 FAILED 后再抛。
     public QualityCheckResult runQualityCheck(Long jobId) {
         AdminImportJob job = requireJob(jobId);
         Path outputDir = normalizeAllowedPath(job.getOutputDir(), List.of(outputRoot()), "output_dir 不在允许目录内");
-        List<GateView> gates = new ArrayList<>();
-        long fileCount = fileMapper.selectCount(new LambdaQueryWrapper<AdminImportJobFile>().eq(AdminImportJobFile::getJobId, job.getId()));
-        gates.add(insertGate(job.getId(), "source_dir_allowed", "PASS", "under allowed source roots", job.getSourceDir(), ""));
-        gates.add(insertGate(job.getId(), "output_dir_allowed", "PASS", "under output root", job.getOutputDir(), ""));
-        gates.add(insertGate(job.getId(), "files_registered", fileCount > 0 ? "PASS" : "FAIL", ">0", String.valueOf(fileCount), ""));
-        gates.add(insertGate(job.getId(), "formal_promote_disabled", "PASS", "no promote endpoint", "disabled", ""));
-        gates.add(insertGate(job.getId(), "formal_tables_not_written", "PASS", "no formal table mapper/write", "metadata only", ""));
-        boolean passed = gates.stream().allMatch(g -> "PASS".equals(g.getGateStatus()));
         try {
+            List<GateView> gates = new ArrayList<>();
+            long fileCount = fileMapper.selectCount(new LambdaQueryWrapper<AdminImportJobFile>().eq(AdminImportJobFile::getJobId, job.getId()));
+            gates.add(insertGate(job.getId(), "source_dir_allowed", "PASS", "under allowed source roots", job.getSourceDir(), ""));
+            gates.add(insertGate(job.getId(), "output_dir_allowed", "PASS", "under output root", job.getOutputDir(), ""));
+            gates.add(insertGate(job.getId(), "files_registered", fileCount > 0 ? "PASS" : "FAIL", ">0", String.valueOf(fileCount), ""));
+            gates.add(insertGate(job.getId(), "formal_promote_disabled", "PASS", "no promote endpoint", "disabled", ""));
+            gates.add(insertGate(job.getId(), "formal_tables_not_written", "PASS", "no formal table mapper/write", "metadata only", ""));
+            boolean passed = gates.stream().allMatch(g -> "PASS".equals(g.getGateStatus()));
             Files.createDirectories(outputDir);
             Path gatePath = outputDir.resolve("quality_gate.tsv");
             Files.writeString(gatePath, qualityGateTsv(gates));
@@ -211,12 +210,14 @@ public class AdminImportJobService {
             result.setArtifact(artifactView(artifact));
             return result;
         } catch (IOException e) {
-            updateStatus(job, STATUS_FAILED);
+            markFailedQuiet(job);
             throw new BizException("生成 quality gate 失败: " + e.getMessage());
+        } catch (RuntimeException e) {
+            markFailedQuiet(job);
+            throw e;
         }
     }
 
-    @Transactional
     public SqlPackageResult generateFormalSql(Long jobId) {
         AdminImportJob job = requireJob(jobId);
         if (!STATUS_QUALITY_PASSED.equals(job.getStatus()) && !STATUS_PACKAGE_GENERATED.equals(job.getStatus()) && !STATUS_READY_FOR_MANUAL_CONFIRMATION.equals(job.getStatus())) {
@@ -246,12 +247,14 @@ public class AdminImportJobService {
             result.setCleanRowCount(0L);
             return result;
         } catch (IOException e) {
-            updateStatus(job, STATUS_FAILED);
+            markFailedQuiet(job);
             throw new BizException("生成正式 SQL 包失败: " + e.getMessage());
+        } catch (RuntimeException e) {
+            markFailedQuiet(job);
+            throw e;
         }
     }
 
-    @Transactional
     public RollbackPlanResult generateRollbackPlan(Long jobId) {
         AdminImportJob job = requireJob(jobId);
         if (!STATUS_PACKAGE_GENERATED.equals(job.getStatus()) && !STATUS_READY_FOR_MANUAL_CONFIRMATION.equals(job.getStatus())) {
@@ -279,8 +282,19 @@ public class AdminImportJobService {
             result.setExpectedDeleteRows(0L);
             return result;
         } catch (IOException e) {
-            updateStatus(job, STATUS_FAILED);
+            markFailedQuiet(job);
             throw new BizException("生成 rollback 计划失败: " + e.getMessage());
+        } catch (RuntimeException e) {
+            markFailedQuiet(job);
+            throw e;
+        }
+    }
+
+    private void markFailedQuiet(AdminImportJob job) {
+        try {
+            updateStatus(job, STATUS_FAILED);
+        } catch (RuntimeException ignored) {
+            // 状态更新失败不应遮蔽原始异常,调用方会继续抛真正的错误。
         }
     }
 
