@@ -55,13 +55,21 @@ def train_chance_model(data_path: str | None, output_dir: str) -> dict:
     if not data_path:
         return {"status": "skipped", "reason": "dataPath is required"}
     df = pd.read_csv(data_path)
+    # 弱监督 label 由 min_rank - candidate_rank 推导,
+    # 因此训练特征里必须显式剔除这两列,否则 LightGBM 会直接学到
+    # f(min_rank, candidate_rank) > 3000 这条规则本身,
+    # 形成 target leakage (生产线上观察到 AUC=0.99999, Brier=0.001 即是此症状)。
+    weak_supervision_leak_cols = {"min_rank", "candidate_rank"}
     if "label" not in df.columns:
         if "candidate_rank" not in df.columns or "min_rank" not in df.columns:
             return {"status": "failed", "reason": "missing label or weak-supervision columns"}
         diff = df["min_rank"] - df["candidate_rank"]
         df["label"] = (diff > 3000).astype(int)
         df["sample_weight"] = np.where(diff.abs() < 3000, 0.35, 1.0)
-    feature_cols = [col for col in df.columns if col not in {"label", "sample_weight"}]
+    excluded = {"label", "sample_weight"} | weak_supervision_leak_cols
+    feature_cols = [col for col in df.columns if col not in excluded]
+    if not feature_cols:
+        return {"status": "failed", "reason": "no usable feature columns after leak guard"}
     X = pd.get_dummies(df[feature_cols].fillna(0))
     y = df["label"]
     weights = df.get("sample_weight")
