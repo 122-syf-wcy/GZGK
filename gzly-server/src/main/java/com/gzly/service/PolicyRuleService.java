@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -15,18 +16,22 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PolicyRuleService {
 
-    public static final int DEFAULT_YEAR = 2025;
+    public static final int ACTIVE_ADMISSION_YEAR = AdmissionYearService.FALLBACK_ACTIVE_ADMISSION_YEAR;
+    public static final int DEFAULT_YEAR = ACTIVE_ADMISSION_YEAR;
+    public static final int HISTORY_YEAR_START = 2021;
     public static final String DEFAULT_CANDIDATE_TYPE = "普通类";
-    public static final String DEFAULT_BATCH_CODE = "NORMAL_UNDERGRADUATE";
+    public static final String DEFAULT_BATCH_CODE = BatchRuleRegistry.DEFAULT_BATCH_CODE;
 
     private final PolicyRuleConfigMapper mapper;
     private final ProvincePolicyService provincePolicyService;
+    private final AdmissionYearService admissionYearService;
 
     public PolicyContext requirePolicy(String provinceCode, Integer year, String candidateType, String batchCode) {
         String province = provincePolicyService.normalizeProvinceCode(provinceCode);
-        int resolvedYear = year == null || year <= 0 ? DEFAULT_YEAR : year;
-        String resolvedCandidateType = blankToDefault(candidateType, DEFAULT_CANDIDATE_TYPE);
+        int resolvedYear = year == null || year <= 0 ? admissionYearService.getActiveAdmissionYear() : year;
+        String resolvedCandidateType = BatchRuleRegistry.normalizeCandidateType(blankToDefault(candidateType, DEFAULT_CANDIDATE_TYPE));
         String resolvedBatchCode = normalizeBatchCode(batchCode);
+        validateProvinceBatch(province, resolvedCandidateType, resolvedBatchCode);
 
         PolicyRuleConfig config;
         try {
@@ -39,6 +44,9 @@ public class PolicyRuleService {
                     .last("LIMIT 1"));
         } catch (Exception e) {
             throw new BizException("当前年份政策未配置，请管理员维护政策规则");
+        }
+        if (config == null && BatchRuleRegistry.find(resolvedBatchCode).isPresent()) {
+            config = syntheticConfig(province, resolvedYear, resolvedCandidateType, BatchRuleRegistry.require(resolvedBatchCode));
         }
         if (config == null) {
             throw new BizException("当前年份政策未配置，请管理员维护政策规则");
@@ -66,6 +74,13 @@ public class PolicyRuleService {
         policy.put("batchCode", config.getBatchCode());
         policy.put("batchName", config.getBatchName());
         policy.put("volunteerMode", config.getVolunteerMode());
+        BatchRuleRegistry.find(config.getBatchCode()).ifPresent(rule -> {
+            policy.put("supportLevel", rule.baseSupportLevel().name());
+            policy.put("recommendMode", rule.recommendMode().name());
+            policy.put("engine", rule.engine());
+            policy.put("engineName", rule.engine());
+            policy.put("supportNote", rule.supportNote());
+        });
         policy.put("maxVolunteerCount", config.getMaxVolunteerCount());
         policy.put("majorPerSchoolCount", config.getMajorPerSchoolCount());
         policy.put("hasAdjustment", config.getHasAdjustment() != null && config.getHasAdjustment() == 1);
@@ -82,19 +97,44 @@ public class PolicyRuleService {
     }
 
     public String normalizeBatchCode(String batchCode) {
-        String value = blankToDefault(batchCode, DEFAULT_BATCH_CODE).trim();
-        String lower = value.toLowerCase();
-        return switch (lower) {
-            case "ordinary_undergraduate", "normal_undergraduate", "本科批", "普通本科批", "普通类本科批" ->
-                    "NORMAL_UNDERGRADUATE";
-            case "ordinary_specialty", "normal_specialty", "高职专科批", "普通类高职专科批", "专科批" ->
-                    "NORMAL_SPECIALTY";
-            case "early_c", "提前批c段", "普通类本科提前批c段" -> "EARLY_C";
-            case "early_a_b", "early_ab", "提前批a/b段", "提前批ab段", "普通类本科提前批a/b段" -> "EARLY_A_B";
-            default -> value.toUpperCase().startsWith("NORMAL_") || value.toUpperCase().startsWith("EARLY_")
-                    ? value.toUpperCase()
-                    : value;
-        };
+        return BatchRuleRegistry.normalizeBatchCode(blankToDefault(batchCode, DEFAULT_BATCH_CODE));
+    }
+
+    private void validateProvinceBatch(String province, String candidateType, String batchCode) {
+        BatchRuleRegistry.BatchRule rule = BatchRuleRegistry.find(batchCode).orElse(null);
+        if (rule == null) {
+            throw new BizException(400, "当前省份不支持该批次，请重新选择目标批次");
+        }
+        if (!ProvincePolicyService.GZ.equals(province)) {
+            throw new BizException(400, "当前省份不支持该批次，请重新选择目标批次");
+        }
+        if (!BatchRuleRegistry.candidateTypeMatches(rule.candidateType(), candidateType)) {
+            throw new BizException(400, "考生类别与目标批次不匹配，请重新选择");
+        }
+    }
+
+    private PolicyRuleConfig syntheticConfig(String province, int year, String candidateType,
+                                             BatchRuleRegistry.BatchRule rule) {
+        PolicyRuleConfig config = new PolicyRuleConfig();
+        config.setProvince(province);
+        config.setYear(year);
+        config.setCandidateType(candidateType);
+        config.setBatchCode(rule.batchCode());
+        config.setBatchName(rule.batchName());
+        config.setVolunteerMode(rule.volunteerMode());
+        config.setMaxVolunteerCount(rule.targetCount());
+        config.setMajorPerSchoolCount(0);
+        config.setHasAdjustment(0);
+        config.setFilingPrinciple(rule.recommendMode().name());
+        config.setAdmissionOrder(rule.category().name());
+        config.setPolicyStatus("registry_only");
+        config.setOfficialSourceTitle(BatchRuleRegistry.officialSourceTitle());
+        config.setOfficialSourceUrl(BatchRuleRegistry.officialSourceUrl());
+        config.setOfficialSourceText(BatchRuleRegistry.officialSourceText());
+        config.setEnabled(1);
+        config.setCreatedAt(LocalDateTime.now());
+        config.setUpdatedAt(LocalDateTime.now());
+        return config;
     }
 
     @Data
