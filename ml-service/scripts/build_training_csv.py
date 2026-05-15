@@ -19,10 +19,12 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
+import json
 import os
 import sys
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import pandas as pd
 import pymysql
@@ -37,7 +39,27 @@ SUBJECT_TYPE_NORMALIZE = {
 }
 
 
-def load_raw(conn) -> pd.DataFrame:
+def parse_train_years(value: str | None) -> list[int]:
+    if not value:
+        return []
+    years: list[int] = []
+    for part in value.split(","):
+        item = part.strip()
+        if not item:
+            continue
+        if not item.isdigit() or len(item) != 4:
+            raise ValueError("--train-years 仅接受逗号分隔年份，例如 2024,2025,2026")
+        years.append(int(item))
+    return sorted(set(years))
+
+
+def load_raw(conn, train_years: Sequence[int] | None = None) -> pd.DataFrame:
+    params: list[int] = []
+    where = ["s.min_rank IS NOT NULL", "s.min_rank > 0"]
+    if train_years:
+        placeholders = ",".join(["%s"] * len(train_years))
+        where.append(f"s.year IN ({placeholders})")
+        params.extend(train_years)
     sql = (
         "SELECT s.school_id, s.university_name, s.major_name, s.year, s.subject_type, "
         "       s.min_score, s.min_rank, s.plan_count, s.batch, s.resubject_requirement, "
@@ -46,9 +68,57 @@ def load_raw(conn) -> pd.DataFrame:
         "       u.dual_class AS is_double_first_class, "
         "       CASE WHEN u.nature_name LIKE '%公办%' THEN 1 ELSE 0 END AS is_public "
         "FROM data_score_line_gz s LEFT JOIN sys_university u ON u.school_id = s.school_id "
-        "WHERE s.min_rank IS NOT NULL AND s.min_rank > 0"
+        f"WHERE {' AND '.join(where)}"
     )
-    return pd.read_sql(sql, conn)
+    return pd.read_sql(sql, conn, params=params or None)
+
+
+def table_exists(conn, table_name: str) -> bool:
+    with conn.cursor() as cursor:
+        cursor.execute(
+            "SELECT COUNT(*) FROM information_schema.tables "
+            "WHERE table_schema = DATABASE() AND table_name = %s",
+            (table_name,),
+        )
+        row = cursor.fetchone()
+    return bool(row and row[0])
+
+
+def load_official_context_inventory(conn, train_years: Sequence[int]) -> dict[str, object]:
+    """只读盘点 2026 官方数据上下文，不把未带标签的 2026 计划伪造成训练标签。"""
+    years = list(train_years)
+    if not years:
+        years = [2024, 2025, 2026]
+    placeholders = ",".join(["%s"] * len(years))
+    inventory: dict[str, object] = {"years": years}
+    table_queries = {
+        "admission_plan_rows": (
+            "admission_plan",
+            "SELECT COUNT(*) FROM admission_plan WHERE year IN ({}) AND province IN ('GZ', '贵州', '')",
+        ),
+        "admission_plan_restriction_rows": (
+            "admission_plan",
+            "SELECT COUNT(*) FROM admission_plan WHERE year IN ({}) AND province IN ('GZ', '贵州', '') "
+            "AND (COALESCE(remarks, '') <> '' OR COALESCE(special_limit, '') <> '')",
+        ),
+        "score_rank_rows": (
+            "data_score_rank_gz",
+            "SELECT COUNT(*) FROM data_score_rank_gz WHERE year IN ({})",
+        ),
+        "major_requirement_rows": (
+            "data_major_requirement_gz",
+            "SELECT COUNT(*) FROM data_major_requirement_gz WHERE year IN ({})",
+        ),
+    }
+    with conn.cursor() as cursor:
+        for key, (table_name, query_template) in table_queries.items():
+            if not table_exists(conn, table_name):
+                inventory[key] = "table_missing"
+                continue
+            cursor.execute(query_template.format(placeholders), years)
+            row = cursor.fetchone()
+            inventory[key] = int(row[0]) if row else 0
+    return inventory
 
 
 def normalize(df: pd.DataFrame) -> pd.DataFrame:
@@ -153,7 +223,7 @@ REQUIRED_OUTPUT_COLUMNS = (
 )
 
 
-def validate_export(df: pd.DataFrame, min_rows: int) -> None:
+def validate_export(df: pd.DataFrame, min_rows: int, required_years: Sequence[int] | None = None) -> None:
     """硬校验：缺关键列或行数过少时直接抛 RuntimeError，避免训练脚本拿到劣化数据。"""
     missing = [col for col in REQUIRED_OUTPUT_COLUMNS if col not in df.columns]
     if missing:
@@ -167,25 +237,132 @@ def validate_export(df: pd.DataFrame, min_rows: int) -> None:
         raise RuntimeError("min_rank 包含非正值，标签错误，请检查数据清洗")
     if df["candidate_rank"].le(0).any():
         raise RuntimeError("candidate_rank 包含非正值，请检查 select_export 中的派生逻辑")
+    if required_years:
+        present_years = {int(y) for y in df["year"].dropna().astype(int).unique().tolist()}
+        missing_years = [year for year in required_years if year not in present_years]
+        if missing_years:
+            raise RuntimeError(
+                f"训练样本缺少年份 {missing_years}；不得用其他年份数据冒充缺失年份"
+            )
+
+
+def write_quality_report(
+    report_path: Path,
+    *,
+    train_years: Sequence[int],
+    raw: pd.DataFrame,
+    cleaned: pd.DataFrame,
+    enriched: pd.DataFrame,
+    trainable: pd.DataFrame,
+    exported: pd.DataFrame,
+    official_context: dict[str, object],
+    min_rows: int,
+    validation_error: str | None,
+) -> None:
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    key_columns = [
+        "year",
+        "school_code",
+        "major_code",
+        "subject_type",
+        "batch_code",
+        "min_rank",
+        "candidate_rank",
+        "current_plan_count",
+        "min_rank_lag_1",
+    ]
+    completeness = {
+        col: round(float(exported[col].notna().mean()), 4)
+        for col in key_columns
+        if col in exported.columns and len(exported) > 0
+    }
+    year_counts = (
+        exported["year"].value_counts().sort_index().astype(int).to_dict()
+        if "year" in exported.columns and len(exported) > 0
+        else {}
+    )
+    payload = {
+        "generatedAt": datetime.now().isoformat(timespec="seconds"),
+        "trainYears": list(train_years),
+        "minRows": min_rows,
+        "rowCounts": {
+            "raw": int(len(raw)),
+            "cleaned": int(len(cleaned)),
+            "enriched": int(len(enriched)),
+            "trainable": int(len(trainable)),
+            "exported": int(len(exported)),
+        },
+        "yearCounts": year_counts,
+        "featureCompleteness": completeness,
+        "officialContext": official_context,
+        "validationError": validation_error,
+        "boundary": "quality report only; no fake 2026 data; no model activation; no readiness update",
+    }
+    lines = [
+        "# GZLY Training CSV Quality Report",
+        "",
+        f"- generatedAt: `{payload['generatedAt']}`",
+        f"- trainYears: `{','.join(str(y) for y in train_years) if train_years else 'all available labeled years'}`",
+        f"- minRows: `{min_rows}`",
+        "- boundary: quality report only; no fake 2026 data; no model activation; no readiness update.",
+        "",
+        "## Row Counts",
+        "",
+        "| stage | rows |",
+        "|---|---:|",
+    ]
+    for stage, count in payload["rowCounts"].items():
+        lines.append(f"| {stage} | {count} |")
+    lines.extend(["", "## Year Coverage", "", "| year | rows |", "|---|---:|"])
+    for year, count in year_counts.items():
+        lines.append(f"| {year} | {count} |")
+    if not year_counts:
+        lines.append("| none | 0 |")
+    lines.extend(["", "## Feature Completeness", "", "| column | completeness |", "|---|---:|"])
+    for col, ratio in completeness.items():
+        lines.append(f"| {col} | {ratio:.2%} |")
+    lines.extend(["", "## Official 2026 Context Inventory", "", "| item | value |", "|---|---|"])
+    for key, value in official_context.items():
+        lines.append(f"| {key} | `{value}` |")
+    lines.extend(["", "## Validation", ""])
+    lines.append(f"- status: `{'failed' if validation_error else 'passed'}`")
+    if validation_error:
+        lines.append(f"- error: `{validation_error}`")
+    lines.extend(["", "## Machine Readable Snapshot", "", json.dumps(payload, ensure_ascii=False, indent=2)])
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", default="data/training_rank.csv", help="输出 CSV 路径")
     parser.add_argument("--limit", type=int, default=0, help="可选：限制行数（调试用）")
+    parser.add_argument("--train-years", default="",
+                        help="逗号分隔训练年份，例如 2024,2025,2026；默认使用全部带标签年份")
+    parser.add_argument("--require-train-years", action="store_true",
+                        help="开启后要求 --train-years 中每个年份都出现在导出样本中")
+    parser.add_argument("--quality-report", default="",
+                        help="可选：输出训练 CSV 质量报告 Markdown 路径")
     parser.add_argument("--min-rows", type=int, default=50,
                         help="导出后最少行数；少于该数直接报错（默认 50）")
     parser.add_argument("--strict", action="store_true",
                         help="开启严格模式：行数不足、关键列缺失时直接非零退出而非告警")
     args = parser.parse_args(argv)
+    try:
+        train_years = parse_train_years(args.train_years)
+    except ValueError as exc:
+        print(f"[etl][ERROR] {exc}", file=sys.stderr)
+        return 2
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     print("[etl] connecting MySQL ...")
     with open_connection() as conn:
-        raw = load_raw(conn)
+        raw = load_raw(conn, train_years)
+        official_context = load_official_context_inventory(conn, train_years)
     print(f"[etl] raw rows: {len(raw)}")
+    if train_years:
+        print(f"[etl] requested train years: {train_years}")
 
     cleaned = normalize(raw)
     print(f"[etl] after normalize: {len(cleaned)}")
@@ -201,15 +378,45 @@ def main(argv: Iterable[str] | None = None) -> int:
         exported = exported.head(args.limit)
 
     try:
-        validate_export(exported, args.min_rows)
+        required_years = train_years if args.require_train_years else []
+        validate_export(exported, args.min_rows, required_years)
+        validation_error = None
     except RuntimeError as exc:
+        validation_error = str(exc)
         if args.strict:
             print(f"[etl][ERROR] {exc}", file=sys.stderr)
+            if args.quality_report:
+                write_quality_report(
+                    Path(args.quality_report),
+                    train_years=train_years,
+                    raw=raw,
+                    cleaned=cleaned,
+                    enriched=enriched,
+                    trainable=trainable,
+                    exported=exported,
+                    official_context=official_context,
+                    min_rows=args.min_rows,
+                    validation_error=validation_error,
+                )
             return 2
         print(f"[etl][WARN] {exc}", file=sys.stderr)
 
     exported.to_csv(out_path, index=False, encoding="utf-8-sig")
     print(f"[etl] saved -> {out_path} (rows={len(exported)}, cols={len(exported.columns)})")
+    if args.quality_report:
+        write_quality_report(
+            Path(args.quality_report),
+            train_years=train_years,
+            raw=raw,
+            cleaned=cleaned,
+            enriched=enriched,
+            trainable=trainable,
+            exported=exported,
+            official_context=official_context,
+            min_rows=args.min_rows,
+            validation_error=validation_error,
+        )
+        print(f"[etl] quality report -> {args.quality_report}")
     return 0
 
 

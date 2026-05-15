@@ -95,10 +95,17 @@ class MlPredictionServiceTest {
         PlanHistoryMapper planHistoryMapper = mock(PlanHistoryMapper.class);
         when(planHistoryMapper.update(any(), any())).thenReturn(1);
         MlPredictionService service = new MlPredictionService(new ObjectMapper(), planHistoryMapper,
-                new com.gzly.algorithm.FallbackRulePredictionEngine());
+                new com.gzly.algorithm.FallbackRulePredictionEngine(), admissionYearService());
         ReflectionTestUtils.setField(service, "enabled", enabled);
         ReflectionTestUtils.setField(service, "baseUrl", baseUrl);
         ReflectionTestUtils.setField(service, "timeoutMs", timeoutMs);
+        return service;
+    }
+
+    private AdmissionYearService admissionYearService() {
+        AdmissionYearService service = new AdmissionYearService();
+        service.setActiveAdmissionYear(2026);
+        service.setHistoryYears("2025,2024");
         return service;
     }
 

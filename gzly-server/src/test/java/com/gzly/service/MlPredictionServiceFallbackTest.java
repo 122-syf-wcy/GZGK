@@ -26,7 +26,7 @@ class MlPredictionServiceFallbackTest {
         PlanHistoryMapper planHistoryMapper = mock(PlanHistoryMapper.class);
         when(planHistoryMapper.update(any(), any())).thenReturn(1);
 
-        MlPredictionService service = new MlPredictionService(new ObjectMapper(), planHistoryMapper, engine);
+        MlPredictionService service = new MlPredictionService(new ObjectMapper(), planHistoryMapper, engine, admissionYearService());
         setEnabled(service, false);
 
         VolunteerService.PlanResult plan = samplePlan();
@@ -46,7 +46,7 @@ class MlPredictionServiceFallbackTest {
         PlanHistoryMapper planHistoryMapper = mock(PlanHistoryMapper.class);
         when(planHistoryMapper.update(any(), any())).thenReturn(1);
 
-        MlPredictionService service = new MlPredictionService(new ObjectMapper(), planHistoryMapper, engine);
+        MlPredictionService service = new MlPredictionService(new ObjectMapper(), planHistoryMapper, engine, admissionYearService());
         setEnabled(service, true);
         // 指向不可达的端口，触发 IOException → 降级
         Field baseUrl = MlPredictionService.class.getDeclaredField("baseUrl");
@@ -78,6 +78,13 @@ class MlPredictionServiceFallbackTest {
         Field field = MlPredictionService.class.getDeclaredField("enabled");
         field.setAccessible(true);
         field.setBoolean(service, value);
+    }
+
+    private AdmissionYearService admissionYearService() {
+        AdmissionYearService service = new AdmissionYearService();
+        service.setActiveAdmissionYear(2026);
+        service.setHistoryYears("2025,2024");
+        return service;
     }
 
     private VolunteerService.PlanResult samplePlan() {

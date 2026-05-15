@@ -30,6 +30,7 @@ public class MlPredictionService {
     private final ObjectMapper objectMapper;
     private final PlanHistoryMapper planHistoryMapper;
     private final FallbackRulePredictionEngine fallbackRulePredictionEngine;
+    private final AdmissionYearService admissionYearService;
 
     @Value("${gzly.ml.enabled:false}")
     private boolean enabled;
@@ -160,7 +161,7 @@ public class MlPredictionService {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("modelVersion", "latest");
         root.put("candidate", Map.of(
-                "year", req == null || req.getYear() == null ? 2025 : req.getYear(),
+                "year", req == null || req.getYear() == null ? admissionYearService.getActiveAdmissionYear() : req.getYear(),
                 "province", plan.getProvinceCode(),
                 "candidateRank", plan.getProvinceRank(),
                 "candidateScore", plan.getTotalScore(),
@@ -269,6 +270,17 @@ public class MlPredictionService {
         private int appliedCount;
         /** 配置上 ML 是否开启；false 时 fallbackUsed 一定为 true。 */
         private boolean modelEnabled;
+
+        public static ApplyResult empty() {
+            ApplyResult result = new ApplyResult();
+            result.setModelVersion("none");
+            result.setFallbackUsed(true);
+            result.setFallbackReason("query_only");
+            result.setVisibleMetric("supportLevel");
+            result.setAppliedCount(0);
+            result.setModelEnabled(false);
+            return result;
+        }
 
         public Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<>();
