@@ -49,6 +49,7 @@ public class VolunteerController {
     private final ObjectMapper objectMapper;
     private final Executor taskExecutor;
     private final StringRedisTemplate stringRedisTemplate;
+    private static final String SAFETY_CODE_FORBIDDEN_MESSAGE = "安全码错误或无权访问该方案";
 
     @Value("${gzly.stability.ai-analysis-active-global-limit:30}")
     private int aiAnalysisActiveGlobalLimit;
@@ -201,11 +202,11 @@ public class VolunteerController {
     public Result<AiAnalysisTicketResponse> aiAnalysisTicket(@RequestBody AiAnalysisTicketRequest req) {
         String credential = req == null ? "" : firstNonBlank(req.getSafetyCode(), req.getAccessKey());
         if (req == null || req.getPlanId() == null || credential.isBlank()) {
-            throw new BizException("方案参数不能为空");
+            throw new BizException(403, SAFETY_CODE_FORBIDDEN_MESSAGE);
         }
         PlanHistory plan = volunteerService.getPlanById(req.getPlanId());
         if (plan == null || !volunteerService.isValidPlanAccessKey(req.getPlanId(), credential)) {
-            throw new BizException("方案不存在或访问密钥无效");
+            throw new BizException(403, SAFETY_CODE_FORBIDDEN_MESSAGE);
         }
         String ticket = UUID.randomUUID().toString().replace("-", "");
         String key = "volunteer:ai-ticket:" + ticket;
@@ -246,7 +247,7 @@ public class VolunteerController {
                                                                    HttpServletRequest httpReq) {
         String credential = req == null ? "" : firstNonBlank(req.getSafetyCode(), req.getAccessKey());
         if (req == null || req.getPlanId() == null || credential.isBlank()) {
-            throw new BizException("方案参数不能为空");
+            throw new BizException(403, SAFETY_CODE_FORBIDDEN_MESSAGE);
         }
         String message = req.getMessage() == null ? "" : req.getMessage().trim();
         if (message.length() < 2) {
@@ -258,7 +259,7 @@ public class VolunteerController {
 
         PlanHistory plan = volunteerService.getPlanById(req.getPlanId());
         if (plan == null || !volunteerService.isValidPlanAccessKey(req.getPlanId(), credential)) {
-            throw new BizException("方案不存在或访问密钥无效");
+            throw new BizException(403, SAFETY_CODE_FORBIDDEN_MESSAGE);
         }
 
         String clientIp = getClientIp(httpReq);

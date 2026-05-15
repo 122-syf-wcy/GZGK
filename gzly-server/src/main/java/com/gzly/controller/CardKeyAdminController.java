@@ -17,10 +17,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class CardKeyAdminController {
 
+    private static final String CARD_KEY_GONE_MESSAGE = "卡密功能已下线，请使用安全码访问志愿方案。";
+
     @PostMapping("/batch-generate")
     public Result<Map<String, Object>> batchGenerate(@RequestBody BatchGenerateRequest req) {
         if (req == null) throw new BizException("参数不能为空");
-        throw new BizException(410, "卡密管理功能已下线");
+        throw new BizException(410, CARD_KEY_GONE_MESSAGE);
     }
 
     @GetMapping
@@ -28,12 +30,12 @@ public class CardKeyAdminController {
                                             @RequestParam(required = false) String batchNo,
                                             @RequestParam(defaultValue = "1") int page,
                                             @RequestParam(defaultValue = "30") int size) {
-        throw new BizException(410, "卡密管理功能已下线");
+        throw new BizException(410, CARD_KEY_GONE_MESSAGE);
     }
 
     @PostMapping("/{id}/revoke")
     public Result<CardKeyView> revoke(@PathVariable Long id, @RequestBody(required = false) RevokeRequest req) {
-        throw new BizException(410, "卡密管理功能已下线");
+        throw new BizException(410, CARD_KEY_GONE_MESSAGE);
     }
 
     @Data

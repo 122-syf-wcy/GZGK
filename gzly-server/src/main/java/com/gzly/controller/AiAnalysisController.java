@@ -1,7 +1,11 @@
 package com.gzly.controller;
 
 import com.gzly.common.Result;
+import com.gzly.common.exception.BizException;
 import com.gzly.service.AiDeepAnalysisService;
+import com.gzly.service.SafetyCodeRequestResolver;
+import com.gzly.service.SafetyCodeService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -12,28 +16,30 @@ import org.springframework.web.bind.annotation.*;
 public class AiAnalysisController {
 
     private final AiDeepAnalysisService aiDeepAnalysisService;
+    private final SafetyCodeRequestResolver safetyCodeRequestResolver;
+    private final SafetyCodeService safetyCodeService;
 
     @PostMapping
     public Result<AiDeepAnalysisService.AiAnalysisVO> generate(@PathVariable Long planId,
-                                                              @RequestParam(required = false) String safetyCode,
-                                                              @RequestParam(required = false) String accessKey,
-                                                              @RequestHeader(value = "X-Plan-Safety-Code", required = false) String headerSafetyCode,
-                                                              @RequestHeader(value = "X-Plan-Access-Key", required = false) String headerAccessKey,
-                                                              @RequestBody(required = false) AiAnalysisRequest req) {
+                                                              @RequestBody(required = false) AiAnalysisRequest req,
+                                                              HttpServletRequest request) {
+        String key = safetyCodeRequestResolver.resolve(request, req);
+        if (!safetyCodeService.verifyPlanAccess(planId, key)) {
+            throw new BizException(403, "方案不存在或访问密钥无效");
+        }
         return Result.ok(aiDeepAnalysisService.generate(
                 planId,
-                firstNonBlank(req == null ? null : req.getSafetyCode(), safetyCode, headerSafetyCode,
-                        req == null ? null : req.getAccessKey(), accessKey, headerAccessKey),
+                key,
                 req != null && Boolean.TRUE.equals(req.getForceRefresh())));
     }
 
     @GetMapping
     public Result<AiDeepAnalysisService.AiAnalysisVO> get(@PathVariable Long planId,
-                                                         @RequestParam(required = false) String safetyCode,
-                                                         @RequestParam(required = false) String accessKey,
-                                                         @RequestHeader(value = "X-Plan-Safety-Code", required = false) String headerSafetyCode,
-                                                         @RequestHeader(value = "X-Plan-Access-Key", required = false) String headerAccessKey) {
-        String key = firstNonBlank(safetyCode, headerSafetyCode, accessKey, headerAccessKey);
+                                                         HttpServletRequest request) {
+        String key = safetyCodeRequestResolver.resolve(request);
+        if (!safetyCodeService.verifyPlanAccess(planId, key)) {
+            throw new BizException(403, "方案不存在或访问密钥无效");
+        }
         AiDeepAnalysisService.AiAnalysisVO vo = aiDeepAnalysisService.get(planId, key);
         if (vo == null) {
             vo = aiDeepAnalysisService.generate(planId, key, false);
@@ -46,15 +52,5 @@ public class AiAnalysisController {
         private Boolean forceRefresh;
         private String safetyCode;
         private String accessKey;
-    }
-
-    private String firstNonBlank(String... values) {
-        if (values == null) return "";
-        for (String value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return "";
     }
 }
