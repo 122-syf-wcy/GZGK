@@ -149,8 +149,9 @@ class VolunteerServiceComplianceTest {
         assertThat(summary.getRanges().get("冲").getRankLow()).isEqualTo(22000);
         assertThat(summary.getRanges().get("冲").getRankHigh()).isEqualTo(29000);
         assertThat(summary.getRanges().get("稳").getRankHigh()).isEqualTo(36000);
-        assertThat(summary.getRanges().get("冲").getTargetCount()).isEqualTo(19);
-        assertThat(summary.getRanges().get("稳").getTargetCount()).isEqualTo(38);
+        // 报告 15%/45%/30%/10% × 96 = 14/43/29/10（与 GradientAllocationEngine 一致）
+        assertThat(summary.getRanges().get("冲").getTargetCount()).isEqualTo(14);
+        assertThat(summary.getRanges().get("稳").getTargetCount()).isEqualTo(43);
         assertThat(summary.getRanges().get("保").getTargetCount()).isEqualTo(29);
         assertThat(summary.getRanges().get("垫").getTargetCount()).isEqualTo(10);
     }

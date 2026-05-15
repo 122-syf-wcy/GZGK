@@ -1272,31 +1272,34 @@ public class VolunteerService {
 
     private GradientCounts targetCounts(String strategyMode, int maxVolunteerCount) {
         int max = maxVolunteerCount <= 0 ? TOTAL_COUNT : maxVolunteerCount;
+        // 标杆比例来自《贵州省高考志愿辅助系统推荐算法与梯度规则优化研究报告》"梯度规则与伪代码"。
+        // 与 GradientAllocationEngine 保持单一事实来源；本表只在 96/60 给报告原文整数，
+        // 其它志愿数量走 15%/45%/30%/10% 等比例分配。
         if (max == 96) {
             if ("保守型".equals(strategyMode)) {
-                return new GradientCounts(10, 34, 34, 18);
+                return new GradientCounts(10, 34, 38, 14);
             }
             if ("冲刺型".equals(strategyMode)) {
-                return new GradientCounts(29, 38, 19, 10);
+                return new GradientCounts(24, 38, 24, 10);
             }
-            return new GradientCounts(19, 38, 29, 10);
+            return new GradientCounts(14, 43, 29, 10);
         }
         if (max == 60) {
             if ("保守型".equals(strategyMode)) {
-                return new GradientCounts(6, 21, 21, 12);
+                return new GradientCounts(6, 21, 24, 9);
             }
             if ("冲刺型".equals(strategyMode)) {
-                return new GradientCounts(18, 24, 12, 6);
+                return new GradientCounts(15, 24, 15, 6);
             }
-            return new GradientCounts(12, 24, 18, 6);
+            return new GradientCounts(9, 27, 18, 6);
         }
         double[] ratios;
         if ("保守型".equals(strategyMode)) {
-            ratios = new double[]{0.10, 0.35, 0.35, 0.20};
+            ratios = new double[]{0.10, 0.35, 0.40, 0.15};
         } else if ("冲刺型".equals(strategyMode)) {
-            ratios = new double[]{0.30, 0.40, 0.20, 0.10};
+            ratios = new double[]{0.25, 0.40, 0.25, 0.10};
         } else {
-            ratios = new double[]{0.20, 0.40, 0.30, 0.10};
+            ratios = new double[]{0.15, 0.45, 0.30, 0.10};
         }
         int chong = (int) Math.floor(max * ratios[0]);
         int wen = (int) Math.floor(max * ratios[1]);

@@ -304,12 +304,13 @@ class VolunteerServiceGenerateIntegrationTest {
     @Test
     void specialtyRecommend_shouldBackfillSafeGradientFromNeighborWhenExpandedWindowStillInsufficient() {
         List<MajorScoreGz> candidates = new ArrayList<>();
-        for (int i = 0; i < 19; i++) {
+        // 报告 15%/45%/30%/10% × 96 = 14/43/29/10：冲/稳候选给足以避免触发额外 backfill
+        for (int i = 0; i < 14; i++) {
             String sid = "bf-c-" + i;
             candidates.add(specialtyMajor(sid, "补位冲学校" + i, "补位冲专业" + i, 50_500 + i * 20, 2025));
             stubUniversities(sid, "补位冲学校" + i, "贵阳", "公办");
         }
-        for (int i = 0; i < 38; i++) {
+        for (int i = 0; i < 43; i++) {
             String sid = "bf-w-" + i;
             candidates.add(specialtyMajor(sid, "补位稳学校" + i, "补位稳专业" + i, 57_200 + i * 20, 2025));
             stubUniversities(sid, "补位稳学校" + i, "贵阳", "公办");
