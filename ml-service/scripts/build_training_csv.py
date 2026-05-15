@@ -15,6 +15,8 @@
 - 当前训练表为 data_score_line_gz（21789 行 2020-2025），按 (school_id, subject_type) 排序按年份算 lag。
 - 输出 CSV 字段对齐 rank_prediction_model.NUMERIC_FEATURES + CATEGORICAL_FEATURES。
 - 标签 min_rank 用本年实际录取最低位次；早年（2021/2022/2023）按文理科 → 物理类/历史类 兼容映射。
+- 不输出 `candidate_rank` 列；chance-score 训练在 train_chance_model 内对每条录取行扩样独立
+  candidate_rank，避免 candidate_rank = min_rank * 0.95 这种伪派生造成的 target leakage。
 """
 from __future__ import annotations
 
@@ -185,6 +187,11 @@ def filter_trainable(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def select_export(df: pd.DataFrame) -> pd.DataFrame:
+    """导出训练 CSV，**不再** 写入 `candidate_rank = min_rank * 0.95` 这种伪派生候选位次。
+
+    chance-score 训练在 `train_chance_model` 内对每条录取行扩样多个独立 candidate_rank，
+    与 min_rank 解耦，从根本上避免 target leakage。rank-prediction 训练不需要 candidate_rank。
+    """
     cols = [
         "year", "tuition", "current_plan_count", "last_year_plan_count", "plan_change_rate",
         "min_rank_lag_1", "min_rank_lag_2", "min_rank_lag_3", "avg_rank_lag_3", "median_rank_lag_3",
@@ -195,9 +202,7 @@ def select_export(df: pd.DataFrame) -> pd.DataFrame:
         "min_rank",
     ]
     cols = [c for c in cols if c in df.columns]
-    out = df[cols].copy()
-    out["candidate_rank"] = (out["min_rank"] - (out["min_rank"] * 0.05).round()).astype(int)
-    return out
+    return df[cols].copy()
 
 
 def open_connection() -> "pymysql.connections.Connection":
@@ -219,7 +224,7 @@ REQUIRED_OUTPUT_COLUMNS = (
     "year", "current_plan_count", "last_year_plan_count", "plan_change_rate",
     "min_rank_lag_1", "rank_volatility_3y", "rank_trend_3y",
     "batch_code", "candidate_type", "subject_type", "school_code",
-    "min_rank", "candidate_rank",
+    "min_rank",
 )
 
 
@@ -235,8 +240,6 @@ def validate_export(df: pd.DataFrame, min_rows: int, required_years: Sequence[in
         )
     if df["min_rank"].le(0).any():
         raise RuntimeError("min_rank 包含非正值，标签错误，请检查数据清洗")
-    if df["candidate_rank"].le(0).any():
-        raise RuntimeError("candidate_rank 包含非正值，请检查 select_export 中的派生逻辑")
     if required_years:
         present_years = {int(y) for y in df["year"].dropna().astype(int).unique().tolist()}
         missing_years = [year for year in required_years if year not in present_years]
@@ -267,7 +270,6 @@ def write_quality_report(
         "subject_type",
         "batch_code",
         "min_rank",
-        "candidate_rank",
         "current_plan_count",
         "min_rank_lag_1",
     ]

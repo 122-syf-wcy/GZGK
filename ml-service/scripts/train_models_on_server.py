@@ -101,7 +101,9 @@ def post_register(payload: dict[str, Any]) -> dict[str, Any]:
     req.add_header("Content-Type", "application/json; charset=utf-8")
     token = os.environ.get("GZLY_API_TOKEN")
     if token:
+        # 兼容两种鉴权口径：管理后台用 Authorization: Bearer，旧脚本用 X-Admin-Token
         req.add_header("X-Admin-Token", token)
+        req.add_header("Authorization", f"Bearer {token}")
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             text = resp.read().decode("utf-8")

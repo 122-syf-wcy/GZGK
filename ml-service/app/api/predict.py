@@ -7,7 +7,12 @@ import pandas as pd
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from app.models.chance_score_model import chance_from_rank_diff
+from app.models.chance_score_model import (
+    CHANCE_CATEGORICAL_COLUMNS,
+    CHANCE_FEATURE_COLUMNS,
+    CHANCE_MODEL_VERSION,
+    chance_from_rank_diff,
+)
 from app.models.rank_prediction_model import predict_min_rank
 from app.utils.model_loader import get_chance_model, get_rank_model, model_status
 
@@ -123,18 +128,16 @@ def _batch_predict_chance(items: list[dict[str, Any]],
         model = payload["model"]
         columns = payload.get("columns") or []
         feature_rows = []
+        cat_rows = []
         for idx, item in enumerate(items):
-            predicted_rank, _ = rank_predictions[idx]
-            row = {
-                "candidate_rank": candidate_rank or 30000,
-                "min_rank": predicted_rank or 0,
-                "rank_volatility_3y": float(item.get("rankVolatility3y") or 0),
-                "plan_change_rate": float(item.get("planChangeRate") or 0),
-                "major_hot_score": float(item.get("majorHotScore") or 0),
-                "data_confidence": float(item.get("dataConfidence") or 60),
-            }
+            row = {col: _coerce_float(item.get(_snake_to_camel(col), item.get(col))) for col in CHANCE_FEATURE_COLUMNS}
+            row["candidate_rank"] = float(candidate_rank or row.get("candidate_rank") or 30000)
             feature_rows.append(row)
-        df = pd.get_dummies(pd.DataFrame(feature_rows).fillna(0))
+            cat_rows.append({col: str(item.get(_snake_to_camel(col), item.get(col)) or "UNKNOWN")
+                             for col in CHANCE_CATEGORICAL_COLUMNS})
+        numeric_df = pd.DataFrame(feature_rows).fillna(0)
+        cat_df = pd.get_dummies(pd.DataFrame(cat_rows).fillna("UNKNOWN"), prefix=CHANCE_CATEGORICAL_COLUMNS)
+        df = pd.concat([numeric_df.reset_index(drop=True), cat_df.reset_index(drop=True)], axis=1)
         df = df.reindex(columns=columns, fill_value=0)
         proba = model.predict_proba(df)[:, 1]
         for idx, p in enumerate(proba):
@@ -170,9 +173,23 @@ def _camel_to_snake(name: str) -> str:
     return "".join(out)
 
 
+def _snake_to_camel(name: str) -> str:
+    parts = name.split("_")
+    return parts[0] + "".join(seg.capitalize() for seg in parts[1:])
+
+
+def _coerce_float(value: Any) -> float:
+    try:
+        if value is None or value == "":
+            return 0.0
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _resolve_model_version(rank_used: bool, chance_used: bool) -> str:
     if rank_used and chance_used:
-        return "chance-score-v1.0.0"
+        return CHANCE_MODEL_VERSION
     if rank_used or chance_used:
-        return "chance-score-v1.0.0-partial"
+        return f"{CHANCE_MODEL_VERSION}-partial"
     return "fallback-rule-v1"
