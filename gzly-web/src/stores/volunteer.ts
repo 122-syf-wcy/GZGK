@@ -12,6 +12,7 @@ import type {
 import { REFERENCE_PROBABILITY_NOTICE } from '@/constants/compliance'
 
 const PLAN_META_KEY = 'gz_volunteer_plan_meta'
+const CURRENT_SAFETY_CODE_KEY = 'gz_current_safety_code'
 
 type PlanMeta = {
   planId: number
@@ -19,9 +20,49 @@ type PlanMeta = {
   accessKey?: string
 }
 
+export function getStoredSafetyCode(planId?: number | string | null): string {
+  try {
+    const raw = localStorage.getItem(PLAN_META_KEY)
+    if (!raw) return ''
+    const parsed = JSON.parse(raw) as PlanMeta
+    if (planId && String(parsed.planId) !== String(planId)) return ''
+    return parsed.safetyCode || parsed.accessKey || ''
+  } catch {
+    return ''
+  }
+}
+
+export function persistSafetyCode(planId: number | string, safetyCode: string) {
+  if (!planId || !safetyCode) return
+  localStorage.setItem(PLAN_META_KEY, JSON.stringify({ planId: Number(planId), safetyCode, accessKey: safetyCode }))
+}
+
+export function clearStoredSafetyCode(planId?: number | string | null) {
+  if (planId && !getStoredSafetyCode(planId)) return
+  localStorage.removeItem(PLAN_META_KEY)
+}
+
+export function getCurrentSafetyCode(): string {
+  return localStorage.getItem(CURRENT_SAFETY_CODE_KEY) || getStoredSafetyCode()
+}
+
+export function setCurrentSafetyCode(safetyCode: string) {
+  if (!safetyCode) {
+    clearCurrentSafetyCode()
+    return
+  }
+  localStorage.setItem(CURRENT_SAFETY_CODE_KEY, safetyCode)
+}
+
+export function clearCurrentSafetyCode() {
+  localStorage.removeItem(CURRENT_SAFETY_CODE_KEY)
+}
+
 export const useVolunteerStore = defineStore('volunteer', () => {
   const formData = ref<VolunteerFormData>({
     provinceCode: 'GZ',
+    candidateType: '普通类',
+    batchCode: '',
     totalScore: 0,
     provinceRank: 0,
     firstSubject: '物理',
@@ -52,6 +93,12 @@ export const useVolunteerStore = defineStore('volunteer', () => {
   const advisorAdvice = ref<AdvisorAdvice | null>(null)
   const policy = ref<VolunteerPlan['policy'] | null>(null)
   const modelInfo = ref<VolunteerPlan['modelInfo'] | null>(null)
+  const activeAdmissionYear = ref<number | null>(null)
+  const latestOfficialDataYear = ref<number | null>(null)
+  const trainingYears = ref<number[]>([])
+  const recommendationPhase = ref('')
+  const estimateMode = ref(false)
+  const officialDataReady = ref(false)
   const warnings = ref<string[]>([])
   const aiContent = ref('')
   const generating = ref(false)
@@ -75,6 +122,12 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     advisorAdvice.value = plan.advisorAdvice ?? null
     policy.value = plan.policy ?? null
     modelInfo.value = plan.modelInfo ?? null
+    activeAdmissionYear.value = plan.activeAdmissionYear || plan.modelInfo?.activeAdmissionYear || null
+    latestOfficialDataYear.value = plan.latestOfficialDataYear || plan.modelInfo?.latestOfficialDataYear || null
+    trainingYears.value = plan.trainingYears || plan.modelInfo?.trainingYears || []
+    recommendationPhase.value = plan.recommendationPhase || plan.modelInfo?.recommendationPhase || ''
+    estimateMode.value = Boolean(plan.estimateMode || plan.modelInfo?.estimateMode)
+    officialDataReady.value = Boolean(plan.officialDataReady || plan.modelInfo?.officialDataReady)
     warnings.value = plan.warnings || []
     aiContent.value = ''
     localStorage.setItem(PLAN_META_KEY, JSON.stringify({ planId: plan.id, safetyCode: credential, accessKey: plan.accessKey || '' }))
@@ -94,6 +147,12 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     advisorAdvice.value = null
     policy.value = null
     modelInfo.value = null
+    activeAdmissionYear.value = null
+    latestOfficialDataYear.value = null
+    trainingYears.value = []
+    recommendationPhase.value = ''
+    estimateMode.value = false
+    officialDataReady.value = false
     warnings.value = []
     aiContent.value = ''
     localStorage.setItem(PLAN_META_KEY, JSON.stringify({ planId: id, safetyCode }))
@@ -116,6 +175,12 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     planMetrics.value = null
     policy.value = null
     modelInfo.value = null
+    activeAdmissionYear.value = null
+    latestOfficialDataYear.value = null
+    trainingYears.value = []
+    recommendationPhase.value = ''
+    estimateMode.value = false
+    officialDataReady.value = false
     warnings.value = []
     aiContent.value = ''
     gradientRangeSummary.value = null
@@ -151,6 +216,12 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     advisorAdvice,
     policy,
     modelInfo,
+    activeAdmissionYear,
+    latestOfficialDataYear,
+    trainingYears,
+    recommendationPhase,
+    estimateMode,
+    officialDataReady,
     warnings,
     aiContent,
     generating,

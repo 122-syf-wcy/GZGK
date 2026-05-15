@@ -212,6 +212,8 @@ export function buildAiProfileSummary(formData: VolunteerFormData): string {
 export function formDataFromPlan(plan: VolunteerPlan): VolunteerFormData {
   return {
     provinceCode: normalizeProvinceCode(plan.provinceCode),
+    candidateType: (plan.policy?.candidateType as VolunteerFormData['candidateType']) || '普通类',
+    batchCode: plan.policy?.batchCode || plan.targetBatch || '',
     totalScore: plan.totalScore,
     provinceRank: plan.provinceRank,
     firstSubject: normalizeFirstSubject(plan.firstSubject),

@@ -173,6 +173,12 @@ const router = createRouter({
           meta: { title: 'AI配置 - 管理后台' },
         },
         {
+          path: 'data-year-readiness',
+          name: 'AdminDataYearReadiness',
+          component: () => import('@/views/admin/DataYearReadiness.vue'),
+          meta: { title: '数据准备进度 - 管理后台' },
+        },
+        {
           path: 'feedbacks',
           name: 'AdminFeedbacks',
           component: () => import('@/views/admin/Feedbacks.vue'),

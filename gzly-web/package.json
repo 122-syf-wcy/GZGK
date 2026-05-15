@@ -8,7 +8,7 @@
     "build": "vue-tsc && vite build",
     "build:safe": "npm run check:compliance && npm run typecheck && vite build",
     "typecheck": "vue-tsc --noEmit",
-    "check:compliance": "node scripts/check-compliance.mjs",
+    "check:compliance": "node scripts/check-compliance.mjs && node scripts/check-volunteer-safety-code.mjs",
     "check:compliance:strict": "node scripts/check-compliance.mjs --strict",
     "preview": "vite preview"
   },

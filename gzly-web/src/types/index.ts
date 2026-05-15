@@ -283,6 +283,8 @@ export interface GradientRangeInput {
 
 export type GradientRanges = Record<GradientRangeKey, GradientRangeInput>
 
+export type CandidateType = '普通类' | '艺术类' | '体育类'
+
 export interface GradientRangeDetail {
   gradient: GradientKey
   rankOffsetMin: number
@@ -329,6 +331,9 @@ export interface HistoryRecord {
 export interface VolunteerFormData {
   /** 省份代码：GZ=贵州，SC=四川，HB=湖北，AH=安徽 */
   provinceCode: 'GZ' | 'SC' | 'HB' | 'AH'
+  province?: string
+  candidateType: CandidateType
+  batchCode: string
   totalScore: number
   provinceRank: number
   /** 首选科目：物理 | 历史 */
@@ -354,6 +359,10 @@ export interface VolunteerFormData {
   agreedDisclaimer: boolean
   disclaimerVersion: string
   gradientRanges?: GradientRanges
+  qualificationTags?: string[]
+  artProfessionalScore?: number
+  sportsProfessionalScore?: number
+  comprehensiveScore?: number
 }
 
 /** 单个志愿项 */
@@ -634,6 +643,12 @@ export interface VolunteerPlan {
     policyStatus?: 'confirmed' | 'draft' | 'pending_confirm' | string
     officialSourceTitle?: string
     officialSourceUrl?: string
+    supportLevel?: string
+    recommendMode?: string
+    engine?: string
+    engineName?: string
+    supportNote?: string
+    supportReason?: string
   }
   modelInfo?: {
     modelVersion?: string
@@ -641,8 +656,131 @@ export interface VolunteerPlan {
     visibleMetric?: string
     appliedCount?: number
     fallbackReason?: string
+    engineName?: string
+    recommendMode?: string
+    queryOnly?: boolean
+    activeAdmissionYear?: number
+    latestOfficialDataYear?: number
+    trainingYears?: number[]
+    targetYear?: number
+    futureImportYear?: number
+    dataSourceYears?: number[]
+    recommendationPhase?: string
+    estimateMode?: boolean
+    officialDataReady?: boolean
+    dataReadiness?: DataYearReadiness
   }
   warnings?: string[]
+  activeAdmissionYear?: number
+  latestOfficialDataYear?: number
+  trainingYears?: number[]
+  targetYear?: number
+  futureImportYear?: number
+  dataSourceYears?: number[]
+  recommendationPhase?: string
+  estimateMode?: boolean
+  officialDataReady?: boolean
+  dataReadiness?: DataYearReadiness
+  supportLevel?: 'FULL_RECOMMEND' | 'TRIAL_RECOMMEND' | 'QUERY_ONLY' | 'UNSUPPORTED' | string
+  recommendMode?: string
+  engineName?: string
+  supportReason?: string
+}
+
+export type RecommendationPhase =
+  | 'PRE_OFFICIAL_DATA'
+  | 'OFFICIAL_DATA_PARTIAL'
+  | 'OFFICIAL_DATA_IMPORTED'
+  | 'MODEL_RETRAINED'
+  | string
+
+export interface DataYearReadiness {
+  provinceCode?: string
+  year?: number
+  policyReady: boolean
+  scoreSegmentReady: boolean
+  admissionPlanReady: boolean
+  majorRequirementReady: boolean
+  majorMetaReady: boolean
+  mlTrainingReady: boolean
+  historicalTrainingReady: boolean
+  recommendationPhase: RecommendationPhase
+  latestImportBatchId?: string
+  lastCheckedAt?: string
+  remarks?: string
+}
+
+/** 管理员只读 readiness DTO（GET /admin/data-year-readiness） */
+export interface DataYearReadinessDto {
+  provinceCode: string
+  year: number
+  activeAdmissionYear: number
+  latestOfficialDataYear: number
+  trainingYears: number[]
+  dataSourceYears: number[]
+  recommendationPhase: RecommendationPhase
+  officialDataReady: boolean
+  modelRetrained: boolean
+  estimateMode: boolean
+  dataReadiness: DataYearReadiness
+  phaseDescription: string
+  nextActions: string[]
+}
+
+export interface BatchSupportItem {
+  batchCode: string
+  batchName: string
+  candidateType: CandidateType | string
+  category: string
+  supportLevel: 'FULL_RECOMMEND' | 'TRIAL_RECOMMEND' | 'QUERY_ONLY' | 'UNSUPPORTED' | string
+  recommendMode: string
+  engine: string
+  engineName?: string
+  targetCount: number
+  maxVolunteerCount: number
+  majorPerSchoolCount?: number
+  hasAdjustment?: boolean
+  volunteerMode: string
+  policyConfigured: boolean
+  policyStatus: string
+  scoreLineCount: number
+  majorScoreCount: number
+  planCount: number
+  requirementCount: number
+  dataStatus: {
+    status: string
+    policyCount: number
+    scoreLineCount: number
+    majorScoreCount: number
+    historyCount: number
+    planCount: number
+    requirementCount: number
+    ready: boolean
+    detail: string
+  }
+  missingData?: string[]
+  supportNote: string
+  supportReason: string
+  warnings: string[]
+}
+
+export interface BatchSupportResponse {
+  provinceCode: string
+  year: number
+  activeAdmissionYear: number
+  latestOfficialDataYear: number
+  targetYear: number
+  futureImportYear: number
+  historyYears: number[]
+  trainingYears: number[]
+  dataSourceYears: number[]
+  recommendationPhase: RecommendationPhase
+  estimateMode: boolean
+  officialDataReady: boolean
+  dataReadiness: DataYearReadiness
+  publicYearLocked: boolean
+  items: BatchSupportItem[]
+  summary: Record<string, number>
 }
 
 /** 推荐院校项 */

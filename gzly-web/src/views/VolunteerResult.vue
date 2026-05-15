@@ -8,7 +8,7 @@ import { useVolunteerStore } from '@/stores/volunteer'
 import { useAuthStore } from '@/stores/auth'
 import RecommendSection from '@/components/RecommendSection.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
-import type { GradientRangeDetail, VolunteerPlan } from '@/types'
+import type { GradientRangeDetail, VolunteerItem, VolunteerPlan } from '@/types'
 import { buildPlanModeItems, formDataFromPlan, summarizePlan, type PlanMode } from '@/utils/volunteer-plan'
 import { sanitizeHttpUrl } from '@/utils/markdown'
 import { getProvinceConfig, normalizeProvinceCode } from '@/constants/provinces'
@@ -40,13 +40,14 @@ const compareIds = ref<string[]>([])
 const restoring = ref(false)
 const showAllReview = ref(false)
 const expandedRows = ref<Set<string>>(new Set())
+type PlanRowLike = Pick<VolunteerItem, 'majorName' | 'index'> & Pick<Partial<VolunteerItem>, 'schoolId' | 'groupCode'>
 
 /** 志愿草稿状态：保留 / 待查 / 淘汰 / 默认。本地持久化。 */
 type DraftStatus = 'keep' | 'review' | 'drop' | 'default'
 const STATUS_STORAGE_KEY = computed(() => `gz_volunteer_status_${volunteerStore.planId ?? 0}`)
 const itemStatuses = ref<Record<string, DraftStatus>>(loadStatuses())
 
-function statusKey(item: { schoolId?: string; groupCode?: string; majorName: string; index: number }) {
+function statusKey(item: PlanRowLike) {
   return `${item.schoolId || ''}|${item.groupCode || ''}|${item.majorName}|${item.index}`
 }
 
@@ -89,7 +90,7 @@ function nextStatus(current: DraftStatus): DraftStatus {
   return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length]
 }
 
-function cycleStatus(item: { schoolId?: string; majorName: string; index: number }) {
+function cycleStatus(item: PlanRowLike) {
   const key = statusKey(item)
   const current = itemStatuses.value[key] || 'default'
   const next = nextStatus(current)
@@ -101,15 +102,15 @@ function cycleStatus(item: { schoolId?: string; majorName: string; index: number
   persistStatuses()
 }
 
-function statusOf(item: { schoolId?: string; majorName: string; index: number }): DraftStatus {
+function statusOf(item: PlanRowLike): DraftStatus {
   return itemStatuses.value[statusKey(item)] || 'default'
 }
 
-function isExpanded(item: { schoolId?: string; majorName: string; index: number }) {
+function isExpanded(item: PlanRowLike) {
   return expandedRows.value.has(statusKey(item))
 }
 
-function toggleDetail(item: { schoolId?: string; majorName: string; index: number }) {
+function toggleDetail(item: PlanRowLike) {
   const key = statusKey(item)
   const next = new Set(expandedRows.value)
   if (next.has(key)) {
@@ -122,7 +123,8 @@ function toggleDetail(item: { schoolId?: string; majorName: string; index: numbe
 
 const statusSummary = computed(() => {
   const counts = { keep: 0, review: 0, drop: 0 }
-  Object.values(itemStatuses.value).forEach((s) => {
+  const statuses = Object.values(itemStatuses.value) as DraftStatus[]
+  statuses.forEach((s) => {
     if (s in counts) counts[s as keyof typeof counts]++
   })
   return counts
@@ -141,10 +143,10 @@ const gradientConfig: Record<string, { color: string; bg: string }> = {
   垫: { color: '#d97706', bg: '#fffbeb' },
 }
 
-const modeItems = computed(() => buildPlanModeItems(volunteerStore.planItems, activeMode.value))
+const modeItems = computed<VolunteerItem[]>(() => buildPlanModeItems(volunteerStore.planItems, activeMode.value))
 
-const decisionDraftItems = computed(() =>
-  modeItems.value.filter(item => {
+const decisionDraftItems = computed<VolunteerItem[]>(() =>
+  modeItems.value.filter((item: VolunteerItem) => {
     const status = statusOf(item)
     return status === 'keep' || status === 'review'
   }),
@@ -172,16 +174,18 @@ const RECRUIT_TYPE_LABELS: Record<string, string> = {
 const recruitTypeRows = computed(() => {
   const breakdown = volunteerStore.planMetrics?.recruitTypeBreakdown
   if (!breakdown) return [] as Array<{ key: string; label: string; count: number; percent: string; warn: boolean }>
-  const total = Object.values(breakdown).reduce((sum, v) => sum + (v ?? 0), 0)
+  const entries = Object.entries(breakdown)
+    .map(([key, count]) => ({ key, count: typeof count === 'number' ? count : Number(count || 0) }))
+    .filter(row => row.count > 0)
+  const total = entries.reduce((sum, row) => sum + row.count, 0)
   if (!total) return []
-  return Object.entries(breakdown)
-    .filter(([, count]) => (count ?? 0) > 0)
-    .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
-    .map(([key, count]) => ({
+  return entries
+    .sort((a, b) => b.count - a.count)
+    .map(({ key, count }) => ({
       key,
       label: RECRUIT_TYPE_LABELS[key] ?? key,
-      count: count ?? 0,
-      percent: total ? `${(((count ?? 0) / total) * 100).toFixed(1)}%` : '0%',
+      count,
+      percent: `${((count / total) * 100).toFixed(1)}%`,
       warn: key !== 'NORMAL',
     }))
 })
@@ -204,8 +208,39 @@ const planProvinceCode = computed(() => normalizeProvinceCode(volunteerStore.for
 const planProvinceConfig = computed(() => getProvinceConfig(planProvinceCode.value))
 const isProfessionalGroupPlan = computed(() => planProvinceConfig.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45')
 const planProvinceName = computed(() => planProvinceConfig.value.shortName)
-const planUnitLabel = computed(() => (isProfessionalGroupPlan.value ? '院校专业组' : '志愿'))
-const planTitle = computed(() => `${planProvinceName.value}${planUnitLabel.value}方案`)
+const planBatchLabel = computed(() => volunteerStore.policy?.batchName || volunteerStore.formData.batchCode || planProvinceConfig.value.targetBatch)
+const planUnitLabel = computed(() => volunteerStore.policy?.volunteerMode || (isProfessionalGroupPlan.value ? '院校专业组' : '志愿'))
+const isQueryOnlyPlan = computed(() => (
+  volunteerStore.policy?.recommendMode === 'QUERY_ONLY' ||
+  volunteerStore.policy?.supportLevel === 'QUERY_ONLY' ||
+  volunteerStore.modelInfo?.visibleMetric === 'query_only'
+))
+const isPreOfficialDataPlan = computed(() => (
+  volunteerStore.estimateMode ||
+  volunteerStore.recommendationPhase === 'PRE_OFFICIAL_DATA' ||
+  volunteerStore.modelInfo?.recommendationPhase === 'PRE_OFFICIAL_DATA'
+))
+const isOfficialDataPartialPlan = computed(() => (
+  volunteerStore.recommendationPhase === 'OFFICIAL_DATA_PARTIAL' ||
+  volunteerStore.modelInfo?.recommendationPhase === 'OFFICIAL_DATA_PARTIAL'
+))
+const trainingYearText = computed(() => (
+  volunteerStore.trainingYears.length ? volunteerStore.trainingYears.join('、') : '2024、2025'
+))
+const yearPhaseNotice = computed(() => (
+  isPreOfficialDataPlan.value
+    ? `${volunteerStore.activeAdmissionYear || 2026} 年官方招生计划和一分一段表尚未发布；本页仅展示基于 ${trainingYearText.value} 年历史数据的预估/缺口说明，不是正式推荐方案。`
+    : isOfficialDataPartialPlan.value
+      ? `${volunteerStore.activeAdmissionYear || 2026} 年官方数据正在分批导入和质检；本页仅展示数据准备进度或缺口说明，不开放完整推荐。`
+      : ''
+))
+const hasPersistedPlan = computed(() => Number(volunteerStore.planId || 0) > 0)
+const canUsePlanActions = computed(() => !isQueryOnlyPlan.value && hasPersistedPlan.value)
+const planTitle = computed(() => (
+  isQueryOnlyPlan.value
+    ? `${planProvinceName.value}${planBatchLabel.value}支持说明`
+    : `${planProvinceName.value}${planUnitLabel.value}方案`
+))
 const targetCountText = computed(() => `${volunteerStore.planMetrics?.targetCount || planProvinceConfig.value.targetCount} 个`)
 const rankHeroText = computed(() => {
   const rank = volunteerStore.formData.provinceRank
@@ -219,29 +254,29 @@ const tabs = computed(() => {
   const items = modeItems.value
   return [
     { key: 'all', label: '全部', count: items.length },
-    { key: '冲', label: '冲', count: items.filter(i => i.gradient === '冲').length },
-    { key: '稳', label: '稳', count: items.filter(i => i.gradient === '稳').length },
-    { key: '保', label: '保', count: items.filter(i => i.gradient === '保').length },
-    { key: '垫', label: '垫', count: items.filter(i => i.gradient === '垫').length },
+    { key: '冲', label: '冲', count: items.filter((i: VolunteerItem) => i.gradient === '冲').length },
+    { key: '稳', label: '稳', count: items.filter((i: VolunteerItem) => i.gradient === '稳').length },
+    { key: '保', label: '保', count: items.filter((i: VolunteerItem) => i.gradient === '保').length },
+    { key: '垫', label: '垫', count: items.filter((i: VolunteerItem) => i.gradient === '垫').length },
   ] as const
 })
 
-const filteredItems = computed(() => {
+const filteredItems = computed<VolunteerItem[]>(() => {
   if (activeTab.value === 'all') return modeItems.value
-  return modeItems.value.filter(item => item.gradient === activeTab.value)
+  return modeItems.value.filter((item: VolunteerItem) => item.gradient === activeTab.value)
 })
 
 watch([activeTab, activeMode], () => {
   expandedRows.value = new Set()
 })
 
-const topKeeps = computed(() =>
+const topKeeps = computed<VolunteerItem[]>(() =>
   [...modeItems.value]
     .sort((a, b) => ((b.recommendationScore || 0) * 1.5 + (fitRank(b) * 1.2) + (b.dataConfidenceScore || 0) + (b.matchScore || 0)) - ((a.recommendationScore || 0) * 1.5 + (fitRank(a) * 1.2) + (a.dataConfidenceScore || 0) + (a.matchScore || 0)))
     .slice(0, 5),
 )
 
-const topRisks = computed(() =>
+const topRisks = computed<VolunteerItem[]>(() =>
   [...modeItems.value]
     .sort((a, b) => {
       const aRisk = (a.riskColor === 'red' ? 100 : a.riskColor === 'yellow' ? 60 : 20) + (40 - (a.chanceScore || 0))
@@ -257,11 +292,24 @@ onMounted(async () => {
   if (!volunteerStore.planItems.length) {
     await restorePlan()
   }
-  if (!volunteerStore.planItems.length) {
+  if (!volunteerStore.planItems.length && !isQueryOnlyPlan.value) {
     showToast('暂无志愿数据，请重新生成方案')
     router.push('/volunteer')
   }
 })
+
+function supportLevelText(level?: string) {
+  if (isPreOfficialDataPlan.value && level === 'QUERY_ONLY') return '预估/缺口说明'
+  if (level === 'FULL_RECOMMEND') return '完整推荐'
+  if (level === 'TRIAL_RECOMMEND') return '试推荐'
+  if (level === 'QUERY_ONLY') return '仅规则/缺口展示'
+  if (level === 'UNSUPPORTED') return '暂不支持'
+  return level || '待核验'
+}
+
+function displayOrder(index: number | string) {
+  return Number(index) + 1
+}
 
 async function restorePlan() {
   const saved = volunteerStore.getSavedPlanMeta()
@@ -376,6 +424,10 @@ function openCompare() {
 }
 
 function goAi() {
+  if (!canUsePlanActions.value) {
+    showToast('当前批次暂不支持 AI 解读')
+    return
+  }
   router.push({
     path: '/volunteer/ai',
     query: {
@@ -447,6 +499,10 @@ async function loadXlsx() {
 }
 
 async function exportExcel() {
+  if (!canUsePlanActions.value) {
+    showToast('当前批次暂无可导出的完整推荐')
+    return
+  }
   try {
     const XLSX = await loadXlsx()
     const items = modeItems.value
@@ -470,7 +526,7 @@ async function exportExcel() {
       [`决策偏好：${profileLine}`],
       [],
       ['序号', '梯度', '院校', isProfessionalGroupPlan.value ? '院校专业组/组内专业' : '专业', '地区', '参考位次', '位次差', '计划数', '计划趋势', '扩招指数', '招生指数', '精度分', '推荐分', '参考匹配', '数据参考度', '机会指数', '风险等级', '数据层级', '算法解释', '风险提醒'],
-      ...items.map(item => [
+      ...items.map((item: VolunteerItem) => [
         item.index,
         item.gradient,
         item.universityName,
@@ -543,6 +599,10 @@ async function exportExcel() {
 }
 
 async function exportDecisionDraft() {
+  if (!canUsePlanActions.value) {
+    showToast('当前批次暂无可导出的人工核验草稿')
+    return
+  }
   try {
     const XLSX = await loadXlsx()
     const items = decisionDraftItems.value
@@ -557,7 +617,7 @@ async function exportDecisionDraft() {
       ['说明：本表只导出已标记“保留 / 待查”的志愿，淘汰项不会进入草稿。请逐条按官方章程、专业目录和一分一段表复核。'],
       [],
       ['草稿序号', '原序号', '草稿状态', '梯度', '院校', isProfessionalGroupPlan.value ? '院校专业组/组内专业' : '专业', '地区', '参考位次', '位次差', '计划数', '计划趋势', '扩招指数', '招生指数', '精度分', '参考匹配', '数据参考度', '机会指数', '风险等级', '数据层级', '选科来源', '复核原因', '官方证据链接'],
-      ...items.map((item, idx) => [
+      ...items.map((item: VolunteerItem, idx: number) => [
         idx + 1,
         item.index,
         STATUS_LABEL[statusOf(item)].replace(/[✓⚠×]/g, '').trim(),
@@ -641,7 +701,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       <div class="header-inner">
         <button class="header-back" @click="router.back()"><ArrowLeft :size="20" /></button>
         <h1 class="header-title">{{ planTitle }}</h1>
-        <button class="header-btn" @click="exportExcel" title="导出 Excel">
+        <button v-if="canUsePlanActions" class="header-btn" @click="exportExcel" title="导出 Excel">
           <FileSpreadsheet :size="18" />
         </button>
       </div>
@@ -657,6 +717,9 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       <div v-for="warning in volunteerStore.warnings" :key="warning" class="result-warning">
         {{ warning }}
       </div>
+      <div v-if="yearPhaseNotice" class="result-warning">
+        {{ yearPhaseNotice }}
+      </div>
       <div v-if="rankEstimateSummary" class="rank-estimate-banner" :class="{ 'rank-estimate-banner--auto': rankEstimateSummary.rankEstimated }">
         <ShieldAlert :size="16" />
         <span>{{ rankEstimateSummary.reminder || rankEstimateSummary.note }}</span>
@@ -666,7 +729,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
         <span>{{ volunteerStore.referenceProbabilityNotice }}</span>
       </div>
       <div v-if="volunteerStore.planSafetyCode" class="result-warning">
-        方案 ID：{{ volunteerStore.planId }}；安全码：{{ volunteerStore.planSafetyCode }}。请立即保存，后续跨设备查看、AI 解读和导出都需要它。
+        方案 ID：{{ volunteerStore.planId }}；安全码：{{ volunteerStore.planSafetyCode }}。请立即保存，后续跨设备查看需要它。
       </div>
       <div class="hero-main">
         <div class="hero-metrics">
@@ -708,7 +771,25 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </div>
     </section>
 
-    <section class="mode-switch">
+    <section v-if="isQueryOnlyPlan" class="query-only-card">
+      <div class="query-only-card__badge">{{ supportLevelText(volunteerStore.policy?.supportLevel) }}</div>
+      <h2>{{ isPreOfficialDataPlan ? `${planBatchLabel}仅输出预估/缺口说明` : `${planBatchLabel}暂不输出完整志愿表` }}</h2>
+      <p>{{ yearPhaseNotice || volunteerStore.dataQualityWarning || volunteerStore.policy?.supportNote || '当前批次需要按专项政策、专业成绩或单独投档规则人工复核。' }}</p>
+      <div class="query-only-card__grid">
+        <span><em>考生类别</em><strong>{{ volunteerStore.formData.candidateType || volunteerStore.policy?.candidateType || '待核验' }}</strong></span>
+        <span><em>推荐模式</em><strong>{{ volunteerStore.policy?.recommendMode || volunteerStore.modelInfo?.visibleMetric || '待核验' }}</strong></span>
+        <span><em>目标年份</em><strong>{{ volunteerStore.activeAdmissionYear || volunteerStore.policy?.year || '待核验' }}</strong></span>
+        <span><em>数据年份</em><strong>{{ trainingYearText }}</strong></span>
+      </div>
+      <ul v-if="volunteerStore.warnings.length" class="query-only-card__warnings">
+        <li v-for="warning in volunteerStore.warnings" :key="warning">{{ warning }}</li>
+      </ul>
+      <button class="query-only-card__action" type="button" @click="router.push('/volunteer')">
+        返回修改批次或类别
+      </button>
+    </section>
+
+    <section v-if="!isQueryOnlyPlan" class="mode-switch">
       <button
         v-for="mode in ['保守型', '均衡型', '冲刺型']"
         :key="mode"
@@ -720,7 +801,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </button>
     </section>
 
-    <section v-if="rangeSummary" class="algorithm-card">
+    <section v-if="!isQueryOnlyPlan && rangeSummary" class="algorithm-card">
       <details class="algorithm-card__details" open>
         <summary>
           <span>本次生成逻辑</span>
@@ -779,7 +860,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </details>
     </section>
 
-    <section v-if="volunteerStore.advisorAdvice" class="advisor-card">
+    <section v-if="!isQueryOnlyPlan && volunteerStore.advisorAdvice" class="advisor-card">
       <div class="advisor-card__head">
         <div>
           <span class="advisor-card__eyebrow">GitHub 张雪峰.skill · 公开策略参考</span>
@@ -841,7 +922,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       <p class="advisor-card__note">{{ volunteerStore.advisorAdvice.sourceNote }}</p>
     </section>
 
-    <section class="draft-status-bar" v-if="modeItems.length">
+    <section class="draft-status-bar" v-if="!isQueryOnlyPlan && modeItems.length">
       <div class="draft-status-bar__head">
         <span class="draft-status-bar__title">{{ planUnitLabel }}草稿</span>
         <span class="draft-status-bar__hint">点击每条志愿右下角按钮可在「保留 / 待查 / 淘汰」之间切换，状态保存在本机。</span>
@@ -857,7 +938,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
     </section>
 
     <section
-      v-if="volunteerStore.manualReviewItems && volunteerStore.manualReviewItems.length"
+      v-if="!isQueryOnlyPlan && volunteerStore.manualReviewItems && volunteerStore.manualReviewItems.length"
       class="manual-review-card"
     >
       <header class="manual-review-card__head">
@@ -888,7 +969,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
               :key="`mr-${entry.index}-l-${li}`"
               :url="link"
             >
-              <ExternalLink :size="12" /> 官方资料 {{ li + 1 }}
+              <ExternalLink :size="12" /> 官方资料 {{ displayOrder(li) }}
             </SafeExternalLink>
           </div>
         </li>
@@ -903,7 +984,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </button>
     </section>
 
-    <section class="digest-grid">
+    <section v-if="!isQueryOnlyPlan" class="digest-grid">
       <div class="digest-card">
         <div class="digest-head">
           <Sparkles :size="16" />
@@ -936,7 +1017,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </div>
     </section>
 
-    <section class="tabs-bar">
+    <section v-if="!isQueryOnlyPlan" class="tabs-bar">
       <button
         v-for="tab in tabs"
         :key="tab.key"
@@ -949,7 +1030,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </button>
     </section>
 
-    <section class="compare-bar" :class="{ 'compare-bar--active': compareIds.length > 0 }">
+    <section v-if="!isQueryOnlyPlan" class="compare-bar" :class="{ 'compare-bar--active': compareIds.length > 0 }">
       <div class="compare-copy">
         <div class="compare-title">院校对比</div>
         <div class="compare-desc">已选 {{ compareIds.length }} 所学校，可快速横向比较平台、风险和适配度</div>
@@ -960,7 +1041,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </button>
     </section>
 
-    <section class="plan-list">
+    <section v-if="!isQueryOnlyPlan" class="plan-list">
       <article
         v-for="item in filteredItems"
         :key="`${activeMode}-${item.index}-${item.schoolId}`"
@@ -1140,9 +1221,9 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </article>
     </section>
 
-    <RecommendSection />
+    <RecommendSection v-if="!isQueryOnlyPlan" />
 
-    <div class="bottom-actions">
+    <div v-if="canUsePlanActions" class="bottom-actions">
       <button class="action-btn action-btn--secondary" @click="goAi">
         AI 深度解读
         <ArrowRight :size="16" />
@@ -1522,6 +1603,88 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   color: #64748b;
   font-size: 11px;
   line-height: 1.5;
+}
+
+.query-only-card {
+  margin-top: 18px;
+  padding: 22px;
+  border-radius: 24px;
+  border: 1px solid #fed7aa;
+  background: linear-gradient(180deg, #fff7ed, #ffffff);
+  box-shadow: 0 18px 48px rgba(194, 65, 12, 0.08);
+}
+
+.query-only-card__badge {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.query-only-card h2 {
+  margin: 12px 0 0;
+  color: #0f172a;
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.query-only-card p {
+  margin: 10px 0 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.query-only-card__grid {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.query-only-card__grid span {
+  padding: 12px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #fed7aa;
+  display: grid;
+  gap: 4px;
+}
+
+.query-only-card__grid em {
+  color: #94a3b8;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.query-only-card__grid strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.query-only-card__warnings {
+  margin: 14px 0 0;
+  padding-left: 18px;
+  color: #9a3412;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.query-only-card__action {
+  margin-top: 16px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 14px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .advisor-card {

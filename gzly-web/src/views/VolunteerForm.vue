@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useVolunteerStore } from '@/stores/volunteer'
-import { generateVolunteerPlan, rankCheck } from '@/api/volunteer'
+import { getCurrentSafetyCode, setCurrentSafetyCode, useVolunteerStore } from '@/stores/volunteer'
+import { generateVolunteerPlan, getGzBatchSupport, rankCheck } from '@/api/volunteer'
 import { getHotMajors, type HotMajor } from '@/api/scoreLine'
 import DisclaimerDialog from '@/components/DisclaimerDialog.vue'
-import type { GradientRangeKey, GradientRanges } from '@/types'
+import type { BatchSupportItem, CandidateType, GradientRangeKey, GradientRanges } from '@/types'
 import {
   getProvinceConfig,
   normalizeProvinceCode,
@@ -38,8 +38,17 @@ const router = useRouter()
 const route = useRoute()
 const volunteerStore = useVolunteerStore()
 
+function provinceCodeFromRouteQuery(value: unknown): ProvinceCode | null {
+  const raw = Array.isArray(value) ? value[0] : value
+  if (raw == null || String(raw).trim() === '') return null
+  return normalizeProvinceCode(raw)
+}
+
 const totalScore = ref<number | undefined>(volunteerStore.formData.totalScore || undefined)
-const provinceCode = ref<ProvinceCode>(normalizeProvinceCode(route.query.provinceCode))
+const lockedProvinceCode = ref<ProvinceCode | null>(provinceCodeFromRouteQuery(route.query.provinceCode))
+const provinceCode = ref<ProvinceCode>(lockedProvinceCode.value || normalizeProvinceCode(volunteerStore.formData.provinceCode))
+const candidateType = ref<CandidateType | ''>(volunteerStore.formData.candidateType || '')
+const batchCode = ref(volunteerStore.formData.batchCode || '')
 const provinceRank = ref<number | undefined>(volunteerStore.formData.provinceRank || undefined)
 const firstSubject = ref<'物理' | '历史'>(volunteerStore.formData.firstSubject || '物理')
 const resubjects = ref<string[]>([...volunteerStore.formData.resubjects])
@@ -61,8 +70,21 @@ const customMajor = ref('')
 const agreedDisclaimer = ref(volunteerStore.formData.agreedDisclaimer)
 const disclaimerVersion = ref(volunteerStore.formData.disclaimerVersion || '')
 const disclaimerRef = ref<InstanceType<typeof DisclaimerDialog> | null>(null)
+const qualificationTags = ref<string[]>([...(volunteerStore.formData.qualificationTags || [])])
+const artProfessionalScore = ref<number | undefined>(volunteerStore.formData.artProfessionalScore)
+const sportsProfessionalScore = ref<number | undefined>(volunteerStore.formData.sportsProfessionalScore)
+const comprehensiveScore = ref<number | undefined>(volunteerStore.formData.comprehensiveScore)
+const currentSafetyCode = ref(getCurrentSafetyCode())
 
 const hotMajors = ref<HotMajor[]>([])
+const batchSupportItems = ref<BatchSupportItem[]>([])
+const activeAdmissionYear = ref<number>()
+const latestOfficialDataYear = ref<number>()
+const trainingYears = ref<number[]>([])
+const recommendationPhase = ref('PRE_OFFICIAL_DATA')
+const estimateMode = ref(true)
+const historyYears = ref<number[]>([])
+const batchSupportLoading = ref(false)
 const hotMajorsLoading = ref(false)
 const rankHint = ref('')
 const rankConflict = ref('')
@@ -84,6 +106,16 @@ const resubjectOptions = [
   { label: '生物', icon: Dna, iconClass: 'subject-icon--biology' },
   { label: '政治', icon: Scale, iconClass: 'subject-icon--politics' },
   { label: '地理', icon: Globe, iconClass: 'subject-icon--geography' },
+]
+
+const candidateTypeOptions: Array<{ key: CandidateType; title: string; desc: string }> = [
+  { key: '普通类', title: '普通类', desc: '普通本科、专科、提前批和专项计划' },
+  { key: '艺术类', title: '艺术类', desc: '按艺术类批次展示，不套普通位次模型' },
+  { key: '体育类', title: '体育类', desc: '按体育类批次展示，不套普通位次模型' },
+]
+
+const qualificationOptions = [
+  '国家专项计划', '地方专项计划', '高校专项计划', '民族班', '预科班', '定向招生', '免费医学定向', '优师专项',
 ]
 
 const strategyOptions = [
@@ -130,12 +162,158 @@ const regionOptions = [
 const subjectTypeLabel = computed(() => (firstSubject.value === '物理' ? '物理类' : '历史类'))
 const currentProvince = computed(() => getProvinceConfig(provinceCode.value))
 const provinceName = computed(() => currentProvince.value.name)
-const targetVolunteerCount = computed(() => currentProvince.value.targetCount)
-const volunteerUnitLabel = computed(() => (
-  currentProvince.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45' ? '院校专业组' : '志愿'
+const isProvinceEntryLocked = computed(() => Boolean(lockedProvinceCode.value))
+const admissionYearText = computed(() => (activeAdmissionYear.value ? `${activeAdmissionYear.value}届` : '最新高考年份'))
+const historyYearText = computed(() => historyYears.value.length ? historyYears.value.join('、') : '历史')
+const trainingYearText = computed(() => trainingYears.value.length ? trainingYears.value.join('、') : historyYearText.value)
+const isPreOfficialData = computed(() => recommendationPhase.value === 'PRE_OFFICIAL_DATA' || estimateMode.value)
+const isOfficialDataPartial = computed(() => recommendationPhase.value === 'OFFICIAL_DATA_PARTIAL')
+const isOfficialDataImported = computed(() => recommendationPhase.value === 'OFFICIAL_DATA_IMPORTED')
+const isModelRetrained = computed(() => recommendationPhase.value === 'MODEL_RETRAINED')
+const shouldShowPhaseNotice = computed(() => isPreOfficialData.value || isOfficialDataPartial.value || isOfficialDataImported.value || isModelRetrained.value)
+const phaseBadgeText = computed(() => (
+  isPreOfficialData.value
+    ? `${activeAdmissionYear.value || 2026}官方数据未发布`
+    : isOfficialDataPartial.value
+      ? `${activeAdmissionYear.value || 2026}官方数据导入中`
+      : isOfficialDataImported.value
+        ? `${activeAdmissionYear.value || 2026}官方数据已导入`
+        : isModelRetrained.value
+        ? '模型已重训'
+        : '数据状态待核验'
 ))
-const targetBatchLabel = computed(() => currentProvince.value.targetBatch)
-const isGenerateLocked = computed(() => currentProvince.value.status !== 'open')
+const phaseNoticeText = computed(() => (
+  isPreOfficialData.value
+    ? `${activeAdmissionYear.value || 2026} 年招生计划和一分一段表尚未发布；当前只基于 ${trainingYearText.value} 年历史数据展示趋势、缺口和预估参考，不作为正式推荐。`
+    : isOfficialDataPartial.value
+      ? `${activeAdmissionYear.value || 2026} 年官方数据正在分批导入和质检；页面可查看数据准备进度，普通本科/专科仍不会开放完整推荐。`
+      : isOfficialDataImported.value
+        ? `${activeAdmissionYear.value || 2026} 官方数据已导入；普通本科/专科进入试推荐阶段，模型重训完成前不展示完整推荐。`
+        : isModelRetrained.value
+          ? `${activeAdmissionYear.value || 2026} 官方数据已导入并完成模型重训；仍请以考试院和高校章程为准。`
+          : `当前已按 ${latestOfficialDataYear.value || activeAdmissionYear.value || '最新'} 年官方数据口径展示批次支持状态。`
+))
+const pageTitle = computed(() => (isProvinceEntryLocked.value ? `${provinceName.value}志愿填报` : '智能志愿填报'))
+const pageSubtitle = computed(() => (
+  isProvinceEntryLocked.value
+    ? `${provinceName.value}专区已锁定，省份选择和接口请求固定使用${provinceName.value}口径`
+    : isProvinceGenerateLocked.value
+      ? '查看地区口径、表单字段和数据准备状态'
+      : '先选择考生类别和批次，再填写影响推荐结果的条件'
+))
+const heroTitle = computed(() => (
+  isProvinceEntryLocked.value ? `${provinceName.value}专区志愿填报` : '主流程只保留真正影响结果的输入项'
+))
+const heroDescription = computed(() => (
+  isProvinceEntryLocked.value
+    ? `当前从${provinceName.value}入口进入，页面、批次矩阵和生成请求均固定为${provinceName.value}，公共生成年份锁定为${admissionYearText.value}。`
+    : isProvinceGenerateLocked.value
+      ? currentProvince.value.volunteerLockDescription
+      : `系统会按${admissionYearText.value}批次综合分数、位次、选科、偏好、预算与风险取向给出对应结果。`
+))
+watch(pageTitle, (title) => {
+  document.title = title
+}, { immediate: true })
+const targetVolunteerCount = computed(() => (
+  selectedBatchSupport.value
+    ? selectedBatchSupport.value.maxVolunteerCount || selectedBatchSupport.value.targetCount || 0
+    : currentProvince.value.targetCount
+))
+const volunteerUnitLabel = computed(() => (
+  selectedBatchSupport.value?.volunteerMode || (currentProvince.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45' ? '院校专业组' : '志愿')
+))
+function fallbackDataStatus(status = 'UNKNOWN') {
+  return {
+    status,
+    policyCount: 0,
+    scoreLineCount: 0,
+    majorScoreCount: 0,
+    historyCount: 0,
+    planCount: 0,
+    requirementCount: 0,
+    ready: false,
+    detail: '待接口返回批次支持矩阵',
+  }
+}
+const fallbackBatchSupportItems: BatchSupportItem[] = [
+  ['NORMAL_UNDERGRADUATE', '普通本科批', '普通类', 'ORDINARY', 'QUERY_ONLY', 'QUERY_ONLY', 96, '专业（类）+ 院校', 'QueryOnlyRecommendEngine', '批次支持矩阵未返回，先按查询说明处理，不展示完整推荐'],
+  ['NORMAL_SPECIALTY', '普通类高职专科批', '普通类', 'ORDINARY', 'TRIAL_RECOMMEND', 'PARALLEL_MAJOR', 96, '专业（类）+ 院校', 'OrdinaryParallelMajorEngine', '普通类高职专科批按96个专业（类）+院校推荐，专科梯度窗口采用更宽口径并保留保档自动扩展'],
+  ['EARLY_A_B', '普通类本科提前批A/B段', '普通类', 'EARLY', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'SequentialCollegeEngine', '提前A/B段为1个院校顺序志愿，当前仅展示顺序志愿规则、资格条件和数据缺口'],
+  ['EARLY_C', '普通类本科提前批C段', '普通类', 'EARLY', 'QUERY_ONLY', 'PARALLEL_MAJOR_60', 60, '专业（类）平行志愿', 'EarlyCParallelMajorEngine', '提前C段为60个专业（类）平行志愿，需单独处理公费师范、优师、免费医学、定向和履约风险'],
+  ['SPECIALTY_EARLY', '普通类高职专科提前批', '普通类', 'EARLY', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'SequentialCollegeEngine', '高职专科提前批为1个院校顺序志愿，需单独计划与资格规则，当前仅返回规则与数据缺口'],
+  ['NATIONAL_SPECIAL', '国家专项计划', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '专项计划', 'SpecialPlanEligibilityEngine', '国家专项计划需资格校验和单独计划数据'],
+  ['LOCAL_SPECIAL', '地方专项计划', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '专项计划', 'SpecialPlanEligibilityEngine', '地方专项需资格校验和单独计划数据'],
+  ['UNIVERSITY_SPECIAL', '高校专项计划', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '专项计划', 'SpecialPlanEligibilityEngine', '高校专项需报名审核结果与学校名单'],
+  ['ETHNIC_CLASS', '民族班', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '特殊计划', 'SpecialPlanEligibilityEngine', '民族班需民族与资格条件校验'],
+  ['PREPARATORY', '预科班', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '特殊计划', 'SpecialPlanEligibilityEngine', '预科班需资格与计划数据校验'],
+  ['ORIENTED', '定向招生', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '特殊计划', 'SpecialPlanEligibilityEngine', '定向招生需协议与地区资格校验'],
+  ['FREE_MEDICAL', '免费医学定向', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '特殊计划', 'SpecialPlanEligibilityEngine', '免费医学定向需资格与履约条件校验'],
+  ['TEACHER_EXCELLENCE', '优师专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '特殊计划', 'SpecialPlanEligibilityEngine', '优师专项需资格、履约和单独计划数据'],
+  ['ART_UNDERGRADUATE_A', '艺术类本科A段', '艺术类', 'ART', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'ArtCompositeRecommendEngine', '艺术本科A段为1个院校顺序志愿，需艺术专业成绩、文化成绩、综合分规则和院校章程共同复核'],
+  ['ART_UNDERGRADUATE_B', '艺术类本科B段', '艺术类', 'ART', 'QUERY_ONLY', 'ART_COMPOSITE', 60, '专业（类）平行志愿', 'ArtCompositeRecommendEngine', '艺术本科B段为60个专业（类）平行志愿，必须按艺术综合成绩口径，不套用普通位次推荐模型'],
+  ['ART_SPECIALTY', '艺术类高职专科批', '艺术类', 'ART', 'QUERY_ONLY', 'ART_COMPOSITE', 60, '专业（类）平行志愿', 'ArtCompositeRecommendEngine', '艺术高职专科批为60个专业（类）平行志愿，必须按艺术综合成绩口径，不套用普通位次推荐模型'],
+  ['SPORTS_UNDERGRADUATE', '体育类本科批', '体育类', 'SPORTS', 'QUERY_ONLY', 'SPORTS_COMPOSITE', 60, '专业（类）平行志愿', 'SportsCompositeRecommendEngine', '体育本科批为60个专业（类）平行志愿，必须按体育综合成绩口径，不套用普通位次推荐模型'],
+  ['SPORTS_SPECIALTY', '体育类高职专科批', '体育类', 'SPORTS', 'QUERY_ONLY', 'SPORTS_COMPOSITE', 60, '专业（类）平行志愿', 'SportsCompositeRecommendEngine', '体育高职专科批为60个专业（类）平行志愿，必须按体育综合成绩口径，不套用普通位次推荐模型'],
+].map(([batchCode, batchName, type, category, supportLevel, recommendMode, targetCount, volunteerMode, engine, supportNote]) => ({
+  batchCode: batchCode as string,
+  batchName: batchName as string,
+  candidateType: type as CandidateType,
+  category: category as string,
+  supportLevel: supportLevel as BatchSupportItem['supportLevel'],
+  recommendMode: recommendMode as string,
+  engine: engine as string,
+  engineName: engine as string,
+  targetCount: targetCount as number,
+  maxVolunteerCount: targetCount as number,
+  majorPerSchoolCount: 0,
+  hasAdjustment: false,
+  volunteerMode: volunteerMode as string,
+  policyConfigured: false,
+  policyStatus: 'registry_only',
+  scoreLineCount: 0,
+  majorScoreCount: 0,
+  planCount: 0,
+  requirementCount: 0,
+  dataStatus: fallbackDataStatus(),
+  missingData: ['batch-support接口未返回'],
+  supportNote: supportNote as string,
+  supportReason: supportNote as string,
+  warnings: [supportNote as string],
+}))
+const batchOptions = computed(() => {
+  if (!candidateType.value) return []
+  const items = provinceCode.value === 'GZ' && batchSupportItems.value.length ? batchSupportItems.value : fallbackBatchSupportItems
+  const filtered = items.filter((item: BatchSupportItem) => item.candidateType === candidateType.value)
+  return filtered.length ? filtered : fallbackBatchSupportItems.filter(item => item.candidateType === candidateType.value)
+})
+const selectedBatchSupport = computed(() => batchOptions.value.find((item: BatchSupportItem) => item.batchCode === batchCode.value))
+const targetBatchLabel = computed(() => selectedBatchSupport.value?.batchName || '待选择批次')
+const canGenerateForSelectedBatch = computed(() => (
+  provinceCode.value !== 'GZ'
+  || isPreOfficialData.value
+  || selectedBatchSupport.value?.supportLevel === 'FULL_RECOMMEND'
+  || selectedBatchSupport.value?.supportLevel === 'TRIAL_RECOMMEND'
+))
+const submitButtonText = computed(() => {
+  if (isGenerateLocked.value) return batchSupportGateText.value || '生成能力暂未开放'
+  if (generating.value) return isPreOfficialData.value ? '说明生成中…' : '生成中…'
+  if (!hasCurrentDisclaimer.value) return isPreOfficialData.value ? '阅读风险告知并查看说明' : '阅读风险告知并生成'
+  return isPreOfficialData.value
+    ? '查看预估/数据缺口说明'
+    : `生成 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}`
+})
+const batchSupportGateText = computed(() => {
+  if (provinceCode.value !== 'GZ') return ''
+  if (!candidateType.value) return '请选择考生类别'
+  if (!batchCode.value || !selectedBatchSupport.value) return '请选择目标批次'
+  if (canGenerateForSelectedBatch.value) return ''
+  if (selectedBatchSupport.value.supportLevel === 'QUERY_ONLY') {
+    return `${selectedBatchSupport.value.batchName}当前仅支持政策和数据缺口说明，暂不生成完整推荐。`
+  }
+  return `${selectedBatchSupport.value.batchName}当前暂不支持生成完整推荐。`
+})
+const isProvinceGenerateLocked = computed(() => currentProvince.value.status !== 'open')
+const isGenerateLocked = computed(() => isProvinceGenerateLocked.value || Boolean(batchSupportGateText.value))
 const hasRankEstimate = computed(() => Boolean(rankEstimateHigh.value && rankEstimateHigh.value > 0))
 const effectiveRankForPreview = computed(() => (
   provinceRank.value && provinceRank.value > 0
@@ -176,6 +354,8 @@ const canSubmit = computed(() => formReady.value && !isGenerateLocked.value)
 
 const missingItems = computed(() => {
   const items: string[] = []
+  if (provinceCode.value === 'GZ' && !candidateType.value) items.push('考生类别')
+  if (provinceCode.value === 'GZ' && (!batchCode.value || !selectedBatchSupport.value)) items.push('目标批次')
   if (totalScore.value === undefined || totalScore.value <= 0) items.push('高考总分')
   if ((provinceRank.value === undefined || provinceRank.value <= 0) && !hasRankEstimate.value) {
     items.push('全省位次或官方估算位次')
@@ -186,19 +366,25 @@ const missingItems = computed(() => {
 })
 
 const readinessText = computed(() => (
-  isGenerateLocked.value
+  isProvinceGenerateLocked.value
     ? '生成能力暂未开放'
+    : batchSupportGateText.value ? '当前批次仅展示政策说明'
     : missingItems.value.length ? `还差 ${missingItems.value.length} 项必填信息` : '已满足生成条件'
 ))
 
 const readinessDetail = computed(() => (
-  isGenerateLocked.value
+  isProvinceGenerateLocked.value
     ? currentProvince.value.volunteerLockDescription
+    : batchSupportGateText.value ? batchSupportGateText.value
     : missingItems.value.length
     ? `请继续补全：${missingItems.value.join('、')}`
     : hasCurrentDisclaimer.value
-      ? `可以直接生成 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}草稿，随后继续做 AI 解读、Excel 导出和人工排序。`
-      : `点击生成按钮阅读并确认生成前风险告知后，即可生成 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}草稿。`
+      ? isPreOfficialData.value
+        ? `可以查看 ${activeAdmissionYear.value} 年预估/数据缺口说明；${trainingYearText.value} 年仅用于历史趋势和模型校准，不会伪装为 ${activeAdmissionYear.value} 官方数据。`
+        : `可以直接生成 ${activeAdmissionYear.value} 年 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}草稿；${historyYearText.value} 年历史数据仅用于后台回测和模型校准。`
+      : isPreOfficialData.value
+        ? `点击按钮阅读并确认风险告知后，可查看 ${activeAdmissionYear.value} 年预估/数据缺口说明。`
+        : `点击生成按钮阅读并确认生成前风险告知后，即可生成 ${activeAdmissionYear.value} 年 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}草稿。`
 ))
 
 const progressRatio = computed(() => {
@@ -212,7 +398,7 @@ const progressRatio = computed(() => {
 
 const summaryMetrics = computed(() => [
   {
-    label: '高考总分',
+    label: `${admissionYearText.value}高考总分`,
     value: totalScore.value ? `${totalScore.value}分` : '待填写',
     note: '750 分满分口径',
   },
@@ -310,27 +496,95 @@ async function loadHotMajors() {
   }
 }
 
-watch([firstSubject, provinceCode], loadHotMajors)
-onMounted(loadHotMajors)
-
-watch(() => route.query.provinceCode, (value) => {
-  const next = normalizeProvinceCode(value)
-  if (provinceCode.value !== next) {
-    provinceCode.value = next
+async function loadBatchSupport() {
+  if (provinceCode.value !== 'GZ') {
+    batchSupportItems.value = []
+    return
   }
+  batchSupportLoading.value = true
+  try {
+    const res = await getGzBatchSupport()
+    if (res.data.code === 0) {
+      activeAdmissionYear.value = res.data.data.activeAdmissionYear || res.data.data.year
+      latestOfficialDataYear.value = res.data.data.latestOfficialDataYear
+      historyYears.value = res.data.data.historyYears || []
+      trainingYears.value = res.data.data.trainingYears || res.data.data.historyYears || []
+      recommendationPhase.value = res.data.data.recommendationPhase || ''
+      estimateMode.value = Boolean(res.data.data.estimateMode)
+      batchSupportItems.value = res.data.data.items || []
+      syncSelectedBatch()
+    }
+  } catch {
+    batchSupportItems.value = []
+  } finally {
+    batchSupportLoading.value = false
+  }
+}
+
+function syncSelectedBatch() {
+  if (!batchOptions.value.some((item: BatchSupportItem) => item.batchCode === batchCode.value)) {
+    batchCode.value = ''
+  }
+}
+
+function selectCandidateType(type: CandidateType) {
+  candidateType.value = type
+  syncSelectedBatch()
+}
+
+function selectBatch(code: string) {
+  batchCode.value = code
+}
+
+function toggleQualification(tag: string) {
+  const idx = qualificationTags.value.indexOf(tag)
+  if (idx > -1) {
+    qualificationTags.value.splice(idx, 1)
+  } else {
+    qualificationTags.value.push(tag)
+  }
+}
+
+watch([firstSubject, provinceCode], loadHotMajors)
+watch([candidateType, batchSupportItems], syncSelectedBatch)
+onMounted(() => {
+  loadHotMajors()
+  loadBatchSupport()
 })
 
-watch(provinceCode, (code) => {
+watch(() => route.query.provinceCode, (value: unknown) => {
+  const next = provinceCodeFromRouteQuery(value)
+  lockedProvinceCode.value = next
+  if (next && provinceCode.value !== next) {
+    provinceCode.value = next
+  }
+}, { immediate: true })
+
+watch(provinceCode, (code: ProvinceCode) => {
+  void loadBatchSupport()
   volunteerStore.setFormData({ provinceCode: code })
 })
 
-watch(strategyMode, (mode) => {
+watch([candidateType, batchCode], ([type, batch]: [CandidateType | '', string]) => {
+  if (type) {
+    volunteerStore.setFormData({ candidateType: type, batchCode: batch })
+  } else {
+    volunteerStore.setFormData({ batchCode: batch })
+  }
+})
+
+watch(currentSafetyCode, (value: string) => {
+  setCurrentSafetyCode(normalizeSafetyCodeInput(value))
+})
+
+watch(strategyMode, (mode: '保守型' | '均衡型' | '冲刺型') => {
   if (gradientRangeMode.value === 'preset') {
     gradientRanges.value = presetGradientRanges(mode)
   }
 })
 
-watch([totalScore, provinceRank, firstSubject, provinceCode], ([score, rank, subject, province]) => {
+watch([totalScore, provinceRank, firstSubject, provinceCode], (values: [number | undefined, number | undefined, '物理' | '历史', ProvinceCode]) => {
+  const [score, rank, subject, province] = values
   rankHint.value = ''
   rankConflict.value = ''
   rankEstimateLow.value = null
@@ -421,6 +675,34 @@ function formatOffset(value: number) {
   return value.toLocaleString()
 }
 
+function supportLevelText(level: string) {
+  if (isPreOfficialData.value && (level === 'FULL_RECOMMEND' || level === 'TRIAL_RECOMMEND' || level === 'QUERY_ONLY')) {
+    return '预估/缺口说明'
+  }
+  if (isOfficialDataPartial.value && level === 'QUERY_ONLY') {
+    return '准备中/缺口说明'
+  }
+  return ({
+    FULL_RECOMMEND: '完整推荐',
+    TRIAL_RECOMMEND: '试推荐',
+    QUERY_ONLY: '仅规则/缺口展示',
+    UNSUPPORTED: '暂不支持',
+  } as Record<string, string>)[level] || level
+}
+
+function dataStatusText(status: BatchSupportItem['dataStatus'] | string | undefined) {
+  const code = typeof status === 'string' ? status : status?.status || 'UNKNOWN'
+  return ({
+    READY: '数据就绪',
+    POLICY_MISSING: '政策缺失',
+    HISTORY_MISSING: '历史线缺失',
+    PLAN_MISSING: '计划缺失',
+    PRE_OFFICIAL_DATA: '官方未发布',
+    OFFICIAL_DATA_PARTIAL: '准备中',
+    UNKNOWN: '待核验',
+  } as Record<string, string>)[code] || code
+}
+
 function setRangeMode(mode: 'preset' | 'custom') {
   gradientRangeMode.value = mode
   if (mode === 'preset') {
@@ -429,18 +711,32 @@ function setRangeMode(mode: 'preset' | 'custom') {
 }
 
 function selectProvince(code: ProvinceCode): void {
+  if (lockedProvinceCode.value) return
   if (provinceCode.value !== code) {
     provinceCode.value = code
   }
-  router.replace({
-    query: {
-      ...route.query,
-      provinceCode: code,
-    },
-  })
 }
 
-function updateRange(key: GradientRangeKey, field: keyof GradientRanges[GradientRangeKey], rawValue: string | number) {
+function normalizeSafetyCodeInput(value: string) {
+  return value.trim().replace(/[-\s]/g, '').toUpperCase()
+}
+
+function syncSafetyCodeInput() {
+  const normalized = normalizeSafetyCodeInput(currentSafetyCode.value)
+  currentSafetyCode.value = normalized
+  setCurrentSafetyCode(normalized)
+  return normalized
+}
+
+function createLocalSafetyCode() {
+  const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = new Uint8Array(10)
+  window.crypto.getRandomValues(bytes)
+  currentSafetyCode.value = Array.from(bytes, byte => charset[byte % charset.length]).join('')
+  setCurrentSafetyCode(currentSafetyCode.value)
+}
+
+function updateRange(key: GradientRangeKey, field: keyof GradientRanges[GradientRangeKey], rawValue: unknown) {
   const value = typeof rawValue === 'number' ? rawValue : Number(rawValue)
   gradientRanges.value = {
     ...gradientRanges.value,
@@ -450,6 +746,14 @@ function updateRange(key: GradientRangeKey, field: keyof GradientRanges[Gradient
     },
   }
   gradientRangeMode.value = 'custom'
+}
+
+function updateRangeMin(key: GradientRangeKey, rawValue: unknown) {
+  updateRange(key, 'rankOffsetMin', rawValue)
+}
+
+function updateRangeMax(key: GradientRangeKey, rawValue: unknown) {
+  updateRange(key, 'rankOffsetMax', rawValue)
 }
 
 function openDisclaimer(continueAfterConfirm = false) {
@@ -477,10 +781,14 @@ function handleDisclaimerConfirm(version: string) {
 
 async function onSubmit() {
   if (isGenerateLocked.value) {
-    showToast(currentProvince.value.volunteerLockTitle)
+    showToast(batchSupportGateText.value || currentProvince.value.volunteerLockTitle)
     return
   }
   if (!canSubmit.value || generating.value) return
+  if (!syncSafetyCodeInput()) {
+    showToast('请先输入安全码后再生成志愿方案。')
+    return
+  }
   if (!hasCurrentDisclaimer.value) {
     openDisclaimer(true)
     return
@@ -491,16 +799,25 @@ async function onSubmit() {
 
 async function submitPlan() {
   if (isGenerateLocked.value) {
-    showToast(currentProvince.value.volunteerLockTitle)
+    showToast(batchSupportGateText.value || currentProvince.value.volunteerLockTitle)
     return
   }
   if (!canSubmit.value || !hasCurrentDisclaimer.value || generating.value) return
+  const safetyCode = syncSafetyCodeInput()
+  if (!safetyCode) {
+    showToast('请先输入安全码后再生成志愿方案。')
+    return
+  }
 
   generating.value = true
   showLoadingToast({ message: '方案生成中...', forbidClick: true, duration: 0 })
   try {
     const payload = {
       provinceCode: provinceCode.value,
+      province: provinceName.value,
+      year: activeAdmissionYear.value,
+      candidateType: (candidateType.value || '普通类') as CandidateType,
+      batchCode: batchCode.value,
       totalScore: totalScore.value!,
       provinceRank: provinceRank.value && provinceRank.value > 0 ? provinceRank.value : 0,
       firstSubject: firstSubject.value,
@@ -513,9 +830,14 @@ async function submitPlan() {
       tuitionBudget: tuitionBudget.value,
       acceptPrivate: acceptPrivate.value,
       acceptSinoForeign: acceptSinoForeign.value,
+      safetyCode,
       agreedDisclaimer: true as const,
       disclaimerVersion: disclaimerVersion.value,
       gradientRanges: cloneGradientRanges(gradientRanges.value),
+      qualificationTags: [...qualificationTags.value],
+      artProfessionalScore: artProfessionalScore.value,
+      sportsProfessionalScore: sportsProfessionalScore.value,
+      comprehensiveScore: comprehensiveScore.value,
     }
     const genRes = await generateVolunteerPlan(payload)
     if (genRes.data.code !== 0) {
@@ -552,9 +874,9 @@ async function submitPlan() {
           <ArrowLeft :size="20" />
         </button>
         <div class="gz-shell-heading">
-          <div class="gz-shell-title">智能志愿填报</div>
+          <div class="gz-shell-title">{{ pageTitle }}</div>
           <div class="gz-shell-subtitle">
-            {{ isGenerateLocked ? '查看地区口径、表单字段和数据准备状态' : `把会影响推荐结果的条件一次性填全，再生成 ${targetVolunteerCount} 个${volunteerUnitLabel}草稿` }}
+            {{ pageSubtitle }}
           </div>
         </div>
         <div class="gz-shell-header-extra">{{ progressRatio }}%</div>
@@ -565,9 +887,9 @@ async function submitPlan() {
       <section class="gz-shell-hero volunteer-hero">
         <div class="volunteer-hero__copy">
           <span class="gz-shell-kicker">volunteer plan</span>
-          <h1 class="gz-shell-hero-title">主流程只保留真正影响结果的输入项</h1>
+          <h1 class="gz-shell-hero-title">{{ heroTitle }}</h1>
           <p class="gz-shell-hero-desc">
-            {{ isGenerateLocked ? currentProvince.volunteerLockDescription : `系统会综合分数、位次、选科、偏好、预算与风险取向生成 ${targetVolunteerCount} 个${volunteerUnitLabel}。` }}
+            {{ heroDescription }}
           </p>
           <div class="gz-shell-chip-row volunteer-hero__chips">
             <span class="gz-shell-chip is-soft-active">{{ subjectTypeLabel }}</span>
@@ -575,6 +897,10 @@ async function submitPlan() {
             <span class="gz-shell-chip is-soft-active">{{ strategyMode }}</span>
             <span class="gz-shell-chip is-soft-active">{{ decisionPriority }}</span>
             <span class="gz-shell-chip is-soft-active">{{ careerGoal }}</span>
+            <span class="gz-shell-chip is-soft-active">{{ phaseBadgeText }}</span>
+          </div>
+          <div v-if="provinceCode === 'GZ'" class="volunteer-note volunteer-note--warning">
+            {{ phaseNoticeText }}
           </div>
         </div>
 
@@ -587,7 +913,7 @@ async function submitPlan() {
         </div>
       </section>
 
-      <section v-if="isGenerateLocked" class="gz-shell-panel volunteer-lock-panel">
+      <section v-if="isProvinceGenerateLocked" class="gz-shell-panel volunteer-lock-panel">
         <div class="volunteer-lock-panel__badge">数据准备中</div>
         <div>
           <h2>{{ currentProvince.volunteerLockTitle }}</h2>
@@ -609,7 +935,15 @@ async function submitPlan() {
 
             <div class="option-group">
               <div class="volunteer-block__label">填报省份</div>
-              <div class="option-grid option-grid--double">
+              <div v-if="isProvinceEntryLocked" class="volunteer-province-lock-card">
+                <div class="volunteer-province-lock-card__badge">已锁定{{ provinceName }}入口</div>
+                <div class="volunteer-province-lock-card__body">
+                  <h3>{{ provinceName }}专区</h3>
+                  <p>当前访问地址携带省份入口参数，填报省份固定为{{ provinceName }}，批次矩阵、位次校验和生成请求均使用 {{ provinceCode }} 口径。</p>
+                  <span>{{ currentProvince.targetBatch }} · {{ currentProvince.volunteerUnit }} · {{ currentProvince.statusLabel }}</span>
+                </div>
+              </div>
+              <div v-else class="option-grid option-grid--double">
                 <button
                   v-for="opt in provinceOptions"
                   :key="opt.key"
@@ -624,6 +958,93 @@ async function submitPlan() {
               </div>
               <div v-if="currentProvince.volunteerUnitType === 'PROFESSIONAL_GROUP_45'" class="volunteer-note">
                 {{ currentProvince.shortName }}当前按{{ currentProvince.targetBatch }}院校专业组建模；公开可核验数据不足 45 个时，系统会提示补数据，不会伪装完整方案。
+              </div>
+            </div>
+
+            <div v-if="provinceCode === 'GZ'" class="option-group">
+              <div class="volunteer-block__label">考生类别</div>
+              <div class="option-grid option-grid--triple">
+                <button
+                  v-for="opt in candidateTypeOptions"
+                  :key="opt.key"
+                  type="button"
+                  class="option-card"
+                  :class="{ active: candidateType === opt.key }"
+                  @click="selectCandidateType(opt.key)"
+                >
+                  <span class="option-card__title">{{ opt.title }}</span>
+                  <span class="option-card__desc">{{ opt.desc }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="provinceCode === 'GZ'" class="option-group">
+              <div class="volunteer-block__label">目标批次</div>
+              <div class="option-grid option-grid--double">
+                <button
+                  v-for="item in batchOptions"
+                  :key="item.batchCode"
+                  type="button"
+                  class="option-card"
+                  :class="{ active: batchCode === item.batchCode }"
+                  @click="selectBatch(item.batchCode)"
+                >
+                  <span class="option-card__title">{{ item.batchName }}</span>
+                  <span class="option-card__desc">{{ supportLevelText(item.supportLevel) }} · {{ dataStatusText(item.dataStatus) }}</span>
+                  <span class="option-card__desc">{{ item.recommendMode }} · 最多 {{ item.maxVolunteerCount || item.targetCount || 0 }} 个</span>
+                </button>
+              </div>
+              <div class="volunteer-note">
+                {{ batchSupportLoading ? '批次支持矩阵读取中…' : selectedBatchSupport?.supportReason || selectedBatchSupport?.supportNote || '请选择目标批次，系统不会默认套用普通本科批。' }}
+              </div>
+              <div v-if="shouldShowPhaseNotice" class="volunteer-note volunteer-note--warning">
+                <strong>{{ phaseBadgeText }}</strong>
+                <span>{{ phaseNoticeText }}</span>
+              </div>
+              <div v-if="selectedBatchSupport && !canGenerateForSelectedBatch" class="volunteer-note volunteer-note--warning">
+                <strong>{{ supportLevelText(selectedBatchSupport.supportLevel) }}</strong>
+                <span>{{ selectedBatchSupport.supportReason || selectedBatchSupport.supportNote }}</span>
+                <span v-if="selectedBatchSupport.warnings?.length">缺口：{{ selectedBatchSupport.warnings.join('；') }}</span>
+              </div>
+            </div>
+
+            <div v-if="selectedBatchSupport?.category === 'SPECIAL_PROGRAM'" class="option-group">
+              <div class="volunteer-block__label">资格标签</div>
+              <div class="preference-tags">
+                <button
+                  v-for="tag in qualificationOptions"
+                  :key="tag"
+                  type="button"
+                  class="preference-tag"
+                  :class="{ active: qualificationTags.includes(tag) }"
+                  @click="toggleQualification(tag)"
+                >
+                  {{ tag }}
+                </button>
+              </div>
+            </div>
+
+            <div v-if="candidateType !== '普通类'" class="volunteer-form-grid">
+              <div v-if="candidateType === '艺术类'" class="field-card">
+                <label class="field-card__label">艺术专业成绩</label>
+                <div class="field-card__input-wrap">
+                  <van-field v-model.number="artProfessionalScore" type="digit" placeholder="可选填" class="custom-field" />
+                  <span class="field-card__unit">分</span>
+                </div>
+              </div>
+              <div v-if="candidateType === '体育类'" class="field-card">
+                <label class="field-card__label">体育专业成绩</label>
+                <div class="field-card__input-wrap">
+                  <van-field v-model.number="sportsProfessionalScore" type="digit" placeholder="可选填" class="custom-field" />
+                  <span class="field-card__unit">分</span>
+                </div>
+              </div>
+              <div class="field-card">
+                <label class="field-card__label">综合分</label>
+                <div class="field-card__input-wrap">
+                  <van-field v-model.number="comprehensiveScore" type="number" placeholder="可选填" class="custom-field" />
+                  <span class="field-card__unit">分</span>
+                </div>
               </div>
             </div>
 
@@ -753,7 +1174,7 @@ async function submitPlan() {
                       type="number"
                       inputmode="numeric"
                       class="custom-field custom-field--compact range-field"
-                      @update:model-value="value => updateRange(row.key, 'rankOffsetMin', value)"
+                      @update:model-value="updateRangeMin(row.key, $event)"
                     />
                     <span>至</span>
                     <van-field
@@ -761,7 +1182,7 @@ async function submitPlan() {
                       type="number"
                       inputmode="numeric"
                       class="custom-field custom-field--compact range-field"
-                      @update:model-value="value => updateRange(row.key, 'rankOffsetMax', value)"
+                      @update:model-value="updateRangeMax(row.key, $event)"
                     />
                   </div>
                 </div>
@@ -885,7 +1306,7 @@ async function submitPlan() {
                     :class="{ active: preferredMajors.includes(major.name) }"
                     @click="toggleMajor(major.name)"
                   >
-                    <div class="hot-major-card__rank" :class="{ 'is-top3': idx < 3 }">{{ idx + 1 }}</div>
+                    <div class="hot-major-card__rank" :class="{ 'is-top3': major.rank <= 3 }">{{ major.rank }}</div>
                     <div class="hot-major-card__body">
                       <div class="hot-major-card__name">{{ major.name }}</div>
                       <div class="hot-major-card__meta">{{ major.schoolCount }} 所院校 · 均分 {{ major.avgScore }}</div>
@@ -1004,12 +1425,30 @@ async function submitPlan() {
           </span>
         </button>
 
+        <div class="safety-code-box">
+          <label class="safety-code-label" for="volunteer-safety-code">安全码</label>
+          <div class="safety-code-row">
+            <input
+              id="volunteer-safety-code"
+              v-model.trim="currentSafetyCode"
+              class="safety-code-input"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              placeholder="请输入或生成安全码"
+              @blur="syncSafetyCodeInput"
+            />
+            <button type="button" class="safety-code-create" @click="createLocalSafetyCode">生成</button>
+          </div>
+          <p class="safety-code-hint">安全码只随本次生成请求提交，不会写入地址栏；请妥善保存，后续查看方案需要它。</p>
+        </div>
+
         <button class="submit-btn" :class="{ disabled: !canSubmit || generating }" :disabled="!canSubmit || generating" @click="onSubmit">
-          <span>{{ isGenerateLocked ? '生成能力暂未开放' : generating ? '生成中…' : hasCurrentDisclaimer ? `生成 ${targetVolunteerCount} 个${volunteerUnitLabel}` : '阅读风险告知并生成' }}</span>
+          <span>{{ submitButtonText }}</span>
           <ArrowRight :size="18" />
         </button>
         <p class="submit-hint">
-          {{ isGenerateLocked ? currentProvince.volunteerLockDescription : '系统会综合专业数据、院校门槛、位次波动和你的偏好给出可解释结果。' }}
+          {{ isGenerateLocked ? batchSupportGateText || currentProvince.volunteerLockDescription : isPreOfficialData ? phaseNoticeText : `${admissionYearText}公共填报入口已锁定，历史年份仅用于后台回测和模型校准。` }}
         </p>
       </section>
     </div>
@@ -1392,6 +1831,50 @@ async function submitPlan() {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 
+.volunteer-province-lock-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.06);
+}
+
+.volunteer-province-lock-card__badge {
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 800;
+}
+
+.volunteer-province-lock-card__body h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.volunteer-province-lock-card__body p {
+  margin: 8px 0 0;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.volunteer-province-lock-card__body span {
+  display: inline-flex;
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+  font-weight: 700;
+}
+
 .option-card__title {
   font-size: 14px;
   line-height: 1.4;
@@ -1747,6 +2230,34 @@ async function submitPlan() {
   color: #1d4ed8;
 }
 
+.preference-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.preference-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.preference-tag.active {
+  border-color: rgba(37, 99, 235, 0.24);
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
 .tag-item--major {
   background: #eff6ff;
   border-color: rgba(37, 99, 235, 0.16);
@@ -1896,6 +2407,59 @@ async function submitPlan() {
 .disclaimer-text small {
   font-size: 12px;
   line-height: 1.45;
+  color: #64748b;
+}
+
+.safety-code-box {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.safety-code-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.safety-code-row {
+  display: flex;
+  gap: 10px;
+}
+
+.safety-code-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+  outline: none;
+}
+
+.safety-code-input:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.safety-code-create {
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.safety-code-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
   color: #64748b;
 }
 

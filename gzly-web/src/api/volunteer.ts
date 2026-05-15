@@ -1,10 +1,14 @@
 import http from './request'
-import type { GradientRanges, Result, VolunteerPlan, RankCheckResponse } from '@/types'
+import type { BatchSupportResponse, CandidateType, GradientRanges, Result, VolunteerPlan, RankCheckResponse } from '@/types'
 import type { ProvinceCode } from '@/constants/provinces'
 
-/** 生成志愿方案：新链路会先校验年度政策，再返回机会指数口径的方案 */
+/** 生成志愿方案：公共入口只允许当前激活招生年份，历史年份仅用于后台回测 */
 export function generateVolunteerPlan(data: {
   provinceCode?: ProvinceCode
+  province?: string
+  year?: number
+  candidateType?: CandidateType
+  batchCode?: string
   totalScore: number
   provinceRank: number
   firstSubject: '物理' | '历史'
@@ -17,11 +21,20 @@ export function generateVolunteerPlan(data: {
   tuitionBudget?: '低预算' | '均衡预算' | '不限制'
   acceptPrivate?: boolean
   acceptSinoForeign?: boolean
+  safetyCode?: string
   agreedDisclaimer: true
   disclaimerVersion: string
   gradientRanges?: GradientRanges
+  qualificationTags?: string[]
+  artProfessionalScore?: number
+  sportsProfessionalScore?: number
+  comprehensiveScore?: number
 }) {
   return http.post<Result<VolunteerPlan>>('/volunteer/recommend', data)
+}
+
+export function getGzBatchSupport() {
+  return http.get<Result<BatchSupportResponse>>('/volunteer/gz/batch-support')
 }
 
 /** 查询历史方案 */
@@ -34,6 +47,20 @@ export function fetchPlanHistory(identifier: string) {
 /** 通过安全码恢复单个志愿方案，后端兼容旧 accessKey */
 export function fetchVolunteerPlan(planId: number, safetyCode: string) {
   return http.post<Result<VolunteerPlan>>('/volunteer/plan', { planId, safetyCode })
+}
+
+export function fetchVolunteerPlanDetail(planId: number, safetyCode?: string) {
+  return http.get<Result<VolunteerPlan>>(`/volunteer/plans/${planId}`, {
+    headers: safetyCode ? { 'X-Safety-Code': safetyCode } : undefined,
+  })
+}
+
+export function verifyPlanSafetyCode(planId: number, safetyCode: string) {
+  return http.post<Result<{ valid: boolean; planId: number }>>(
+    `/volunteer/plans/${planId}/verify-safety-code`,
+    {},
+    { headers: { 'X-Safety-Code': safetyCode }, timeout: 10000 },
+  )
 }
 
 /** AI 分析：换发短效一次性 SSE 凭证，避免长期安全码出现在 URL 中。 */
@@ -150,3 +177,28 @@ export function rankCheck(params: {
 }
 
 export { generateVolunteerPlan as generatePlan }
+
+export interface VolunteerHistoryRow {
+  planId: number
+  createdAt?: string
+  score?: number
+  rank?: number
+  provinceCode?: string
+  batchName?: string
+  strategyMode?: string
+  firstSubject?: string
+  itemCount?: number
+}
+
+export interface VolunteerHistoryResp {
+  records: VolunteerHistoryRow[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export function listMyVolunteerPlans(params: { page?: number; pageSize?: number } = {}) {
+  return http.get<Result<VolunteerHistoryResp>>('/volunteer/plans', {
+    params: { page: params.page ?? 1, pageSize: params.pageSize ?? 20 },
+  })
+}
