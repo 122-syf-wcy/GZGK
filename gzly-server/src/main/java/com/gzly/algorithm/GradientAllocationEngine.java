@@ -15,15 +15,19 @@ public class GradientAllocationEngine {
 
     public Map<String, Integer> allocate(int maxVolunteerCount, String riskPreference) {
         int max = Math.max(1, maxVolunteerCount);
+        // 标杆比例来自《贵州省高考志愿辅助系统推荐算法与梯度规则优化研究报告》
+        // “梯度规则与伪代码”一节：均衡 9/27/18/6（60 志愿）= 15/45/30/10 比例，
+        // 求稳 6/21/24/9、冲高 15/24/15/6 同样按 60 志愿基线给出。
+        // 96 志愿是 60 志愿基线 ×1.6 等比放大，再做整数化与守恒补齐。
         if (max == 96) {
-            if ("保守型".equals(riskPreference) || "保守".equals(riskPreference)) return ordered(10, 34, 34, 18);
-            if ("冲刺型".equals(riskPreference) || "激进".equals(riskPreference)) return ordered(29, 38, 19, 10);
-            return ordered(19, 38, 29, 10);
+            if ("保守型".equals(riskPreference) || "保守".equals(riskPreference)) return ordered(10, 34, 38, 14);
+            if ("冲刺型".equals(riskPreference) || "激进".equals(riskPreference)) return ordered(24, 38, 24, 10);
+            return ordered(14, 43, 29, 10);
         }
         if (max == 60) {
-            if ("保守型".equals(riskPreference) || "保守".equals(riskPreference)) return ordered(6, 21, 21, 12);
-            if ("冲刺型".equals(riskPreference) || "激进".equals(riskPreference)) return ordered(18, 24, 12, 6);
-            return ordered(12, 24, 18, 6);
+            if ("保守型".equals(riskPreference) || "保守".equals(riskPreference)) return ordered(6, 21, 24, 9);
+            if ("冲刺型".equals(riskPreference) || "激进".equals(riskPreference)) return ordered(15, 24, 15, 6);
+            return ordered(9, 27, 18, 6);
         }
         double[] ratios = ratios(riskPreference);
         int rush = (int) Math.round(max * ratios[0]);
@@ -86,9 +90,10 @@ public class GradientAllocationEngine {
     }
 
     private double[] ratios(String riskPreference) {
-        if ("保守型".equals(riskPreference) || "保守".equals(riskPreference)) return new double[]{0.10, 0.35, 0.35, 0.20};
-        if ("冲刺型".equals(riskPreference) || "激进".equals(riskPreference)) return new double[]{0.30, 0.40, 0.20, 0.10};
-        return new double[]{0.20, 0.40, 0.30, 0.10};
+        // 与 96/60 标杆配额一致：均衡 15%/45%/30%/10%、求稳 10%/35%/40%/15%、冲高 25%/40%/25%/10%。
+        if ("保守型".equals(riskPreference) || "保守".equals(riskPreference)) return new double[]{0.10, 0.35, 0.40, 0.15};
+        if ("冲刺型".equals(riskPreference) || "激进".equals(riskPreference)) return new double[]{0.25, 0.40, 0.25, 0.10};
+        return new double[]{0.15, 0.45, 0.30, 0.10};
     }
 
     private Map<String, Integer> ordered(int rush, int stable, int safe, int floor) {

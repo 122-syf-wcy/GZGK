@@ -14,14 +14,23 @@ class VolunteerClosedLoopEngineTest {
     void gradientAllocationShouldRespectPolicyMaxCountAndRiskPreference() {
         GradientAllocationEngine engine = new GradientAllocationEngine();
 
-        assertThat(engine.allocate(96, "均衡型")).containsEntry("冲", 19).containsEntry("稳", 38)
+        // 96 志愿 / 均衡：14/43/29/10（报告 15%/45%/30%/10% 比例 × 96 等比放大）
+        assertThat(engine.allocate(96, "均衡型")).containsEntry("冲", 14).containsEntry("稳", 43)
                 .containsEntry("保", 29).containsEntry("垫", 10);
+        // 60 志愿 / 均衡：9/27/18/6（报告原文）
+        assertThat(engine.allocate(60, "均衡型")).containsEntry("冲", 9).containsEntry("稳", 27)
+                .containsEntry("保", 18).containsEntry("垫", 6);
+        // 60 志愿 / 保守：6/21/24/9（报告 求稳 配额）
         assertThat(engine.allocate(60, "保守型")).containsEntry("冲", 6).containsEntry("稳", 21)
-                .containsEntry("保", 21).containsEntry("垫", 12);
+                .containsEntry("保", 24).containsEntry("垫", 9);
+        // 60 志愿 / 冲刺：15/24/15/6（报告 冲高 配额）
+        assertThat(engine.allocate(60, "冲刺型")).containsEntry("冲", 15).containsEntry("稳", 24)
+                .containsEntry("保", 15).containsEntry("垫", 6);
         assertThat(engine.allocate(96, "冲刺型").get("冲"))
                 .isGreaterThan(engine.allocate(96, "保守型").get("冲"));
         assertThat(engine.allocate(96, "保守型").get("垫"))
                 .isGreaterThan(engine.allocate(96, "冲刺型").get("垫"));
+        // 任意非标准志愿数仍守恒
         assertThat(engine.allocate(73, "均衡型").values().stream().mapToInt(Integer::intValue).sum()).isEqualTo(73);
     }
 
