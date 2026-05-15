@@ -71,6 +71,7 @@ public class VolunteerService {
     private final FallbackRulePredictionEngine fallbackRulePredictionEngine;
     private final VolunteerSortEngine volunteerSortEngine;
     private final VolunteerDiagnosisEngine volunteerDiagnosisEngine;
+    private final AdmissionYearService admissionYearService;
 
     @Value("${gzly.stability.generate-cache-seconds:120}")
     private long generateCacheSeconds;
@@ -85,6 +86,7 @@ public class VolunteerService {
     private static final int MAX_NEGATIVE_OFFSET = -50000;
     private static final int MAX_POSITIVE_OFFSET = 100000;
     private static final List<String> GRADIENT_ORDER = List.of("冲", "稳", "保", "垫");
+    private static final String NEIGHBOR_GRADIENT_BACKFILL = "NEIGHBOR_GRADIENT_BACKFILL";
     public static final String ADVISOR_SOURCE_PROJECT_NAME = "Eric-Yibo-Shen/zhangxuefeng-skillset";
     public static final String ADVISOR_SOURCE_PROJECT_URL = "https://github.com/Eric-Yibo-Shen/zhangxuefeng-skillset";
     public static final String ADVISOR_SOURCE_NOTE =
@@ -185,6 +187,8 @@ public class VolunteerService {
         private List<HistoryRecord> historyRecords;
         /** 是否落在本次配置的梯度位次区间内 */
         private boolean withinConfiguredRange;
+        private boolean outsideConfiguredRange;
+        private String fillReason;
         /** 本条志愿与本次梯度区间的关系说明 */
         private String rangeNote;
         /** 是否需要人工复核 */
@@ -367,7 +371,7 @@ public class VolunteerService {
     public static class GenerateRequest {
         /** 省份代码：GZ=贵州（默认），SC=四川 */
         private String provinceCode;
-        /** 招生年份；不填默认使用已核验的2025数据 */
+        /** 招生年份；公共填报入口不填时使用当前激活招生年份 */
         private Integer year;
         /** 考生类别；不填默认普通类 */
         private String candidateType;
@@ -407,6 +411,9 @@ public class VolunteerService {
         private String gender;
         /** 资格类标签（专项/民族班/预科/定向/免费医学/优师计划），用于硬规则放行 */
         private List<String> qualificationTags;
+        private Integer artProfessionalScore;
+        private Integer sportsProfessionalScore;
+        private Double comprehensiveScore;
         private Double majorPriority;
         private Double schoolPriority;
         private Double cityPriority;
@@ -489,6 +496,20 @@ public class VolunteerService {
         private Map<String, Object> modelInfo;
         /** 新规范接口返回的警告列表 */
         private List<String> warnings;
+        private int activeAdmissionYear;
+        private int latestOfficialDataYear;
+        private int targetYear;
+        private int futureImportYear;
+        private List<Integer> trainingYears;
+        private List<Integer> dataSourceYears;
+        private String recommendationPhase;
+        private boolean estimateMode;
+        private boolean officialDataReady;
+        private BatchSupportService.DataReadiness dataReadiness;
+        private String supportLevel;
+        private String recommendMode;
+        private String engineName;
+        private String supportReason;
         /**
          * VolunteerDiagnosisEngine 13 维诊断输出：totalCount / policyMaxCount / gradientCount /
          * overallRisk / summary / diagnosis / warnings / longestHighRiskRun / eliteCount。
@@ -522,13 +543,21 @@ public class VolunteerService {
     @Data
     private static class GenerationStats {
         private int specialExcludedCount;
+        private int neighborGradientBackfillCount;
 
         void incrementSpecialExcluded() {
             specialExcludedCount++;
         }
+
+        void addNeighborGradientBackfill(int count) {
+            neighborGradientBackfillCount += Math.max(0, count);
+        }
     }
 
     private record RatioRange(double min, double max) {
+    }
+
+    private record RankWindow(int low, int high) {
     }
 
     private record PlanSignal(Integer latestPlanCount, String trend, String note, double scoreAdjustment,
@@ -585,20 +614,27 @@ public class VolunteerService {
         RankResolution rankResolution = resolveRankResolution(provinceCode, req, subjectType);
         int R = rankResolution.effectiveRank();
         req.setProvinceRank(R);
+        boolean requestedSafetyCode = req.getSafetyCode() != null && !req.getSafetyCode().isBlank();
+        String submittedSafetyCode = requestedSafetyCode ? safetyCodeService.normalizeSafetyCode(req.getSafetyCode()) : "";
         String fingerprint = buildGenerateFingerprint(req, userId, clientIp);
+        if (!requestedSafetyCode) {
+            fingerprint = fingerprint + ":" + UUID.randomUUID();
+        }
         String resultKey = "gzly:v7:generate:result:" + fingerprint;
         String lockKey = "gzly:v7:generate:lock:" + fingerprint;
 
-        String cachedPayload = stringRedisTemplate.opsForValue().get(resultKey);
-        if (cachedPayload != null && !cachedPayload.isBlank()) {
-            return readCachedPlanResult(cachedPayload);
+        if (requestedSafetyCode) {
+            String cachedPayload = stringRedisTemplate.opsForValue().get(resultKey);
+            if (cachedPayload != null && !cachedPayload.isBlank()) {
+                return readCachedPlanResult(cachedPayload, submittedSafetyCode);
+            }
         }
 
         String lockValue = UUID.randomUUID().toString();
         Boolean acquired = stringRedisTemplate.opsForValue()
                 .setIfAbsent(lockKey, lockValue, Duration.ofSeconds(generateLockSeconds));
         if (Boolean.FALSE.equals(acquired)) {
-            PlanResult waiting = waitForGenerateResult(resultKey);
+            PlanResult waiting = requestedSafetyCode ? waitForGenerateResult(resultKey, submittedSafetyCode) : null;
             if (waiting != null) {
                 return waiting;
             }
@@ -641,6 +677,19 @@ public class VolunteerService {
         List<VolunteerItem> dianItems = pickGradient("垫", subjectType,
                 resolvedRanges.get("垫").getRankLow(), resolvedRanges.get("垫").getRankHigh(),
                 req.getResubjects(), targetCounts.dian(), profile, generationStats, filterCriteria);
+        List<List<VolunteerItem>> gradientItemGroups = List.of(chongItems, wenItems, baoItems, dianItems);
+        backfillGradientFromNeighbors("冲", chongItems, targetCounts.chong(), List.of("稳"),
+                resolvedRanges, subjectType, req.getResubjects(), profile, generationStats, filterCriteria,
+                gradientItemGroups);
+        backfillGradientFromNeighbors("稳", wenItems, targetCounts.wen(), List.of("冲", "保"),
+                resolvedRanges, subjectType, req.getResubjects(), profile, generationStats, filterCriteria,
+                gradientItemGroups);
+        backfillGradientFromNeighbors("保", baoItems, targetCounts.bao(), List.of("稳", "垫"),
+                resolvedRanges, subjectType, req.getResubjects(), profile, generationStats, filterCriteria,
+                gradientItemGroups);
+        backfillGradientFromNeighbors("垫", dianItems, targetCounts.dian(), List.of("保"),
+                resolvedRanges, subjectType, req.getResubjects(), profile, generationStats, filterCriteria,
+                gradientItemGroups);
         applyRangeContext(chongItems, resolvedRanges.get("冲"));
         applyRangeContext(wenItems, resolvedRanges.get("稳"));
         applyRangeContext(baoItems, resolvedRanges.get("保"));
@@ -685,6 +734,7 @@ public class VolunteerService {
         // ── 强制人工复核清单 + 监控指标 ──
         List<ManualReviewItem> manualReviewItems = buildManualReviewList(allItems);
         String dataQualityWarning = buildDataQualityWarning(req, subjectType, allItems, rankResolution.summary());
+        dataQualityWarning = appendNeighborBackfillWarning(dataQualityWarning, generationStats);
         dataQualityWarning = appendPortfolioSafetyWarning(dataQualityWarning, portfolioSafety);
         PlanMetrics metrics = buildPlanMetrics(allItems, manualReviewItems,
                 generationStats.getSpecialExcludedCount(), portfolioSafety,
@@ -712,6 +762,8 @@ public class VolunteerService {
         history.setDataQualityWarning(dataQualityWarning);
         SafetyCodeService.SafetyCodeIssue safetyCodeIssue = safetyCodeService.issue(req.getSafetyCode());
         history.setSafetyCodeHash(safetyCodeIssue.safetyCodeHash());
+        history.setSafetyCodeCreatedAt(LocalDateTime.now());
+        history.setSafetyCodeVersion(1);
         try {
             history.setResubjects(objectMapper.writeValueAsString(req.getResubjects()));
             history.setPreferredMajors(objectMapper.writeValueAsString(prefMajors));
@@ -816,7 +868,9 @@ public class VolunteerService {
         log.info("生成志愿方案: userId={}, rank={}, items={}/{}, costMs={}, manualReview={}",
                 userId, R, allItems.size(), policyTargetCount, generationCostMs,
                 manualReviewItems == null ? 0 : manualReviewItems.size());
-        cachePlanResult(resultKey, result);
+        if (requestedSafetyCode) {
+            cachePlanResult(resultKey, result);
+        }
         success = true;
         return result;
         } finally {
@@ -848,6 +902,18 @@ public class VolunteerService {
             warnings.add(rankWarning);
         }
         return warnings.isEmpty() ? null : String.join(" ", warnings);
+    }
+
+    private String appendNeighborBackfillWarning(String warning, GenerationStats stats) {
+        if (stats == null || stats.getNeighborGradientBackfillCount() <= 0) {
+            return warning;
+        }
+        String note = String.format("部分梯度候选不足，已从相邻梯度参考区间补充%d个志愿项，并在条目中标记补位来源。",
+                stats.getNeighborGradientBackfillCount());
+        if (warning == null || warning.isBlank()) {
+            return note;
+        }
+        return warning + " " + note;
     }
 
     private String buildSubjectRequirementWarning(GenerateRequest req, List<VolunteerItem> items) {
@@ -1025,10 +1091,16 @@ public class VolunteerService {
             } else {
                 rankLow = Math.max(absoluteLow, ratioLow);
                 rankHigh = Math.min(absoluteHigh, ratioHigh);
+                int minWindowWidth = minGradientWindowWidth(req, provinceRank);
                 if (rankHigh < rankLow) {
                     rankLow = ratioLow;
                     rankHigh = ratioHigh;
                     rangeSourceNote = "绝对偏移与比例区间无交集，已回退为比例区间。";
+                } else if (rankHigh - rankLow < minWindowWidth) {
+                    RankWindow expanded = expandNarrowGradientWindow(rankLow, rankHigh, minWindowWidth);
+                    rankLow = expanded.low();
+                    rankHigh = expanded.high();
+                    rangeSourceNote = String.format("绝对偏移与比例区间交集过窄，已按最小窗口%,d位自动扩展。", minWindowWidth);
                 } else {
                     rangeSourceNote = "由绝对偏移区间与位次比例区间共同约束。";
                 }
@@ -1062,6 +1134,37 @@ public class VolunteerService {
     private ResolvedGradientRanges resolveGradientRanges(GenerateRequest req, int provinceRank,
                                                          PreferenceProfile profile) {
         return resolveGradientRanges(req, provinceRank, profile, policyTargetCount(req));
+    }
+
+    private int minGradientWindowWidth(GenerateRequest req, int provinceRank) {
+        if (isSpecialtyBatch(req)) {
+            return Math.max(2_000, (int) Math.round(provinceRank * 0.03D));
+        }
+        return Math.max(1_000, (int) Math.round(provinceRank * 0.02D));
+    }
+
+    private boolean isSpecialtyBatch(GenerateRequest req) {
+        String batchCode = safeTrim(req == null ? null : req.getBatchCode());
+        String batchName = safeTrim(req == null ? null : req.getPolicyBatchName());
+        String unitType = safeTrim(req == null ? null : req.getPolicyVolunteerUnitType());
+        return "NORMAL_SPECIALTY".equals(batchCode)
+                || batchCode.contains("SPECIALTY")
+                || batchName.contains("专科")
+                || "MAJOR_96".equals(unitType) && batchName.contains("高职");
+    }
+
+    private RankWindow expandNarrowGradientWindow(int rankLow, int rankHigh, int minWindowWidth) {
+        int low = Math.max(1, rankLow);
+        int high = Math.max(low, rankHigh);
+        int width = Math.max(1, minWindowWidth);
+        int center = low + Math.max(0, high - low) / 2;
+        int left = width / 2;
+        int expandedLow = Math.max(1, center - left);
+        int expandedHigh = expandedLow + width;
+        if (expandedHigh < center) {
+            expandedHigh = Integer.MAX_VALUE;
+        }
+        return new RankWindow(expandedLow, expandedHigh);
     }
 
     private Map<String, RatioRange> defaultRatioRanges(String strategyMode) {
@@ -1248,11 +1351,73 @@ public class VolunteerService {
         for (VolunteerItem item : items) {
             boolean within = item.getHistoryMinRank() >= range.getRankLow()
                     && item.getHistoryMinRank() <= range.getRankHigh();
-            item.setWithinConfiguredRange(within);
-            item.setRangeNote(within
+            boolean backfilled = NEIGHBOR_GRADIENT_BACKFILL.equals(item.getFillReason());
+            item.setWithinConfiguredRange(within && !backfilled);
+            item.setOutsideConfiguredRange(!within || backfilled);
+            String note = within && !backfilled
                     ? String.format("参考位次位于本次%s档区间：第%,d ~ %,d位", range.getGradient(), range.getRankLow(), range.getRankHigh())
-                    : String.format("参考位次超出本次%s档区间：第%,d ~ %,d位，请重点复核", range.getGradient(), range.getRankLow(), range.getRankHigh()));
+                    : String.format("参考位次超出本次%s档区间：第%,d ~ %,d位，请重点复核", range.getGradient(), range.getRankLow(), range.getRankHigh());
+            if (backfilled) {
+                note = note + "；由相邻梯度参考区间补充";
+            }
+            item.setRangeNote(note);
         }
+    }
+
+    private void backfillGradientFromNeighbors(String targetGradient, List<VolunteerItem> targetItems, int targetCount,
+                                               List<String> neighborGradients, ResolvedGradientRanges ranges,
+                                               String subjectType, List<String> resubjects,
+                                               PreferenceProfile profile, GenerationStats stats,
+                                               CandidateFilterEngine.FilterCriteria criteria,
+                                               List<List<VolunteerItem>> allGradientItems) {
+        if (targetItems == null || targetItems.size() >= targetCount || neighborGradients == null || ranges == null) {
+            return;
+        }
+        Set<String> existingKeys = allGradientItems == null ? new HashSet<>() : allGradientItems.stream()
+                .filter(Objects::nonNull)
+                .flatMap(Collection::stream)
+                .map(this::volunteerItemDedupKey)
+                .collect(Collectors.toCollection(HashSet::new));
+        int added = 0;
+        for (String neighborGradient : neighborGradients) {
+            if (targetItems.size() >= targetCount) {
+                break;
+            }
+            GradientRangeDetail neighborRange = ranges.get(neighborGradient);
+            if (neighborRange == null) {
+                continue;
+            }
+            int fetchCount = Math.max(TOTAL_COUNT, targetCount + (targetCount - targetItems.size()) + 32);
+            List<VolunteerItem> candidates = pickGradient(neighborGradient, subjectType,
+                    neighborRange.getRankLow(), neighborRange.getRankHigh(), resubjects,
+                    fetchCount, profile, null, criteria);
+            for (VolunteerItem candidate : candidates) {
+                if (targetItems.size() >= targetCount) {
+                    break;
+                }
+                String key = volunteerItemDedupKey(candidate);
+                if (!existingKeys.add(key)) {
+                    continue;
+                }
+                candidate.setGradient(targetGradient);
+                candidate.setOutsideConfiguredRange(true);
+                candidate.setFillReason(NEIGHBOR_GRADIENT_BACKFILL);
+                targetItems.add(candidate);
+                added++;
+            }
+        }
+        if (stats != null && added > 0) {
+            stats.addNeighborGradientBackfill(added);
+        }
+    }
+
+    private String volunteerItemDedupKey(VolunteerItem item) {
+        if (item == null) {
+            return "";
+        }
+        return safeText(item.getSchoolId()) + "|" + safeText(item.getUniversityName()) + "|"
+                + safeText(item.getMajorName()) + "|" + item.getHistoryMinRank() + "|"
+                + safeText(item.getDataSourceType());
     }
 
     private void applyRangeCounts(ResolvedGradientRanges ranges, List<VolunteerItem> chongItems,
@@ -1299,7 +1464,7 @@ public class VolunteerService {
         Map<String, RequirementResolution> requirementCache = new HashMap<>();
         for (MajorScoreGz m : majorCandidates) {
             University uni = getUniversity(m.getSchoolId(), schoolCache);
-            String specialReason = specialTypeReason(uni, m.getUniversityName(), m.getMajorName(), m.getBatch());
+            String specialReason = specialTypeReason(criteria, uni, m.getUniversityName(), m.getMajorName(), m.getBatch());
             if (!specialReason.isBlank()) {
                 if (stats != null) stats.incrementSpecialExcluded();
                 continue;
@@ -1370,7 +1535,7 @@ public class VolunteerService {
         for (ScoreLineGz sl : fallbackCandidates) {
             if (coveredSchools.contains(sl.getSchoolId())) continue;
             University uni = getUniversity(sl.getSchoolId(), schoolCache);
-            String specialReason = specialTypeReason(uni, sl.getUniversityName(), sl.getMajorName(), sl.getBatch());
+            String specialReason = specialTypeReason(criteria, uni, sl.getUniversityName(), sl.getMajorName(), sl.getBatch());
             if (!specialReason.isBlank()) {
                 if (stats != null) stats.incrementSpecialExcluded();
                 continue;
@@ -1487,7 +1652,7 @@ public class VolunteerService {
                                                                 String subjectType,
                                                                 CandidateFilterEngine.FilterCriteria criteria) {
         CandidateFilterEngine.CandidatePlan p = new CandidateFilterEngine.CandidatePlan();
-        p.setYear(m.getYear());
+        p.setYear(null);
         p.setProvince(criteria == null ? null : criteria.getProvince());
         p.setBatchCode(safeText(m.getBatch()));
         p.setCandidateType(criteria == null ? "普通类" : criteria.getCandidateType());
@@ -1507,7 +1672,7 @@ public class VolunteerService {
                                                                 String subjectType,
                                                                 CandidateFilterEngine.FilterCriteria criteria) {
         CandidateFilterEngine.CandidatePlan p = new CandidateFilterEngine.CandidatePlan();
-        p.setYear(sl.getYear());
+        p.setYear(null);
         p.setProvince(criteria == null ? null : criteria.getProvince());
         p.setBatchCode(safeText(sl.getBatch()));
         p.setCandidateType(criteria == null ? "普通类" : criteria.getCandidateType());
@@ -2251,11 +2416,20 @@ public class VolunteerService {
                 || ("历史类".equals(requested) && "文科".equals(actual));
     }
 
-    private String specialTypeReason(University uni, String schoolName, String majorName, String batch) {
+    private String specialTypeReason(CandidateFilterEngine.FilterCriteria criteria,
+                                     University uni, String schoolName, String majorName, String batch) {
         String recruitType = classifyRecruitType(uni, schoolName, majorName, batch);
-        return RecruitTypeClassifier.isExclusiveFromMainList(recruitType)
-                ? RecruitTypeClassifier.exclusionReason(recruitType)
-                : "";
+        if (criteria == null) {
+            return RecruitTypeClassifier.isExclusiveFromMainList(recruitType)
+                    ? RecruitTypeClassifier.exclusionReason(recruitType)
+                    : "";
+        }
+        return RecruitTypeClassifier.exclusionReason(
+                recruitType, criteria.getBatchCode(), criteria.getCandidateType(), batch);
+    }
+
+    private String specialTypeReason(University uni, String schoolName, String majorName, String batch) {
+        return specialTypeReason(null, uni, schoolName, majorName, batch);
     }
 
     private String classifyRecruitType(University uni, String schoolName, String majorName, String batch) {
@@ -2710,28 +2884,38 @@ public class VolunteerService {
     }
 
     private void cachePlanResult(String resultKey, PlanResult result) {
+        String safetyCode = result.getSafetyCode();
+        String accessKey = result.getAccessKey();
         try {
+            result.setSafetyCode("");
+            result.setAccessKey("");
             String payload = objectMapper.writeValueAsString(result);
             stringRedisTemplate.opsForValue().set(resultKey, payload, Duration.ofSeconds(generateCacheSeconds));
         } catch (Exception e) {
             log.warn("缓存志愿方案失败: key={}", resultKey, e);
+        } finally {
+            result.setSafetyCode(safetyCode);
+            result.setAccessKey(accessKey);
         }
     }
 
-    private PlanResult readCachedPlanResult(String payload) {
+    private PlanResult readCachedPlanResult(String payload, String safetyCode) {
         try {
-            return objectMapper.readValue(payload, PlanResult.class);
+            PlanResult result = objectMapper.readValue(payload, PlanResult.class);
+            result.setSafetyCode(safetyCode);
+            result.setAccessKey(safetyCode);
+            return result;
         } catch (Exception e) {
             throw new BizException("缓存方案解析失败");
         }
     }
 
-    private PlanResult waitForGenerateResult(String resultKey) {
+    private PlanResult waitForGenerateResult(String resultKey, String safetyCode) {
         long deadline = System.currentTimeMillis() + generateWaitMillis;
         while (System.currentTimeMillis() < deadline) {
             String payload = stringRedisTemplate.opsForValue().get(resultKey);
             if (payload != null && !payload.isBlank()) {
-                return readCachedPlanResult(payload);
+                return readCachedPlanResult(payload, safetyCode);
             }
             try {
                 Thread.sleep(200);
@@ -2759,6 +2943,9 @@ public class VolunteerService {
             Map<String, Object> normalized = new LinkedHashMap<>();
             normalized.put("scope", userId != null && userId > 0 ? "u:" + userId : "ip:" + safeTrim(clientIp));
             normalized.put("provinceCode", normalizeProvinceCode(req.getProvinceCode()));
+            normalized.put("year", req.getYear() == null ? admissionYearService.getActiveAdmissionYear() : req.getYear());
+            normalized.put("batchCode", safeTrim(req.getBatchCode()));
+            normalized.put("candidateType", safeTrim(req.getCandidateType()));
             normalized.put("totalScore", req.getTotalScore());
             normalized.put("provinceRank", req.getProvinceRank());
             normalized.put("firstSubject", safeTrim(req.getFirstSubject()));
@@ -2773,6 +2960,7 @@ public class VolunteerService {
             normalized.put("acceptSinoForeign", Boolean.TRUE.equals(req.getAcceptSinoForeign()));
             normalized.put("disclaimerVersion", safeTrim(req.getDisclaimerVersion()));
             normalized.put("gradientRanges", normalizeGradientRanges(req.getGradientRanges()));
+            normalized.put("safetyCodeFingerprint", safetyCodeService.fingerprint(req.getSafetyCode()));
             String payload = objectMapper.writeValueAsString(normalized);
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             byte[] hash = md.digest(payload.getBytes(StandardCharsets.UTF_8));

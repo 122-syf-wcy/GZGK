@@ -6,6 +6,8 @@ import com.gzly.algorithm.FallbackRulePredictionEngine;
 import com.gzly.algorithm.FeatureBuildEngine;
 import com.gzly.algorithm.VolunteerDiagnosisEngine;
 import com.gzly.algorithm.VolunteerSortEngine;
+import com.gzly.entity.MajorScoreGz;
+import com.gzly.entity.University;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -23,12 +25,14 @@ class VolunteerServiceMainPipelineTest {
     private VolunteerService newService() {
         return new VolunteerService(
                 null, null, null, null, null,
-                null, new ObjectMapper(), null, new VolunteerMetricsRecorder(), new ProvincePolicyService(), null,
+                null, new ObjectMapper(), null, new VolunteerMetricsRecorder(), new SafetyCodeService(null),
+                new ProvincePolicyService(), null,
                 new CandidateFilterEngine(),
                 new FeatureBuildEngine(),
                 new FallbackRulePredictionEngine(),
                 new VolunteerSortEngine(),
-                new VolunteerDiagnosisEngine());
+                new VolunteerDiagnosisEngine(),
+                new AdmissionYearService());
     }
 
     @Test
@@ -129,6 +133,53 @@ class VolunteerServiceMainPipelineTest {
                 CandidateFilterEngine.FilterCriteria.class, CandidateFilterEngine.CandidatePlan.class);
         hasViolation.setAccessible(true);
         boolean rejected = (boolean) hasViolation.invoke(service, criteria, plan);
+        assertThat(rejected).isFalse();
+    }
+
+    @Test
+    void historicalMajorCandidate_shouldNotBeRejectedByRequestYear() throws Exception {
+        VolunteerService service = newService();
+        VolunteerService.GenerateRequest req = new VolunteerService.GenerateRequest();
+        req.setYear(2025);
+        req.setBatchCode("NORMAL_SPECIALTY");
+        req.setCandidateType("普通类");
+        req.setSelectedSubjects(List.of("历史", "政治", "地理"));
+
+        Method buildCriteria = VolunteerService.class.getDeclaredMethod("buildFilterCriteria",
+                VolunteerService.GenerateRequest.class, String.class, String.class);
+        buildCriteria.setAccessible(true);
+        CandidateFilterEngine.FilterCriteria criteria =
+                (CandidateFilterEngine.FilterCriteria) buildCriteria.invoke(service, req, "GZ", "历史类");
+
+        MajorScoreGz major = new MajorScoreGz();
+        major.setYear(2022);
+        major.setSchoolId("9001");
+        major.setUniversityName("测试职业学院");
+        major.setMajorName("护理");
+        major.setBatch("专科批");
+
+        Class<?> requirementClass = null;
+        for (Class<?> nested : VolunteerService.class.getDeclaredClasses()) {
+            if ("RequirementResolution".equals(nested.getSimpleName())) {
+                requirementClass = nested;
+                break;
+            }
+        }
+        assertThat(requirementClass).isNotNull();
+
+        Method toCandidatePlan = VolunteerService.class.getDeclaredMethod("toCandidatePlan",
+                MajorScoreGz.class, University.class, requirementClass, String.class,
+                CandidateFilterEngine.FilterCriteria.class);
+        toCandidatePlan.setAccessible(true);
+        CandidateFilterEngine.CandidatePlan plan =
+                (CandidateFilterEngine.CandidatePlan) toCandidatePlan.invoke(service, major, null, null, "历史类", criteria);
+
+        Method hasViolation = VolunteerService.class.getDeclaredMethod("hasHardRuleViolation",
+                CandidateFilterEngine.FilterCriteria.class, CandidateFilterEngine.CandidatePlan.class);
+        hasViolation.setAccessible(true);
+        boolean rejected = (boolean) hasViolation.invoke(service, criteria, plan);
+
+        assertThat(plan.getYear()).isNull();
         assertThat(rejected).isFalse();
     }
 }

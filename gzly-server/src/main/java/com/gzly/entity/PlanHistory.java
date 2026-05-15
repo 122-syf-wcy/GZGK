@@ -55,5 +55,8 @@ public class PlanHistory {
     /** 完整 GenerateRequest 快照(JSON) */
     private String requestSnapshotJson;
     private String safetyCodeHash;
+    private String safetyCodeFingerprint;
+    private LocalDateTime safetyCodeCreatedAt;
+    private Integer safetyCodeVersion;
     private LocalDateTime createdAt;
 }

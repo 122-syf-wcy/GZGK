@@ -27,6 +27,9 @@ public class VolunteerPlan {
     private Long policyRuleId;
     private String mlModelVersion;
     private Integer totalCount;
+    private String safetyCodeHash;
+    private LocalDateTime safetyCodeCreatedAt;
+    private Integer safetyCodeVersion;
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

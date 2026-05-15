@@ -1,5 +1,6 @@
 package com.gzly.algorithm;
 
+import com.gzly.service.BatchRuleRegistry;
 import lombok.Data;
 import org.springframework.stereotype.Component;
 
@@ -117,23 +118,7 @@ public class CandidateFilterEngine {
      */
     private boolean batchEquivalent(String a, String b) {
         if (blank(a) || blank(b)) return true;
-        String na = normalizeBatch(a);
-        String nb = normalizeBatch(b);
-        if (na.equals(nb)) return true;
-        // contains 双向兼容"普通本科批（统招）"等带后缀情况
-        return na.contains(nb) || nb.contains(na);
-    }
-
-    private String normalizeBatch(String batch) {
-        if (batch == null) return "";
-        String b = batch.trim();
-        return switch (b) {
-            case "NORMAL_UNDERGRADUATE" -> "普通本科批";
-            case "NORMAL_SPECIALTY" -> "普通专科批";
-            case "EARLY_A_B" -> "本科提前批";
-            case "EARLY_C" -> "专科提前批";
-            default -> b;
-        };
+        return BatchRuleRegistry.batchMatches(a, b) || BatchRuleRegistry.batchMatches(b, a);
     }
 
     @Data

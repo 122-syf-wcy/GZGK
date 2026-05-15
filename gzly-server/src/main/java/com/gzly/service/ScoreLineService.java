@@ -301,7 +301,7 @@ public class ScoreLineService {
                .between(ScoreLineGz::getMinRank, rankLow, rankHigh)
                .isNotNull(ScoreLineGz::getMinRank)
                .gt(ScoreLineGz::getMinRank, 0)
-               .ge(ScoreLineGz::getYear, 2021)
+               .ge(ScoreLineGz::getYear, PolicyRuleService.HISTORY_YEAR_START)
                .orderByDesc(ScoreLineGz::getYear)
                .orderByAsc(ScoreLineGz::getMinRank);
 
@@ -324,7 +324,7 @@ public class ScoreLineService {
                .between(MajorScoreGz::getMinRank, rankLow, rankHigh)
                .isNotNull(MajorScoreGz::getMinRank)
                .gt(MajorScoreGz::getMinRank, 0)
-               .ge(MajorScoreGz::getYear, 2021)
+               .ge(MajorScoreGz::getYear, PolicyRuleService.HISTORY_YEAR_START)
                .orderByDesc(MajorScoreGz::getYear)
                .orderByAsc(MajorScoreGz::getMinRank);
 
@@ -352,13 +352,13 @@ public class ScoreLineService {
                         .or().eq(MajorScoreGz::getSubjectType, legacyType))
                 .isNotNull(MajorScoreGz::getMinScore)
                 .gt(MajorScoreGz::getMinScore, 0)
-                .ge(MajorScoreGz::getYear, 2021)
+                .ge(MajorScoreGz::getYear, PolicyRuleService.HISTORY_YEAR_START)
                 .orderByDesc(MajorScoreGz::getYear)
                 .orderByAsc(MajorScoreGz::getMinRank);
         if (StringUtils.isNotBlank(majorCore)) {
             majorWrapper.like(MajorScoreGz::getMajorName, majorCore);
         }
-        List<ScoreLineView> majorViews = majorScoreGzMapper.selectList(majorWrapper).stream()
+        List<ScoreLineView> majorViews = new ArrayList<>(majorScoreGzMapper.selectList(majorWrapper).stream()
                 .map(this::toView)
                 .filter(Objects::nonNull)
                 .filter(view -> StringUtils.isBlank(majorCore)
@@ -370,7 +370,7 @@ public class ScoreLineService {
                 .values()
                 .stream()
                 .limit(limit)
-                .toList();
+                .toList());
         if (!majorViews.isEmpty()) {
             return majorViews;
         }
@@ -385,7 +385,7 @@ public class ScoreLineService {
                 .orderByDesc(ScoreLineGz::getYear)
                 .orderByAsc(ScoreLineGz::getMinRank);
 
-        return scoreLineGzMapper.selectList(schoolWrapper).stream()
+        return new ArrayList<>(scoreLineGzMapper.selectList(schoolWrapper).stream()
                 .map(this::toView)
                 .filter(Objects::nonNull)
                 .collect(LinkedHashMap<Integer, ScoreLineView>::new,
@@ -394,7 +394,7 @@ public class ScoreLineService {
                 .values()
                 .stream()
                 .limit(limit)
-                .toList();
+                .toList());
     }
 
     /**

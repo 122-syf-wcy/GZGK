@@ -26,8 +26,9 @@ class VolunteerServiceComplianceTest {
     void setUp() throws Exception {
         service = new VolunteerService(
                 null, null, null, null, null,
-                null, new ObjectMapper(), null, new VolunteerMetricsRecorder(), new ProvincePolicyService(), null,
-                null, null, null, null, null);
+                null, new ObjectMapper(), null, new VolunteerMetricsRecorder(), new SafetyCodeService(null),
+                new ProvincePolicyService(), null,
+                null, null, null, null, null, new AdmissionYearService());
         validateGenerateRequest = VolunteerService.class.getDeclaredMethod("validateGenerateRequest", GenerateRequest.class);
         validateGenerateRequest.setAccessible(true);
         toPreferenceProfile = VolunteerService.class.getDeclaredMethod("toPreferenceProfile", GenerateRequest.class);
@@ -83,8 +84,9 @@ class VolunteerServiceComplianceTest {
         ProvinceRankService rankService = mock(ProvinceRankService.class);
         VolunteerService serviceWithRank = new VolunteerService(
                 null, null, null, null, null,
-                null, new ObjectMapper(), null, new VolunteerMetricsRecorder(), new ProvincePolicyService(), rankService,
-                null, null, null, null, null);
+                null, new ObjectMapper(), null, new VolunteerMetricsRecorder(), new SafetyCodeService(null),
+                new ProvincePolicyService(), rankService,
+                null, null, null, null, null, new AdmissionYearService());
         GenerateRequest req = validRequest();
         req.setProvinceRank(0);
         AlgorithmService.RankEstimate estimate = new AlgorithmService.RankEstimate();
@@ -138,7 +140,7 @@ class VolunteerServiceComplianceTest {
     }
 
     @Test
-    void resolveGradientRanges_usesBalancedPresetByDefault() throws Exception {
+    void undergraduateGradient_shouldKeepExistingBehavior() throws Exception {
         GenerateRequest req = validRequest();
 
         VolunteerService.GradientRangeSummary summary = invokeResolveRangeSummary(req);
@@ -151,6 +153,26 @@ class VolunteerServiceComplianceTest {
         assertThat(summary.getRanges().get("稳").getTargetCount()).isEqualTo(38);
         assertThat(summary.getRanges().get("保").getTargetCount()).isEqualTo(29);
         assertThat(summary.getRanges().get("垫").getTargetCount()).isEqualTo(10);
+    }
+
+    @Test
+    void specialtySafeGradient_shouldNotCollapseToSingleRank() throws Exception {
+        GenerateRequest req = specialtyRequest();
+
+        VolunteerService.GradientRangeSummary summary = invokeResolveRangeSummary(req);
+        VolunteerService.GradientRangeDetail safe = summary.getRanges().get("保");
+
+        assertThat(safe.getRankLow()).isEqualTo(71_000);
+        assertThat(safe.getRankHigh()).isEqualTo(73_000);
+        assertThat(safe.getRankHigh() - safe.getRankLow()).isGreaterThanOrEqualTo(2_000);
+        assertThat(safe.getRangeSourceNote()).contains("自动扩展");
+        assertThat(safe.getTargetCount()).isEqualTo(29);
+        assertThat(summary.getRanges().get("冲").getRankLow()).isEqualTo(50_000);
+        assertThat(summary.getRanges().get("冲").getRankHigh()).isEqualTo(57_000);
+        assertThat(summary.getRanges().get("稳").getRankLow()).isEqualTo(57_000);
+        assertThat(summary.getRanges().get("稳").getRankHigh()).isEqualTo(64_000);
+        assertThat(summary.getRanges().get("垫").getRankLow()).isEqualTo(108_000);
+        assertThat(summary.getRanges().get("垫").getRankHigh()).isEqualTo(180_000);
     }
 
     @Test
@@ -264,6 +286,21 @@ class VolunteerServiceComplianceTest {
         req.setResubjects(List.of("化学", "生物"));
         req.setAgreedDisclaimer(true);
         req.setDisclaimerVersion(ComplianceConstants.DISCLAIMER_VERSION);
+        return req;
+    }
+
+    private GenerateRequest specialtyRequest() {
+        GenerateRequest req = validRequest();
+        req.setTotalScore(380);
+        req.setProvinceRank(60_000);
+        req.setFirstSubject("历史");
+        req.setResubjects(List.of("政治", "地理"));
+        req.setSelectedSubjects(List.of("历史", "政治", "地理"));
+        req.setBatchCode("NORMAL_SPECIALTY");
+        req.setCandidateType("普通类");
+        req.setPolicyBatchName("普通类高职（专科）批");
+        req.setPolicyVolunteerUnitType("MAJOR_96");
+        req.setPolicyMaxVolunteerCount(96);
         return req;
     }
 }

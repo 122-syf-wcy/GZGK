@@ -49,8 +49,9 @@ class VolunteerServiceManualReviewTest {
         VolunteerMetricsRecorder recorder = new VolunteerMetricsRecorder();
         service = new VolunteerService(
                 null, null, null, null, null,
-                officialLinkService, new ObjectMapper(), null, recorder, new ProvincePolicyService(), null,
-                null, null, null, null, null);
+                officialLinkService, new ObjectMapper(), null, recorder, new SafetyCodeService(null),
+                new ProvincePolicyService(), null,
+                null, null, null, null, null, new AdmissionYearService());
     }
 
     @Test

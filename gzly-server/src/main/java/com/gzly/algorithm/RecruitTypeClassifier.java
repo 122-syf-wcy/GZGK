@@ -1,5 +1,7 @@
 package com.gzly.algorithm;
 
+import com.gzly.service.BatchRuleRegistry;
+
 import java.util.List;
 import java.util.Locale;
 
@@ -85,7 +87,9 @@ public final class RecruitTypeClassifier {
 
     /** 该 recruitType 是否应当被普通志愿主列表排除。 */
     public static boolean isExclusiveFromMainList(String recruitType) {
-        if (recruitType == null) return false;
+        if (recruitType == null || NORMAL.equals(recruitType)) {
+            return false;
+        }
         return SPECIAL_PROGRAM.equals(recruitType)
                 || PRE_BATCH.equals(recruitType)
                 || MILITARY_POLICE.equals(recruitType)
@@ -96,31 +100,31 @@ public final class RecruitTypeClassifier {
                 || SUPPLEMENT.equals(recruitType);
     }
 
-    /**
-     * 给前端 / 文案系统使用的中文短描述，仅在被排除时返回非空字符串。
-     */
+    public static boolean isExclusiveFromRequest(String recruitType, String requestBatchCode,
+                                                 String candidateType, String dataBatch) {
+        return isExclusiveFromMainList(recruitType)
+                && !BatchRuleRegistry.allowsRecruitType(recruitType, requestBatchCode, candidateType, dataBatch);
+    }
+
+    public static String exclusionReason(String recruitType, String requestBatchCode,
+                                         String candidateType, String dataBatch) {
+        return isExclusiveFromRequest(recruitType, requestBatchCode, candidateType, dataBatch)
+                ? exclusionReason(recruitType)
+                : "";
+    }
+
     public static String exclusionReason(String recruitType) {
-        if (recruitType == null) return "";
-        switch (recruitType) {
-            case SPECIAL_PROGRAM:
-                return "专项计划不进入普通志愿主列表";
-            case PRE_BATCH:
-                return "提前批不进入普通志愿主列表";
-            case MILITARY_POLICE:
-                return "军警公安等特殊类型需单独核验";
-            case ART_SPORTS:
-                return "艺术体育类不进入普通志愿主列表";
-            case GENDER_RESTRICTED:
-                return "存在性别限制，需人工核验";
-            case FREE_NORMAL:
-                return "公费/免费/优师等履约类型需单独核验";
-            case DIRECTED:
-                return "定向类型需单独核验";
-            case SUPPLEMENT:
-                return "征集志愿需按官方批次单独建模，不进入主列表";
-            default:
-                return "";
-        }
+        return switch (recruitType) {
+            case SPECIAL_PROGRAM -> "专项计划需单独资格审核";
+            case PRE_BATCH -> "提前批不进入普通志愿主列表";
+            case MILITARY_POLICE -> "军警公安等特殊类型需单独核验";
+            case ART_SPORTS -> "艺术体育类不进入普通志愿主列表";
+            case GENDER_RESTRICTED -> "存在性别限制，需人工核验";
+            case FREE_NORMAL -> "公费/免费/优师等履约类型需单独核验";
+            case DIRECTED -> "定向类型需单独核验";
+            case SUPPLEMENT -> "征集志愿需按官方批次单独建模，不进入主列表";
+            default -> "";
+        };
     }
 
     private static String safe(String value) {

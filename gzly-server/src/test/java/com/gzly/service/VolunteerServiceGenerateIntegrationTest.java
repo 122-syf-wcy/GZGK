@@ -23,11 +23,14 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -64,6 +67,7 @@ class VolunteerServiceGenerateIntegrationTest {
     private StringRedisTemplate stringRedisTemplate;
     private ValueOperations<String, String> valueOps;
     private ProvinceRankService provinceRankService;
+    private SafetyCodeService safetyCodeService;
     private VolunteerService service;
 
     @BeforeEach
@@ -78,6 +82,8 @@ class VolunteerServiceGenerateIntegrationTest {
         stringRedisTemplate = mock(StringRedisTemplate.class);
         valueOps = mock(ValueOperations.class);
         provinceRankService = mock(ProvinceRankService.class);
+        safetyCodeService = new SafetyCodeService(planHistoryMapper);
+        ReflectionTestUtils.setField(safetyCodeService, "jwtSecret", "integration-test-secret-key-change-me");
 
         // Redis 桩：缓存恒 miss、锁恒拿到
         lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
@@ -139,18 +145,18 @@ class VolunteerServiceGenerateIntegrationTest {
         service = new VolunteerService(
                 scoreLineService, algorithmService, bizUserMapper, planHistoryMapper, majorRequirementGzMapper,
                 officialLinkService, new ObjectMapper(), stringRedisTemplate,
-                new VolunteerMetricsRecorder(), provincePolicyService, provinceRankService,
+                new VolunteerMetricsRecorder(), safetyCodeService, provincePolicyService, provinceRankService,
                 new CandidateFilterEngine(),
                 new FeatureBuildEngine(),
                 new FallbackRulePredictionEngine(),
                 new VolunteerSortEngine(),
-                new VolunteerDiagnosisEngine());
+                new VolunteerDiagnosisEngine(),
+                new AdmissionYearService());
 
         // 默认锁等待 / 缓存 TTL，缩小到测试上下文
         ReflectionTestUtils.setField(service, "generateCacheSeconds", 30L);
         ReflectionTestUtils.setField(service, "generateLockSeconds", 30L);
         ReflectionTestUtils.setField(service, "generateWaitMillis", 100L);
-        ReflectionTestUtils.setField(service, "jwtSecret", "integration-test-secret-key-change-me");
     }
 
     @Test
@@ -259,6 +265,113 @@ class VolunteerServiceGenerateIntegrationTest {
     }
 
     @Test
+    void specialtyRecommend_shouldFillSafeGradientWhenNarrowWindow() {
+        List<MajorScoreGz> candidates = new ArrayList<>();
+        for (int i = 0; i < 19; i++) {
+            String sid = "sp-c-" + i;
+            candidates.add(specialtyMajor(sid, "专科冲学校" + i, "专科冲专业" + i, 50_500 + i * 20, 2025));
+            stubUniversities(sid, "专科冲学校" + i, "贵阳", "公办");
+        }
+        for (int i = 0; i < 38; i++) {
+            String sid = "sp-w-" + i;
+            candidates.add(specialtyMajor(sid, "专科稳学校" + i, "专科稳专业" + i, 57_200 + i * 20, 2025));
+            stubUniversities(sid, "专科稳学校" + i, "贵阳", "公办");
+        }
+        for (int i = 0; i < 29; i++) {
+            String sid = "sp-b-" + i;
+            candidates.add(specialtyMajor(sid, "专科保学校" + i, "专科保专业" + i, 71_500 + i * 20, 2025));
+            stubUniversities(sid, "专科保学校" + i, "贵阳", "公办");
+        }
+        for (int i = 0; i < 10; i++) {
+            String sid = "sp-d-" + i;
+            candidates.add(specialtyMajor(sid, "专科垫学校" + i, "专科垫专业" + i, 108_500 + i * 20, 2025));
+            stubUniversities(sid, "专科垫学校" + i, "贵阳", "公办");
+        }
+        stubCandidatesByRequestedRank(candidates);
+
+        PlanResult result = service.generate(specialtyRequest(), null, "127.0.0.1");
+
+        Map<String, Long> gradientCounts = result.getItems().stream()
+                .collect(Collectors.groupingBy(VolunteerItem::getGradient, LinkedHashMap::new, Collectors.counting()));
+        VolunteerService.GradientRangeDetail safe = result.getGradientRangeSummary().getRanges().get("保");
+        assertThat(result.getItems()).hasSize(96);
+        assertThat(gradientCounts).containsEntry("保", 29L);
+        assertThat(safe.getRankLow()).isEqualTo(71_000);
+        assertThat(safe.getRankHigh()).isEqualTo(73_000);
+        assertThat(safe.getRangeSourceNote()).contains("自动扩展");
+    }
+
+    @Test
+    void specialtyRecommend_shouldBackfillSafeGradientFromNeighborWhenExpandedWindowStillInsufficient() {
+        List<MajorScoreGz> candidates = new ArrayList<>();
+        for (int i = 0; i < 19; i++) {
+            String sid = "bf-c-" + i;
+            candidates.add(specialtyMajor(sid, "补位冲学校" + i, "补位冲专业" + i, 50_500 + i * 20, 2025));
+            stubUniversities(sid, "补位冲学校" + i, "贵阳", "公办");
+        }
+        for (int i = 0; i < 38; i++) {
+            String sid = "bf-w-" + i;
+            candidates.add(specialtyMajor(sid, "补位稳学校" + i, "补位稳专业" + i, 57_200 + i * 20, 2025));
+            stubUniversities(sid, "补位稳学校" + i, "贵阳", "公办");
+        }
+        for (int i = 0; i < 5; i++) {
+            String sid = "bf-b-" + i;
+            candidates.add(specialtyMajor(sid, "补位保学校" + i, "补位保专业" + i, 71_500 + i * 20, 2025));
+            stubUniversities(sid, "补位保学校" + i, "贵阳", "公办");
+        }
+        for (int i = 0; i < 40; i++) {
+            String sid = "bf-d-" + i;
+            candidates.add(specialtyMajor(sid, "补位垫学校" + i, "补位垫专业" + i, 108_500 + i * 20, 2025));
+            stubUniversities(sid, "补位垫学校" + i, "贵阳", "公办");
+        }
+        stubCandidatesByRequestedRank(candidates);
+
+        PlanResult result = service.generate(specialtyRequest(), null, "127.0.0.1");
+
+        Map<String, Long> gradientCounts = result.getItems().stream()
+                .collect(Collectors.groupingBy(VolunteerItem::getGradient, LinkedHashMap::new, Collectors.counting()));
+        List<VolunteerItem> backfilled = result.getItems().stream()
+                .filter(item -> "NEIGHBOR_GRADIENT_BACKFILL".equals(item.getFillReason()))
+                .collect(Collectors.toList());
+        assertThat(result.getItems()).hasSize(96);
+        assertThat(gradientCounts).containsEntry("保", 29L);
+        assertThat(backfilled).hasSize(24);
+        assertThat(backfilled).allSatisfy(item -> {
+            assertThat(item.getGradient()).isEqualTo("保");
+            assertThat(item.isOutsideConfiguredRange()).isTrue();
+            assertThat(item.isWithinConfiguredRange()).isFalse();
+            assertThat(item.getRangeNote()).contains("相邻梯度");
+        });
+        assertThat(result.getDataQualityWarning()).contains("相邻梯度参考区间补充24个");
+    }
+
+    @Test
+    void buildGenerateFingerprint_shouldSeparateDifferentSafetyCodesWithoutPlaintext() throws Exception {
+        Method fingerprint = VolunteerService.class.getDeclaredMethod(
+                "buildGenerateFingerprint", GenerateRequest.class, Long.class, String.class);
+        fingerprint.setAccessible(true);
+        GenerateRequest base = baseValidRequest();
+        base.setSafetyCode("safe-1234");
+        GenerateRequest sameNormalized = baseValidRequest();
+        sameNormalized.setSafetyCode("SAFE1234");
+        GenerateRequest different = baseValidRequest();
+        different.setSafetyCode("DIFF5678");
+        GenerateRequest differentBatch = baseValidRequest();
+        differentBatch.setSafetyCode("SAFE1234");
+        differentBatch.setBatchCode("NORMAL_SPECIALTY");
+
+        String first = (String) fingerprint.invoke(service, base, null, "127.0.0.1");
+        String second = (String) fingerprint.invoke(service, sameNormalized, null, "127.0.0.1");
+        String third = (String) fingerprint.invoke(service, different, null, "127.0.0.1");
+        String fourth = (String) fingerprint.invoke(service, differentBatch, null, "127.0.0.1");
+
+        assertThat(first).isEqualTo(second);
+        assertThat(first).isNotEqualTo(third);
+        assertThat(first).isNotEqualTo(fourth);
+        assertThat(first).doesNotContain("SAFE1234");
+    }
+
+    @Test
     void generate_shouldReturnDiagnosis() {
         List<MajorScoreGz> candidates = new ArrayList<>();
         for (int i = 0; i < 30; i++) {
@@ -354,6 +467,17 @@ class VolunteerServiceGenerateIntegrationTest {
                 .thenAnswer(inv -> new ArrayList<>(candidates));
     }
 
+    private void stubCandidatesByRequestedRank(List<MajorScoreGz> candidates) {
+        lenient().when(scoreLineService.findMajorCandidates(anyString(), anyInt(), anyInt(), any()))
+                .thenAnswer(inv -> {
+                    int rankLow = inv.getArgument(1);
+                    int rankHigh = inv.getArgument(2);
+                    return candidates.stream()
+                            .filter(item -> item.getMinRank() >= rankLow && item.getMinRank() <= rankHigh)
+                            .collect(Collectors.toCollection(ArrayList::new));
+                });
+    }
+
     private void stubUniversities(String schoolId, String name, String city, String nature) {
         University u = univ(schoolId, name, city, nature);
         lenient().when(scoreLineService.getUniversityById(schoolId)).thenReturn(u);
@@ -391,6 +515,29 @@ class VolunteerServiceGenerateIntegrationTest {
         m.setPlanCount(50);
         m.setResubjectRequirement("不限");
         return m;
+    }
+
+    private MajorScoreGz specialtyMajor(String schoolId, String universityName, String majorName,
+                                        int minRank, int year) {
+        MajorScoreGz m = major(schoolId, universityName, majorName, minRank, year);
+        m.setSubjectType("历史类");
+        m.setBatch("专科批");
+        m.setMinScore(380);
+        return m;
+    }
+
+    private GenerateRequest specialtyRequest() {
+        GenerateRequest req = baseValidRequest();
+        req.setTotalScore(380);
+        req.setProvinceRank(60_000);
+        req.setFirstSubject("历史");
+        req.setResubjects(List.of("政治", "地理"));
+        req.setSelectedSubjects(List.of("历史", "政治", "地理"));
+        req.setBatchCode("NORMAL_SPECIALTY");
+        req.setPolicyBatchName("普通类高职（专科）批");
+        req.setPolicyVolunteerUnitType("MAJOR_96");
+        req.setPolicyMaxVolunteerCount(96);
+        return req;
     }
 
     private ScoreLineGz scoreLine(String schoolId, int year, int minRank, int planCount) {

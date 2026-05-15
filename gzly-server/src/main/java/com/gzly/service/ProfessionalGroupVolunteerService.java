@@ -138,6 +138,8 @@ public class ProfessionalGroupVolunteerService {
             history.setDataQualityWarning(buildDataQualityWarning(items, specialExcluded));
             SafetyCodeService.SafetyCodeIssue safetyCodeIssue = safetyCodeService.issue(req.getSafetyCode());
             history.setSafetyCodeHash(safetyCodeIssue.safetyCodeHash());
+            history.setSafetyCodeCreatedAt(LocalDateTime.now());
+            history.setSafetyCodeVersion(1);
             try {
                 history.setResubjects(objectMapper.writeValueAsString(req.getResubjects()));
                 history.setPreferredMajors(objectMapper.writeValueAsString(req.getPreferredMajors() == null ? List.of() : req.getPreferredMajors()));
