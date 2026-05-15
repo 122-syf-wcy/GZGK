@@ -61,7 +61,7 @@ public class RedisConfig implements CachingConfigurer {
     public CacheManager cacheManager(RedisConnectionFactory factory) {
         GenericJackson2JsonRedisSerializer serializer = jsonSerializer();
         RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
-                .computePrefixWith(cacheName -> "gzly:v7:" + cacheName + "::")
+                .computePrefixWith(cacheName -> "gzly:v8:" + cacheName + "::")
                 .entryTtl(Duration.ofHours(24))
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer))

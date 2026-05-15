@@ -20,7 +20,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BizException.class)
     public ResponseEntity<Result<?>> handleBiz(BizException e) {
         log.warn("业务异常: {}", e.getMessage());
-        HttpStatus status = e.getCode() == 410 ? HttpStatus.GONE : HttpStatus.OK;
+        HttpStatus status = switch (e.getCode()) {
+            case 403 -> HttpStatus.FORBIDDEN;
+            case 410 -> HttpStatus.GONE;
+            default -> HttpStatus.OK;
+        };
         return ResponseEntity.status(status).body(Result.fail(e.getCode(), e.getMessage()));
     }
 

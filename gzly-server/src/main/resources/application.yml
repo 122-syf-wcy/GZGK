@@ -95,6 +95,23 @@ gzly:
     base-url: ${GZLY_ML_BASE_URL:http://127.0.0.1:8091}
     timeout-ms: ${GZLY_ML_TIMEOUT_MS:1200}
 
+  admission:
+    active-year: ${GZLY_ACTIVE_ADMISSION_YEAR:2026}
+    latest-official-data-year: ${GZLY_LATEST_OFFICIAL_DATA_YEAR:2025}
+    history-years: ${GZLY_HISTORY_YEARS:2025,2024}
+    training-years: ${GZLY_TRAINING_YEARS:2024,2025}
+    target-year: ${GZLY_TARGET_YEAR:2026}
+    future-import-year: ${GZLY_FUTURE_IMPORT_YEAR:2026}
+    recommendation-phase: ${GZLY_RECOMMENDATION_PHASE:PRE_OFFICIAL_DATA}
+    readiness:
+      policy-ready: ${GZLY_POLICY_READY:false}
+      score-segment-ready: ${GZLY_SCORE_SEGMENT_READY:false}
+      admission-plan-ready: ${GZLY_ADMISSION_PLAN_READY:false}
+      major-requirement-ready: ${GZLY_MAJOR_REQUIREMENT_READY:false}
+      major-meta-ready: ${GZLY_MAJOR_META_READY:false}
+      ml-training-ready: ${GZLY_ML_TRAINING_READY:false}
+      historical-training-ready: ${GZLY_HISTORICAL_TRAINING_READY:true}
+
   skills:
     local-path: ${GZLY_SKILLS_LOCAL_PATH:/root/zhangxuefeng-skills}
 
