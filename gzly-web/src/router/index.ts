@@ -161,6 +161,12 @@ const router = createRouter({
           meta: { title: '官方入口 - 管理后台' },
         },
         {
+          path: 'import-jobs',
+          name: 'AdminImportJobs',
+          component: () => import('@/views/admin/ImportJobs.vue'),
+          meta: { title: '2026导入任务 - 管理后台' },
+        },
+        {
           path: 'announcements',
           name: 'AdminAnnouncements',
           component: () => import('@/views/admin/Announcements.vue'),

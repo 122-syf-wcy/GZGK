@@ -128,7 +128,7 @@ class VolunteerControllerAccessSecurityTest {
         verify(valueOperations).set(keyCaptor.capture(), payloadCaptor.capture(), eq(Duration.ofSeconds(120)));
         assertThat(keyCaptor.getValue()).startsWith("volunteer:ai-ticket:");
         assertThat(payloadCaptor.getValue()).contains("\"planId\":99");
-        assertThat(payloadCaptor.getValue()).contains("\"accessKey\":\"secret-access-key\"");
+        assertThat(payloadCaptor.getValue()).contains("\"safetyCode\":\"secret-access-key\"");
         assertThat(payloadCaptor.getValue()).contains("\"profile\":\"稳妥优先\"");
     }
 

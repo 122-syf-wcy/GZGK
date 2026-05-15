@@ -108,6 +108,98 @@ export interface AdminOfficialLinkListData extends PageResult<AdminOfficialLinkI
   stats: AdminOfficialLinkStats
 }
 
+export type AdminImportDataType =
+  | 'SCORE_SEGMENT'
+  | 'ADMISSION_PLAN'
+  | 'POLICY_RULE'
+  | 'MAJOR_REQUIREMENT'
+  | 'MAJOR_META'
+  | 'SCORE_LINE'
+  | 'ART_SPORTS_RULE'
+  | 'SPECIAL_ELIGIBILITY'
+
+export type AdminImportJobStatus =
+  | 'CREATED'
+  | 'FILE_REGISTERED'
+  | 'STAGING_READY'
+  | 'QUALITY_CHECKED'
+  | 'FORMAL_SQL_GENERATED'
+  | 'WAITING_CONFIRMATION'
+  | 'PROMOTED'
+  | 'ROLLBACK_READY'
+  | 'FAILED'
+  | string
+
+export interface AdminImportJob {
+  jobId: string
+  provinceCode: string
+  year: number
+  dataType: AdminImportDataType | string
+  importBatchId: string
+  sourceFile?: string
+  sourceUrl?: string
+  sourceManifest?: string
+  status: AdminImportJobStatus
+  currentStep: string
+  totalRows: number
+  cleanRows: number
+  reviewRows: number
+  errorRows: number
+  qualityReportPath?: string
+  formalSqlPath?: string
+  rollbackSqlPath?: string
+  message?: string
+  createdAt?: string
+  updatedAt?: string
+  dryRunOnly: boolean
+  formalPromoteExecuted: boolean
+}
+
+export interface AdminImportJobDetail {
+  job: AdminImportJob
+  files: unknown[]
+  qualityReports: unknown[]
+  rollbackPlans: unknown[]
+}
+
+export interface AdminCreateImportJobRequest {
+  provinceCode: string
+  year: number
+  dataType: AdminImportDataType
+  sourceFile?: string
+  sourceUrl?: string
+  sourceManifest?: string
+  fileHash?: string
+  rawText?: string
+}
+
+export interface AdminImportProgress {
+  dataType: AdminImportDataType | string
+  required: boolean
+  latestStatus: string
+  importBatchId?: string
+  qualityReportPath?: string
+  rollbackSqlPath?: string
+  updatedAt?: string
+}
+
+export interface AdminDataYearReadiness {
+  provinceCode: string
+  year: number
+  policyReady: boolean
+  scoreSegmentReady: boolean
+  admissionPlanReady: boolean
+  majorRequirementReady: boolean
+  majorMetaReady: boolean
+  mlTrainingReady: boolean
+  historicalTrainingReady: boolean
+  recommendationPhase: 'PRE_OFFICIAL_DATA' | 'OFFICIAL_DATA_PARTIAL' | 'OFFICIAL_DATA_IMPORTED' | 'MODEL_RETRAINED' | string
+  latestImportBatchId?: string
+  remarks?: string
+  lastCheckedAt?: string
+  importProgress: Record<string, AdminImportProgress>
+}
+
 export interface Announcement {
   id?: number
   title: string

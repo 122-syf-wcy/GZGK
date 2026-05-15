@@ -65,6 +65,7 @@ const navItems = [
   { key: 'universities', label: '院校管理', iconImg: '/admin-university.png', path: '/admin/universities' },
   { key: 'score-lines', label: '分数线管理', iconImg: '/admin-scoreline.png', path: '/admin/score-lines' },
   { key: 'official-links', label: '官方入口', iconImg: '/admin-university.png', path: '/admin/official-links' },
+  { key: 'import-jobs', label: '2026导入', iconImg: '/admin-scoreline.png', path: '/admin/import-jobs' },
   { key: 'announcements', label: '公告管理', iconImg: '/admin-dashboard.png', path: '/admin/announcements' },
   { key: 'ai-config', label: 'AI配置', iconImg: '/admin-dashboard.png', path: '/admin/ai-config' },
   { key: 'feedbacks', label: '反馈管理', iconImg: '/admin-users.png', path: '/admin/feedbacks' },
