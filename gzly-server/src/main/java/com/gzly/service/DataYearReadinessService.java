@@ -4,13 +4,23 @@ import lombok.Data;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 @Service
 public class DataYearReadinessService {
+
+    /** policy_ready / score_segment_ready / ... 触发阈值: 表至少有多少行才算"就绪". */
+    static final int POLICY_MIN_ROWS = 1;
+    static final int SCORE_RANK_MIN_ROWS = 200;
+    static final int ADMISSION_PLAN_MIN_ROWS = 1000;
+    static final int MAJOR_REQUIREMENT_MIN_ROWS = 1000;
+    static final int MAJOR_META_MIN_ROWS = 1000;
+    static final int HISTORICAL_TRAINING_MIN_ROWS = 1000;
 
     private final JdbcTemplate jdbcTemplate;
     private final AdmissionYearService admissionYearService;
@@ -52,6 +62,125 @@ public class DataYearReadinessService {
         return admissionYearService.isModelRetrainedPhase(readiness.getRecommendationPhase())
                 && readiness.isMlTrainingReady()
                 && readiness.isMajorMetaReady();
+    }
+
+    /**
+     * 按实际表行数校准 readiness flags, 仅落库, 不改 recommendation_phase.
+     * 只支持 GZ 板块的几张专用表 (data_score_rank_gz / data_major_requirement_gz / ...).
+     * 返回 校准前 vs 校准后 的对照, 方便 admin UI 显示。
+     */
+    public RefreshResult refreshReadinessFlags(String provinceCode, int year) {
+        String normalizedProvince = normalizeProvinceCode(provinceCode);
+        if (!"GZ".equals(normalizedProvince)) {
+            throw new com.gzly.common.exception.BizException(400,
+                    "只支持 GZ 板块自动校准, 其他省份请走 admin import job 流程");
+        }
+        if (year <= 0 || year > 2999) {
+            throw new com.gzly.common.exception.BizException(400, "year 不合法: " + year);
+        }
+        if (!tableExists("data_year_readiness")) {
+            throw new com.gzly.common.exception.BizException(500, "data_year_readiness 表不存在");
+        }
+
+        Map<String, Boolean> before = currentFlagsRow(normalizedProvince, year);
+        Map<String, Long> rowCounts = sampleGzRowCounts(year);
+        Map<String, Boolean> after = new LinkedHashMap<>();
+        after.put("policy_ready", rowCounts.getOrDefault("policy_rule", 0L) >= POLICY_MIN_ROWS);
+        after.put("score_segment_ready", rowCounts.getOrDefault("score_rank_gz", 0L) >= SCORE_RANK_MIN_ROWS);
+        after.put("admission_plan_ready", rowCounts.getOrDefault("admission_plan_gz", 0L) >= ADMISSION_PLAN_MIN_ROWS);
+        after.put("major_requirement_ready", rowCounts.getOrDefault("major_requirement_gz", 0L) >= MAJOR_REQUIREMENT_MIN_ROWS);
+        after.put("major_meta_ready", rowCounts.getOrDefault("major_meta_gz", 0L) >= MAJOR_META_MIN_ROWS);
+        after.put("historical_training_ready", rowCounts.getOrDefault("history_major_score_gz", 0L) >= HISTORICAL_TRAINING_MIN_ROWS);
+
+        // ml_training_ready 不在这里自动翻; 模型何时切换由 ML pipeline 自行控制
+        Boolean keepMl = before == null ? null : before.get("ml_training_ready");
+
+        String remarks = "readiness 自动校准 @ " + LocalDateTime.now()
+                + " (rowCounts=" + rowCounts + ")";
+        upsertReadiness(normalizedProvince, year, after, keepMl, remarks);
+
+        return new RefreshResult(normalizedProvince, year, before, after, rowCounts, remarks);
+    }
+
+    private Map<String, Long> sampleGzRowCounts(int year) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        counts.put("policy_rule", queryLong(
+                "SELECT COUNT(*) FROM policy_rule_config WHERE province IN ('贵州','GZ') AND year = ? AND enabled = 1",
+                year));
+        counts.put("score_rank_gz", queryLong(
+                "SELECT COUNT(*) FROM data_score_rank_gz WHERE year = ?", year));
+        counts.put("admission_plan_gz", queryLong(
+                "SELECT COUNT(*) FROM data_admission_plan_gz WHERE year = ?", year));
+        counts.put("major_requirement_gz", queryLong(
+                "SELECT COUNT(*) FROM data_major_requirement_gz WHERE year = ?", year));
+        counts.put("major_meta_gz", queryLong(
+                "SELECT COUNT(*) FROM data_major_meta_gz WHERE year = ?", year));
+        counts.put("history_major_score_gz", queryLong(
+                "SELECT COUNT(*) FROM data_major_score_gz WHERE year < ?", year));
+        return counts;
+    }
+
+    private Map<String, Boolean> currentFlagsRow(String provinceCode, int year) {
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT policy_ready, score_segment_ready, admission_plan_ready, major_requirement_ready, major_meta_ready, ml_training_ready, historical_training_ready FROM data_year_readiness WHERE province_code = ? AND year = ? ORDER BY id DESC LIMIT 1",
+                    provinceCode, year);
+            if (rows.isEmpty()) {
+                return null;
+            }
+            Map<String, Object> row = rows.get(0);
+            Map<String, Boolean> result = new LinkedHashMap<>();
+            result.put("policy_ready", toBool(row.get("policy_ready")));
+            result.put("score_segment_ready", toBool(row.get("score_segment_ready")));
+            result.put("admission_plan_ready", toBool(row.get("admission_plan_ready")));
+            result.put("major_requirement_ready", toBool(row.get("major_requirement_ready")));
+            result.put("major_meta_ready", toBool(row.get("major_meta_ready")));
+            result.put("ml_training_ready", toBool(row.get("ml_training_ready")));
+            result.put("historical_training_ready", toBool(row.get("historical_training_ready")));
+            return result;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private void upsertReadiness(String provinceCode, int year, Map<String, Boolean> flags, Boolean keepMl, String remarks) {
+        int ml = keepMl == null ? 0 : (keepMl ? 1 : 0);
+        int updated = jdbcTemplate.update(
+                "UPDATE data_year_readiness SET "
+                        + "policy_ready=?, score_segment_ready=?, admission_plan_ready=?, "
+                        + "major_requirement_ready=?, major_meta_ready=?, ml_training_ready=?, "
+                        + "historical_training_ready=?, remarks=?, last_checked_at=NOW(), updated_at=NOW() "
+                        + "WHERE province_code = ? AND year = ?",
+                boolBit(flags.get("policy_ready")),
+                boolBit(flags.get("score_segment_ready")),
+                boolBit(flags.get("admission_plan_ready")),
+                boolBit(flags.get("major_requirement_ready")),
+                boolBit(flags.get("major_meta_ready")),
+                ml,
+                boolBit(flags.get("historical_training_ready")),
+                remarks.length() > 500 ? remarks.substring(0, 500) : remarks,
+                provinceCode, year);
+        if (updated == 0) {
+            jdbcTemplate.update(
+                    "INSERT INTO data_year_readiness "
+                            + "(province_code, year, policy_ready, score_segment_ready, admission_plan_ready, "
+                            + "major_requirement_ready, major_meta_ready, ml_training_ready, historical_training_ready, "
+                            + "recommendation_phase, remarks, last_checked_at, created_at, updated_at) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PRE_OFFICIAL_DATA', ?, NOW(), NOW(), NOW())",
+                    provinceCode, year,
+                    boolBit(flags.get("policy_ready")),
+                    boolBit(flags.get("score_segment_ready")),
+                    boolBit(flags.get("admission_plan_ready")),
+                    boolBit(flags.get("major_requirement_ready")),
+                    boolBit(flags.get("major_meta_ready")),
+                    ml,
+                    boolBit(flags.get("historical_training_ready")),
+                    remarks.length() > 500 ? remarks.substring(0, 500) : remarks);
+        }
+    }
+
+    private static int boolBit(Boolean b) {
+        return Boolean.TRUE.equals(b) ? 1 : 0;
     }
 
     public DataYearReadinessDto buildDataReadinessDto(String provinceCode, int year) {
@@ -191,5 +320,15 @@ public class DataYearReadinessService {
         private BatchSupportService.DataReadiness dataReadiness;
         private String phaseDescription;
         private List<String> nextActions = List.of();
+    }
+
+    @Data
+    public static class RefreshResult {
+        private final String provinceCode;
+        private final int year;
+        private final Map<String, Boolean> before;
+        private final Map<String, Boolean> after;
+        private final Map<String, Long> rowCounts;
+        private final String remarks;
     }
 }
