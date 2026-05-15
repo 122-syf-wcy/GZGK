@@ -569,7 +569,7 @@ public class VolunteerService {
     }
 
     @Data
-    private static class PreferenceProfile {
+    static class PreferenceProfile {
         private List<String> preferredMajors = List.of();
         private List<String> preferredRegions = List.of();
         private String strategyMode = "均衡型";
@@ -2583,7 +2583,7 @@ public class VolunteerService {
                 .anyMatch(major::contains);
     }
 
-    private boolean isOpportunityCity(VolunteerItem item) {
+    static boolean isOpportunityCity(VolunteerItem item) {
         String city = item.getCity() != null ? item.getCity() : "";
         String province = item.getProvince() != null ? item.getProvince() : "";
         return Stream.of("北京", "上海", "广州", "深圳", "杭州", "南京", "武汉", "成都", "西安", "重庆", "苏州")
@@ -2599,9 +2599,44 @@ public class VolunteerService {
         }
     }
 
-    private String buildRecommendReason(VolunteerItem item, PreferenceProfile profile) {
+    /**
+     * 4 段式推荐解释（按贵州研究报告第八节“可解释性”要求）：
+     * <ol>
+     *   <li>梯度定位：这条志愿落在 冲/稳/保/垫 哪个桶、参考概率区间。</li>
+     *   <li>适配理由：与考生偏好、专业级数据、招生计划、院校层次匹配的正向信号。</li>
+     *   <li>风险信号：波动度、缩招、数据精度等需要关注的负向信号。</li>
+     *   <li>可调节项：给用户的下一步动作建议（哪些维度可以放宽/收紧）。</li>
+     * </ol>
+     * 任一段为空时给出兜底提示而不是省略，保证四段始终成对出现，便于前端与导出统一渲染。
+     */
+    static String buildRecommendReason(VolunteerItem item, PreferenceProfile profile) {
+        String gradient = buildGradientSegment(item);
+        String fit = buildFitSegment(item, profile);
+        String risk = buildRiskSegment(item);
+        String adjustment = buildAdjustmentSegment(item, profile);
+        return String.join(" | ",
+                "梯度定位：" + gradient,
+                "适配理由：" + fit,
+                "风险信号：" + risk,
+                "可调节项：" + adjustment);
+    }
+
+    static String buildGradientSegment(VolunteerItem item) {
+        String gradient = item.getGradient() == null ? "" : item.getGradient();
+        int score = item.getChanceScore();
+        String prob = score > 0 ? score + "%" : "—";
+        return switch (gradient) {
+            case "冲" -> "冲刺位（参考概率约 " + prob + "，保留机会但允许偏低命中）";
+            case "稳" -> "主体稳位（参考概率约 " + prob + "，是当前 96 志愿的中坚）";
+            case "保" -> "防止落空位（参考概率约 " + prob + "，用于本科批次的安全网）";
+            case "垫" -> "兜底位（参考概率约 " + prob + "，封底整张志愿表的最低锚点）";
+            default -> "候选参考位（参考概率约 " + prob + "）";
+        };
+    }
+
+    static String buildFitSegment(VolunteerItem item, PreferenceProfile profile) {
         List<String> reasons = new ArrayList<>();
-        if ((item.getMatchScore()) >= 60) {
+        if (item.getMatchScore() >= 60) {
             reasons.add("与你填写的专业/地区偏好高度匹配");
         }
         if ("专业级".equals(item.getDataSourceType())) {
@@ -2609,7 +2644,8 @@ public class VolunteerService {
         }
         if ("扩招".equals(item.getPlanTrend())) {
             reasons.add("最近招生计划有扩招信号，安全边际相对改善");
-        } else if ("基本稳定".equals(item.getPlanTrend()) && item.getLatestPlanCount() != null && item.getLatestPlanCount() >= 15) {
+        } else if ("基本稳定".equals(item.getPlanTrend())
+                && item.getLatestPlanCount() != null && item.getLatestPlanCount() >= 15) {
             reasons.add("招生计划相对稳定，且计划数具备一定规模");
         }
         if (item.getSchoolEnrollmentIndex() >= 75) {
@@ -2633,7 +2669,64 @@ public class VolunteerService {
         if ("城市机会优先".equals(profile.getCareerGoal()) && isOpportunityCity(item)) {
             reasons.add("所在城市资源和实习机会相对更集中");
         }
-        return reasons.isEmpty() ? "可作为同梯度中的备选项，建议与相近院校一起对比后决定" : String.join("；", reasons);
+        return reasons.isEmpty() ? "在同梯度内属一般匹配，可与相近院校横向比较后再决定" : String.join("；", reasons);
+    }
+
+    static String buildRiskSegment(VolunteerItem item) {
+        List<String> risks = new ArrayList<>();
+        if ("院校级".equals(item.getDataSourceType())) {
+            risks.add("当前为院校级回退数据，专业精度低于专业级");
+        }
+        if ("red".equals(item.getRiskColor()) || item.getAdmissionProb() < 40) {
+            risks.add("波动偏大，存在滑档或专业落差风险");
+        }
+        if (item.getTrend() != null && item.getTrend().contains("加剧")) {
+            risks.add("近年竞争有加剧迹象");
+        }
+        if ("缩招".equals(item.getPlanTrend())) {
+            risks.add("最近招生计划有缩招信号");
+        } else if ("计划数暂缺".equals(item.getPlanTrend())) {
+            risks.add("招生计划数暂缺，影响概率与扩招判断");
+        }
+        if (item.getLatestPlanCount() != null && item.getLatestPlanCount() > 0
+                && item.getLatestPlanCount() <= 3) {
+            risks.add("招生计划数较少，位次波动更敏感");
+        }
+        if (item.getPlanExpansionIndex() > 0 && item.getPlanExpansionIndex() <= 85) {
+            risks.add("扩招指数偏低，供给收紧信号需关注");
+        }
+        if (item.getSchoolEnrollmentIndex() > 0 && item.getSchoolEnrollmentIndex() < 45) {
+            risks.add("院校招生供给指数偏低，小计划数放大偶然波动");
+        }
+        if (item.getPrecisionScore() > 0 && item.getPrecisionScore() < 55) {
+            risks.add("推荐精度偏低，需优先核验计划数、位次与专业目录");
+        }
+        return risks.isEmpty() ? "暂未识别到突出的风险信号，仍建议结合招生章程与体检要求复核" : String.join("；", risks);
+    }
+
+    static String buildAdjustmentSegment(VolunteerItem item, PreferenceProfile profile) {
+        List<String> adjustments = new ArrayList<>();
+        String gradient = item.getGradient() == null ? "" : item.getGradient();
+        if ("冲".equals(gradient)) {
+            adjustments.add("如果你担心冲刺位过多，可在结果页把策略切到“保守型”，整体把“冲”压到 10 条左右");
+        } else if ("垫".equals(gradient) || "保".equals(gradient)) {
+            adjustments.add("可放宽专业、城市或学校层次以扩充候选池，提升兜底位的可选项");
+        } else if ("稳".equals(gradient)) {
+            adjustments.add("可在专业方向与城市维度互相替换，比较 1-2 所同梯度院校再排序");
+        }
+        if (item.getLatestPlanCount() != null && item.getLatestPlanCount() > 0 && item.getLatestPlanCount() <= 5) {
+            adjustments.add("计划数较少时，可考虑同院校相近专业组的“同方向替代”分散单专业风险");
+        }
+        if (profile != null && !profile.isAcceptSinoForeign() && isSinoForeignLike(item)) {
+            adjustments.add("若可接受合作办学，可在偏好开关里开启“接受中外合作”再次生成");
+        }
+        if (item.getPrecisionScore() > 0 && item.getPrecisionScore() < 60) {
+            adjustments.add("精度分较低时，建议先补齐位次或确认招生计划，再用同条件重新生成方案");
+        }
+        if (adjustments.isEmpty()) {
+            adjustments.add("可在结果页切换策略模式或调整偏好开关，再次生成对比新旧方案");
+        }
+        return String.join("；", adjustments);
     }
 
     private String buildRiskReason(VolunteerItem item, PreferenceProfile profile) {
@@ -2696,7 +2789,7 @@ public class VolunteerService {
         return "适合作为梯度中的功能位志愿，和相近学校一起整体考虑";
     }
 
-    private boolean isSinoForeignLike(VolunteerItem item) {
+    static boolean isSinoForeignLike(VolunteerItem item) {
         String name = (item.getUniversityName() != null ? item.getUniversityName() : "")
                 + (item.getMajorName() != null ? item.getMajorName() : "");
         return name.contains("中外合作") || name.contains("联合学院") || name.contains("国际");
@@ -3453,7 +3546,7 @@ public class VolunteerService {
 
     private String buildCityAdvice(PlanResult plan, List<VolunteerItem> items) {
         List<String> preferredRegions = plan == null || plan.getPreferredRegions() == null ? List.of() : plan.getPreferredRegions();
-        long opportunityCityCount = items.stream().filter(this::isOpportunityCity).count();
+        long opportunityCityCount = items.stream().filter(VolunteerService::isOpportunityCity).count();
         if (preferredRegions.isEmpty()) {
             return String.format("你没有填写地区偏好。方案中约%d个条目位于机会密度较高的城市；普通本科段尤其建议重视实习、校招和未来就业地。", opportunityCityCount);
         }
