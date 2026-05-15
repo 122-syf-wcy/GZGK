@@ -1,6 +1,8 @@
 package com.gzly.service;
 
 import com.gzly.common.exception.BizException;
+import com.gzly.entity.PlanHistory;
+import com.gzly.mapper.PlanHistoryMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Service;
@@ -19,12 +21,18 @@ public class SafetyCodeService {
     @Value("${gzly.jwt.secret}")
     private String jwtSecret;
 
+    private final PlanHistoryMapper planHistoryMapper;
+
+    public SafetyCodeService(PlanHistoryMapper planHistoryMapper) {
+        this.planHistoryMapper = planHistoryMapper;
+    }
+
     public SafetyCodeIssue issue(String requestedCode) {
-        String code = normalize(requestedCode);
+        String code = normalizeSafetyCode(requestedCode);
         if (code.isBlank()) {
-            code = generate();
+            code = generateSafetyCode();
         }
-        return new SafetyCodeIssue(code, hash(code));
+        return new SafetyCodeIssue(code, hashSafetyCode(code));
     }
 
     public boolean verify(Long planId, String submittedCode, String storedHash) {
@@ -34,36 +42,24 @@ public class SafetyCodeService {
         }
         if (storedHash != null && !storedHash.isBlank()) {
             try {
-                String code = normalize(raw);
+                String code = normalizeSafetyCode(raw);
                 return BCrypt.checkpw(hashPayload(code), storedHash.trim());
             } catch (Exception e) {
                 return false;
             }
         }
-        return MessageDigest.isEqual(
-                buildLegacyAccessKey(planId).getBytes(StandardCharsets.UTF_8),
-                raw.getBytes(StandardCharsets.UTF_8));
+        return isLegacyAccessKey(planId, raw);
     }
 
-    public String buildLegacyAccessKey(Long planId) {
+    public boolean verifyPlanAccess(Long planId, String code) {
         if (planId == null || planId <= 0) {
-            return "";
+            return false;
         }
-        return sha256Hex("plan:" + planId + ":" + safeTrim(jwtSecret));
+        PlanHistory history = planHistoryMapper.selectById(planId);
+        return history != null && verify(planId, code, history.getSafetyCodeHash());
     }
 
-    public String mask(String code) {
-        String normalized = normalize(code);
-        if (normalized.isBlank()) {
-            return "";
-        }
-        if (normalized.length() <= 4) {
-            return "****";
-        }
-        return normalized.substring(0, 2) + "****" + normalized.substring(normalized.length() - 2);
-    }
-
-    private String generate() {
+    public String generateSafetyCode() {
         StringBuilder sb = new StringBuilder(GENERATED_LENGTH);
         for (int i = 0; i < GENERATED_LENGTH; i++) {
             sb.append(CHARSET[RANDOM.nextInt(CHARSET.length)]);
@@ -71,7 +67,7 @@ public class SafetyCodeService {
         return sb.toString();
     }
 
-    private String normalize(String code) {
+    public String normalizeSafetyCode(String code) {
         if (code == null) {
             return "";
         }
@@ -91,12 +87,52 @@ public class SafetyCodeService {
         return normalized;
     }
 
-    private String hash(String code) {
+    public String hashSafetyCode(String code) {
         return BCrypt.hashpw(hashPayload(code), BCrypt.gensalt(10));
     }
 
+    public String maskSafetyCode(String code) {
+        String normalized = normalizeSafetyCode(code);
+        if (normalized.isBlank()) {
+            return "";
+        }
+        if (normalized.length() <= 4) {
+            return "****";
+        }
+        return normalized.substring(0, 2) + "****" + normalized.substring(normalized.length() - 2);
+    }
+
+    public String fingerprint(String code) {
+        String normalized = normalizeSafetyCode(code);
+        if (normalized.isBlank()) {
+            return "";
+        }
+        return sha256Hex("safety-code-fingerprint:" + normalized + ":" + pepper());
+    }
+
+    public String buildLegacyAccessKey(Long planId) {
+        if (planId == null || planId <= 0) {
+            return "";
+        }
+        return sha256Hex("plan:" + planId + ":" + safeTrim(jwtSecret));
+    }
+
+    private boolean isLegacyAccessKey(Long planId, String raw) {
+        return MessageDigest.isEqual(
+                buildLegacyAccessKey(planId).getBytes(StandardCharsets.UTF_8),
+                raw.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public String mask(String code) {
+        return maskSafetyCode(code);
+    }
+
     private String hashPayload(String code) {
-        return normalize(code) + ":" + safeTrim(jwtSecret);
+        return normalizeSafetyCode(code) + ":" + pepper();
+    }
+
+    private String pepper() {
+        return sha256Hex("safety-code:" + safeTrim(jwtSecret));
     }
 
     private String sha256Hex(String payload) {

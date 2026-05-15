@@ -25,16 +25,23 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthController {
 
+    private static final String CARD_KEY_GONE_MESSAGE = "卡密功能已下线，请使用安全码访问志愿方案。";
+
     @PostMapping("/activate")
     public Result<Map<String, Object>> activate(@RequestBody ActivateRequest req, HttpServletRequest httpReq) {
         if (req == null) throw new BizException("参数不能为空");
-        throw new BizException(410, "卡密激活功能已下线，请直接生成志愿方案并保存安全码");
+        throw new BizException(410, CARD_KEY_GONE_MESSAGE);
     }
 
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody LoginRequest req, HttpServletRequest httpReq) {
         if (req == null) throw new BizException("参数不能为空");
-        throw new BizException(410, "卡密登录功能已下线，请使用方案ID和安全码访问已生成方案");
+        throw new BizException(410, CARD_KEY_GONE_MESSAGE);
+    }
+
+    @GetMapping("/login")
+    public Result<Map<String, Object>> loginGone() {
+        throw new BizException(410, CARD_KEY_GONE_MESSAGE);
     }
 
     @Data

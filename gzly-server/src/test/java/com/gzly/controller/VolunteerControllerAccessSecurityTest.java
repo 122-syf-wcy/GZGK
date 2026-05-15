@@ -128,7 +128,7 @@ class VolunteerControllerAccessSecurityTest {
         verify(valueOperations).set(keyCaptor.capture(), payloadCaptor.capture(), eq(Duration.ofSeconds(120)));
         assertThat(keyCaptor.getValue()).startsWith("volunteer:ai-ticket:");
         assertThat(payloadCaptor.getValue()).contains("\"planId\":99");
-        assertThat(payloadCaptor.getValue()).contains("\"accessKey\":\"secret-access-key\"");
+        assertThat(payloadCaptor.getValue()).contains("\"safetyCode\":\"secret-access-key\"");
         assertThat(payloadCaptor.getValue()).contains("\"profile\":\"稳妥优先\"");
     }
 
@@ -140,9 +140,29 @@ class VolunteerControllerAccessSecurityTest {
         mockMvc.perform(post("/volunteer/ai-analysis-ticket")
                         .contentType(APPLICATION_JSON)
                         .content("{\"planId\":99,\"accessKey\":\"bad-key\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(-1))
-                .andExpect(jsonPath("$.message").value("方案不存在或访问密钥无效"));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403))
+                .andExpect(jsonPath("$.message").value("安全码错误或无权访问该方案"));
+    }
+
+    @Test
+    void shouldRejectAiAnalysisTicketWhenSafetyCodeMissing() throws Exception {
+        mockMvc.perform(post("/volunteer/ai-analysis-ticket")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"planId\":99}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403))
+                .andExpect(jsonPath("$.message").value("安全码错误或无权访问该方案"));
+    }
+
+    @Test
+    void shouldRejectZxfSkillsChatWhenSafetyCodeMissing() throws Exception {
+        mockMvc.perform(post("/volunteer/zhangxuefeng-skills-chat")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"planId\":99,\"message\":\"哪些志愿该删\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403))
+                .andExpect(jsonPath("$.message").value("安全码错误或无权访问该方案"));
     }
 
     @Test
