@@ -133,7 +133,11 @@ public class AdminImportJobService {
         return detail;
     }
 
-    @Transactional
+    // 不要把整个方法标 @Transactional：每个文件 upsert 都要读全量字节算 SHA-256，
+    // 旧版本会让 MySQL 在 admin_import_job_file 上持有行锁直到所有 sha256 算完，
+    // 并发的 staging dry-run 会撞 Lock wait timeout exceeded（线上 2026-05-15 已复现）。
+    // 现在让每个 upsertFile / insertArtifact / updateStatus 各自走 auto-commit 短事务，
+    // 出错时只保留已落库的 file 行，下次重跑靠 (job_id, file_path) 的唯一键幂等续上。
     public StagingResult generateStagingDryRun(Long jobId) {
         AdminImportJob job = requireJob(jobId);
         Path sourceDir = normalizeAllowedPath(job.getSourceDir(), sourceRoots(), "source_dir 不在允许目录内");
@@ -170,6 +174,14 @@ public class AdminImportJobService {
         } catch (IOException e) {
             updateStatus(job, STATUS_FAILED);
             throw new BizException("生成 staging dry-run 失败: " + e.getMessage());
+        } catch (RuntimeException e) {
+            // 没了 @Transactional，DB 异常不会自动回滚状态，显式把 job 标 FAILED 再抛。
+            try {
+                updateStatus(job, STATUS_FAILED);
+            } catch (RuntimeException ignored) {
+                // 状态更新本身失败时不要遮蔽原始异常
+            }
+            throw e;
         }
     }
 

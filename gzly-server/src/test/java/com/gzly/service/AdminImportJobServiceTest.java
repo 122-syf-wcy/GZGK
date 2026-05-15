@@ -144,6 +144,26 @@ class AdminImportJobServiceTest {
     }
 
     @Test
+    void adminImportJob_stagingDryRun_marksFailed_whenDbInsertThrowsRuntime() throws Exception {
+        storedJob = job("CREATED");
+        Files.writeString(sourceRoot.resolve("2026").resolve("official.pdf"), "official-source");
+        when(fileMapper.selectOne(any(Wrapper.class))).thenReturn(null);
+        // 模拟 MySQL 锁竞争: file insert 抛 RuntimeException (例如 CannotAcquireLockException)
+        when(fileMapper.insert(any(AdminImportJobFile.class)))
+                .thenThrow(new RuntimeException("Lock wait timeout exceeded; try restarting transaction"));
+
+        assertThatThrownBy(() -> service.generateStagingDryRun(1L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Lock wait timeout");
+
+        // 即便没了 @Transactional，job 状态也要被显式标 FAILED
+        assertThat(storedJob.getStatus()).isEqualTo(AdminImportJobService.STATUS_FAILED);
+        verify(jobMapper).updateById(storedJob);
+        // artifact 永远不会插入（因为 file insert 已经失败）
+        verify(artifactMapper, never()).insert(any(AdminImportJobArtifact.class));
+    }
+
+    @Test
     void adminImportJob_shouldRunQualityCheck() throws Exception {
         storedJob = job("STAGING_GENERATED");
         when(fileMapper.selectCount(any(Wrapper.class))).thenReturn(1L);
