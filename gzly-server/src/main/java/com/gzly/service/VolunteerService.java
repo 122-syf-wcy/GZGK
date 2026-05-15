@@ -489,6 +489,20 @@ public class VolunteerService {
         private Map<String, Object> modelInfo;
         /** 新规范接口返回的警告列表 */
         private List<String> warnings;
+        private int activeAdmissionYear;
+        private int latestOfficialDataYear;
+        private int targetYear;
+        private int futureImportYear;
+        private List<Integer> trainingYears;
+        private List<Integer> dataSourceYears;
+        private String recommendationPhase;
+        private boolean estimateMode;
+        private boolean officialDataReady;
+        private BatchSupportService.DataReadiness dataReadiness;
+        private String supportLevel;
+        private String recommendMode;
+        private String engineName;
+        private String supportReason;
         /**
          * VolunteerDiagnosisEngine 13 维诊断输出：totalCount / policyMaxCount / gradientCount /
          * overallRisk / summary / diagnosis / warnings / longestHighRiskRun / eliteCount。

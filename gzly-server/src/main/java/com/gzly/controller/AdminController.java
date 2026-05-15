@@ -7,6 +7,7 @@ import com.gzly.common.Result;
 import com.gzly.common.exception.BizException;
 import com.gzly.entity.*;
 import com.gzly.service.AiConfigService;
+import com.gzly.service.BatchSupportService;
 import com.gzly.mapper.*;
 import com.gzly.service.OfficialLinkPriorityService;
 import com.gzly.service.VolunteerMetricsRecorder;
@@ -71,6 +72,8 @@ public class AdminController {
     private StringRedisTemplate stringRedisTemplate;
     @Autowired(required = false)
     private CacheManager cacheManager;
+    @Autowired(required = false)
+    private BatchSupportService batchSupportService;
 
     private static final BCryptPasswordEncoder ADMIN_PASSWORD_ENCODER = new BCryptPasswordEncoder();
     private final Map<String, LocalLoginCounter> localLoginCounters = new ConcurrentHashMap<>();
@@ -93,6 +96,14 @@ public class AdminController {
         result.put("token", token);
         result.put("role", "admin");
         return Result.ok(result);
+    }
+
+    @GetMapping("/volunteer/gz/batch-support")
+    public Result<BatchSupportService.BatchSupportResponse> gzBacktestBatchSupport(@RequestParam(required = false) Integer year) {
+        if (batchSupportService == null) {
+            throw new BizException("批次支持服务不可用");
+        }
+        return Result.ok(batchSupportService.supportMatrix("GZ", year, false));
     }
 
     private boolean verifyAdminPassword(String rawPassword) {
