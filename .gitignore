@@ -52,3 +52,11 @@ ml-service/.pytest_cache/
 scripts/data/raw/
 scripts/data/cache/
 scripts/**/raw/
+
+# 本地保留的全量 migration-kit（含明文 env / SSL key / 用户数据），禁止入库
+backups/
+gzly-migration-kit-*
+# 默认禁止 sql.gz 入库（防止误推全量 dump），但允许 migration/data/ 下的公开数据
+*.sql.gz
+!migration/data/*.sql.gz
+!migration/data/*.sql.gz.sha256
