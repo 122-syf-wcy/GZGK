@@ -1,48 +1,11 @@
 # =========================================================================
-# 反爬 / 反扫描公共配置（map + limit_zone）。
-# 这些指令必须出现在 http {} 上下文；放在 conf.d/gzly.conf 顶部由 nginx 自动
-# include 进 http。如果生产 nginx 已在 nginx.conf 中定义了同名 zone，请删除
-# 这里的对应行避免重复定义。
+# 反爬 / 反扫描的 limit_req_zone / limit_conn_zone / map 公共定义已抽到
+# migration/nginx/gzly-shared.conf.example，本文件只引用：
+#   $gzly_bad_ua / $gzly_bad_path / gzly_api / gzly_generate / gzly_ai /
+#   gzly_admin_login / gzly_stats / gzly_conn
+# 部署时必须同时把 gzly-shared.conf.example 复制为
+# /etc/nginx/conf.d/00-zzz-gzly-shared.conf 才能让本文件正常 reload。
 # =========================================================================
-
-# 1. 恶意 UA 黑名单：直接 444 关闭连接，不返回任何响应（不消耗带宽，不暴露版本）。
-#    保留 Baiduspider / Googlebot / Bingbot / 360Spider / Sogou 等正规搜索引擎 UA。
-map $http_user_agent $gzly_bad_ua {
-    default                                  0;
-    ""                                       1;
-    "~*curl/"                                1;
-    "~*python-requests"                      1;
-    "~*python-urllib"                        1;
-    "~*\bwget\b"                             1;
-    "~*\bscrapy\b"                           1;
-    "~*\bnikto\b"                            1;
-    "~*\bsqlmap\b"                           1;
-    "~*\bnessus\b"                           1;
-    "~*\bnmap\b"                             1;
-    "~*\bmasscan\b"                          1;
-    "~*\bzgrab\b"                            1;
-    "~*\bzmap\b"                             1;
-    "~*acunetix"                             1;
-    "~*Apache-HttpClient"                    1;
-    "~*Java/"                                1;
-    "~*Go-http-client"                       1;
-    "~*okhttp"                               1;
-    "~*node-fetch"                           1;
-    "~*HeadlessChrome"                       1;
-    "~*PhantomJS"                            1;
-    "~*MJ12bot"                              1;
-    "~*AhrefsBot"                            1;
-    "~*SemrushBot"                           1;
-    "~*DotBot"                               1;
-    "~*PetalBot"                             1;
-    "~*Bytespider"                           1;
-    "~*ZoominfoBot"                          1;
-}
-
-# 2. API 速率限制：每个 IP 平均 2 req/s，桶 30；超过即 503，1 秒内连续超过即降级。
-#    志愿生成 / AI 解读已经有应用层限流，这里只兜底打扫描器和爬虫。
-limit_req_zone $binary_remote_addr zone=gzly_api:10m rate=2r/s;
-limit_conn_zone $binary_remote_addr zone=gzly_conn:10m;
 
 server {
     listen 80;
@@ -50,14 +13,10 @@ server {
     client_max_body_size 20m;
     access_log /var/log/nginx/access_gzly.log gzly_main;
 
-    # 反爬：黑名单 UA 直接 444
-    if ($gzly_bad_ua) { return 444; }
-
-    # 反爬：拒绝常见扫描器路径（爬虫 / 漏扫永远先访问这些）
-    location ~* (\.env$|\.git/|\.svn/|\.hg/|/wp-admin|/wp-login|/wp-content|/wp-includes|/xmlrpc\.php|/phpmyadmin|/pma/|/adminer|/druid/|/actuator/|/console/|/\.aws/|/\.ssh/|/server-status|/_ignition/|/install\.php|/eval-stdin\.php) {
-        access_log off;
-        return 444;
-    }
+    # 反爬：黑名单 UA / 扫描器路径直接 444 关闭连接（不消耗后端，也不暴露版本）
+    if ($gzly_bad_ua)   { return 444; }
+    if ($gzly_bad_path) { return 444; }
+    limit_conn gzly_conn 30;
 
     location /.well-known/acme-challenge/ {
         root /usr/share/nginx/html;
@@ -114,8 +73,8 @@ server {
     }
 
     location /api/ {
-        # 反爬：速率限制 + 单 IP 并发上限。SSE 长连接特例放后面单独 location。
-        limit_req zone=gzly_api burst=30 nodelay;
+        # 反爬：兜底速率（gzly_api 30r/s 来自 gzly-shared.conf）
+        limit_req zone=gzly_api burst=60 nodelay;
         limit_conn gzly_conn 20;
         proxy_pass http://127.0.0.1:8090;
         proxy_set_header Host $host;
@@ -139,14 +98,10 @@ server {
     client_max_body_size 20m;
     access_log /var/log/nginx/access_gzly.log gzly_main;
 
-    # 反爬：黑名单 UA 直接 444（HTTPS 入口同样要拦）
-    if ($gzly_bad_ua) { return 444; }
-
-    # 反爬：拒绝常见扫描器路径
-    location ~* (\.env$|\.git/|\.svn/|\.hg/|/wp-admin|/wp-login|/wp-content|/wp-includes|/xmlrpc\.php|/phpmyadmin|/pma/|/adminer|/druid/|/actuator/|/console/|/\.aws/|/\.ssh/|/server-status|/_ignition/|/install\.php|/eval-stdin\.php) {
-        access_log off;
-        return 444;
-    }
+    # 反爬：HTTPS 入口同样套用 shared 模板的 UA / path 黑名单
+    if ($gzly_bad_ua)   { return 444; }
+    if ($gzly_bad_path) { return 444; }
+    limit_conn gzly_conn 30;
 
     ssl_certificate /etc/nginx/ssl/<DOMAIN>.rsa.pem;
     ssl_certificate_key /etc/nginx/ssl/<DOMAIN>.rsa.key;
@@ -209,8 +164,10 @@ server {
         return 200 "";
     }
 
-    # SSE 长连接（AI 解读 / Skills 对话）单独 location：不走 limit_req 否则会把流式响应打断。
+    # SSE 长连接（AI 解读 / Skills 对话）单独 location：不走主 limit_req 否则会被打断流式响应。
+    # 走 gzly_ai 桶（6 r/min，来自 gzly-shared.conf）做应用层兜底节流，与后端 AI 限流叠加。
     location ~ ^/api/volunteer/(ai-analysis|zhangxuefeng-skills-chat) {
+        limit_req zone=gzly_ai burst=3 nodelay;
         limit_conn gzly_conn 4;
         proxy_pass http://127.0.0.1:8090;
         proxy_set_header Host $host;
@@ -226,9 +183,22 @@ server {
         chunked_transfer_encoding on;
     }
 
+    # 志愿生成单独走 gzly_generate（20 r/min）；剩余 /api/ 走通用 gzly_api（30 r/s）
+    location = /api/volunteer/generate {
+        limit_req zone=gzly_generate burst=10 nodelay;
+        limit_conn gzly_conn 10;
+        proxy_pass http://127.0.0.1:8090;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+        proxy_connect_timeout 10s;
+    }
+
     location /api/ {
-        # 反爬：速率限制 + 单 IP 并发上限
-        limit_req zone=gzly_api burst=30 nodelay;
+        # 反爬：通用 API 速率限制 + 单 IP 并发上限
+        limit_req zone=gzly_api burst=60 nodelay;
         limit_conn gzly_conn 20;
         proxy_pass http://127.0.0.1:8090;
         proxy_set_header Host $host;

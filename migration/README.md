@@ -14,7 +14,8 @@ migration/
 ├── schema/
 │   └── gzly_schema.sql                       全库结构（63 张表的 CREATE TABLE，约 2000 行）
 ├── nginx/
-│   └── gzly.conf.example                     Nginx vhost 模板（已替换域名为 <YOUR_DOMAIN>）
+│   ├── gzly.conf.example                     主 vhost（HTTP + HTTPS，反爬规则引用 shared 模板）
+│   └── gzly-shared.conf.example              全局 limit_req_zone + WAF maps + default-deny servers
 └── systemd/
     └── （直接复用项目根 `scripts/server/` 下已有的 .example）
 ```
@@ -128,8 +129,16 @@ gunzip -c $KIT/db/gzly_full_*.sql.gz | mysql -uroot -p<NEW_ROOT_PW>
 ### 5. Nginx 配置
 
 ```bash
-# 复制并按本机域名修改
+# 5.1 全局共享配置：限流 zone + UA/path WAF maps + default-deny servers
+#     必须先部署，否则主 vhost 引用的 $gzly_bad_ua / gzly_api 等会报未定义
+cp migration/nginx/gzly-shared.conf.example /etc/nginx/conf.d/00-zzz-gzly-shared.conf
+
+# 5.2 主 vhost：HTTP + HTTPS，按本机域名替换 <YOUR_DOMAIN> 与证书路径占位符
 sed "s|<YOUR_DOMAIN>|gzly.dongsiwei.com|g" migration/nginx/gzly.conf.example > /etc/nginx/conf.d/gzly.conf
+
+# 5.3 SSL 证书路径占位符（<DOMAIN>.rsa.pem / .key / .pem）需要按本机证书文件名手工改
+vim /etc/nginx/conf.d/gzly.conf  # 改 ssl_certificate / ssl_certificate_key 4 行
+
 nginx -t && systemctl reload nginx
 ```
 
