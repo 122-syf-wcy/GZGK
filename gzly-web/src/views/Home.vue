@@ -90,9 +90,23 @@ async function submitFeedbackForm(): Promise<void> {
               <span class="auth-chip__main">{{ authStore.profile.nickname || '我的空间' }}</span>
               <span class="auth-chip__count">剩 {{ authStore.remainPlans }} 次</span>
             </router-link>
-            <router-link v-else to="/volunteer" class="auth-chip auth-chip--activate" aria-label="直接生成方案">
-              <ArrowRight :size="13" /> 直接生成
-            </router-link>
+            <a
+              class="author-chip"
+              href="https://github.com/122-syf-wcy"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="GitHub 作者主页：122-syf-wcy"
+              title="GitHub 作者：122-syf-wcy"
+            >
+              <img
+                class="author-chip__avatar"
+                src="https://avatars.githubusercontent.com/122-syf-wcy?size=128"
+                alt="122-syf-wcy GitHub 头像"
+                loading="lazy"
+                referrerpolicy="no-referrer"
+              />
+              <span class="author-chip__name">122-syf-wcy</span>
+            </a>
           </div>
         </div>
         <h1 class="home-hero__title">先选择地区，再进入对应工作台</h1>
@@ -305,6 +319,51 @@ async function submitFeedbackForm(): Promise<void> {
   color: #5f4630;
   font-size: 11px;
   font-weight: 800;
+}
+
+.author-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  padding: 4px 20px 4px 4px;
+  border-radius: 999px;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.22);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.author-chip:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.28);
+}
+
+.author-chip:focus-visible {
+  outline: 3px solid rgba(29, 78, 216, 0.32);
+  outline-offset: 2px;
+}
+
+.author-chip__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #e2e8f0;
+  display: block;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+}
+
+.author-chip__name {
+  color: #0f172a;
+  white-space: nowrap;
 }
 
 .home-hero__badge {
@@ -644,6 +703,18 @@ async function submitFeedbackForm(): Promise<void> {
 
   .province-card {
     min-height: 0;
+  }
+
+  .author-chip {
+    height: 44px;
+    padding: 4px 14px 4px 4px;
+    gap: 10px;
+    font-size: 14px;
+  }
+
+  .author-chip__avatar {
+    width: 36px;
+    height: 36px;
   }
 }
 
