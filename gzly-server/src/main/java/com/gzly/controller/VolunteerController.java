@@ -57,6 +57,9 @@ public class VolunteerController {
     private int aiAnalysisActivePerIpLimit;
     @Value("${gzly.stability.ai-analysis-active-ttl-seconds:180}")
     private int aiAnalysisActiveTtlSeconds;
+    /** 同一 planId 的 AI 解读互斥锁 TTL，覆盖一次完整 SSE 调用的最长时间。 */
+    @Value("${gzly.stability.ai-analysis-plan-lock-ttl-seconds:120}")
+    private int aiAnalysisPlanLockTtlSeconds;
 
     @PostMapping("/generate")
     public Result<PlanResult> generate(@RequestBody GenerateRequest req, HttpServletRequest httpReq) {
@@ -350,7 +353,17 @@ public class VolunteerController {
         String clientIp = getClientIp(httpReq);
         String globalKey = "active:ai-analysis:global";
         String ipKey = "active:ai-analysis:ip:" + clientIp;
+        String planLockKey = "active:ai-analysis:plan:" + planId;
+        // planId 互斥：同一方案同时只允许一路 SSE，否则用户多次点击 / 多 tab 会重复消耗 OpenAI token。
+        if (!tryAcquireAiAnalysisPlanLock(planLockKey)) {
+            try {
+                emitter.send(SseEmitter.event().data("[ERROR] 该方案的 AI 解读正在生成中，请等待结果或稍后再试"));
+            } catch (Exception ignored) {}
+            emitter.complete();
+            return emitter;
+        }
         if (!tryAcquireAiAnalysisSlot(globalKey, ipKey)) {
+            releaseAiAnalysisPlanLock(planLockKey);
             try {
                 emitter.send(SseEmitter.event().data("[ERROR] 当前AI解读请求较多，请稍后再试"));
             } catch (Exception ignored) {}
@@ -359,12 +372,14 @@ public class VolunteerController {
         }
 
         AtomicBoolean released = new AtomicBoolean(false);
-        Runnable releaser = () -> releaseAiAnalysisSlot(globalKey, ipKey, released);
+        Runnable releaser = () -> {
+            releaseAiAnalysisSlot(globalKey, ipKey, released);
+            releaseAiAnalysisPlanLock(planLockKey);
+        };
         emitter.onCompletion(releaser);
         emitter.onTimeout(releaser);
         emitter.onError((ex) -> releaser.run());
 
-        // 异步流式调用
         try {
             taskExecutor.execute(() -> aiService.streamAnalysis(emitter, finalSummary));
         } catch (RejectedExecutionException e) {
@@ -711,6 +726,27 @@ public class VolunteerController {
             if (value != null && value <= 0) {
                 stringRedisTemplate.delete(key);
             }
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * planId 维度的 AI 解读互斥锁：SETNX + TTL。
+     * Redis 不可用时 fail-open（兼容现有降级语义），不阻塞用户。
+     */
+    private boolean tryAcquireAiAnalysisPlanLock(String planLockKey) {
+        try {
+            Boolean ok = stringRedisTemplate.opsForValue().setIfAbsent(
+                    planLockKey, "1", Duration.ofSeconds(Math.max(aiAnalysisPlanLockTtlSeconds, 30)));
+            return ok == null || ok;
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    private void releaseAiAnalysisPlanLock(String planLockKey) {
+        try {
+            stringRedisTemplate.delete(planLockKey);
         } catch (Exception ignored) {
         }
     }

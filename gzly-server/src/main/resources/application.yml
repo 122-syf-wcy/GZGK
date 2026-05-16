@@ -120,6 +120,13 @@ gzly:
     university-ttl: 86400
     score-line-ttl: 86400
 
+  # ---- 日志 ----
+  # logback-spring.xml 读取这两个配置；生产 systemd unit 推荐 GZLY_LOG_DIR=/opt/gzly/logs
+  log:
+    dir: ${GZLY_LOG_DIR:./logs}
+    level: ${GZLY_LOG_LEVEL:INFO}
+    level-root: ${GZLY_LOG_LEVEL_ROOT:INFO}
+
   rate-limit:
     enabled: true
     volunteer-generate-limit: 10
