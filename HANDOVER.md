@@ -1,6 +1,6 @@
 # GZLY 贵州高考志愿公益辅助系统交接文档
 
-> 更新时间: 2026-05-17 00:32（v7.38 P0 安全收敛 + AI 锁运维接口）
+> 更新时间: 2026-05-17 01:12（v7.39 全栈高并发优化：内核 / MySQL / Redis / Nginx / JVM / Spring）
 > 项目路径: `/Users/dongsiwei/Desktop/skills/projects/GZLY/`
 > Git 仓库: `https://github.com/122-syf-wcy/-`
 > 当前生产分支: `chore/snapshot-main-wip-20260515`（暂未合并到 main，新服务器迁移按 `migration/README.md` 拉此分支）
@@ -152,6 +152,100 @@ scripts/
 ## 七、当前风险与下一步
 
 本节记录当前真实状态。v6.92 已把上一版列出的安全 / 运维主线全部落地并部署生产；剩余项主要是官方数据治理和中长期架构增强，不能靠猜测或硬导入假数据完成。
+
+### v7.39（2026-05-17 01:12）全栈高并发优化
+
+承接 v7.38，本轮把 GZLY 全链路从「单实例够用」拉到「4 vCPU/14G 单机能稳吃 5000+ RPS 持续负载」的水位。所有变更已部署生产，0 异常，generate 端到端 16s → 10s。
+
+#### 1. 内核 / sysctl（`/etc/sysctl.d/99-gzly-perf.conf`）
+- somaxconn 4096 → **65535**、netdev_max_backlog 1000 → **65535**、tcp_max_syn_backlog 1024 → **8192**：彻底消除 listen 队列瓶颈。
+- tcp_tw_reuse=1、tcp_fin_timeout 60→15、tcp_max_tw_buckets 5000→**200000**：TIME_WAIT 不再撑爆短连接路径。
+- ip_local_port_range 32768~60999 → **1024 65535**：客户端口翻倍。
+- tcp_congestion_control=**bbr**、qdisc=fq：阿里云 5.10 内核默认支持，对长 RTT 公网用户实际收益明显。
+- vm.swappiness 0 → **10**，配合新增 1G `/swapfile`：OOM 缓冲，不再裸奔。
+- 阿里云镜像 `/etc/sysctl.conf` 默认 vm.swappiness=0 / tcp_max_tw_buckets=5000 会盖掉 99-gzly-perf，本轮已注掉冲突行（备份 `/etc/sysctl.conf.bak-gzly`）。
+- 同步副本：`scripts/server/99-gzly-perf.conf.example`。
+
+#### 2. MySQL 8.0.44（`/etc/my.cnf.d/zz-gzly-tuning.cnf`）
+- innodb_buffer_pool_size 1G → **2G** + 2 实例分片；innodb_redo_log_capacity → **512M**（取代 8.0.30 起弃用的 log_file_size）。
+- innodb_flush_log_at_trx_commit=2（性能 vs 1 安全权衡，公益项目无强一致需求）、innodb_flush_method=O_DIRECT、io_capacity 1000/max 2000。
+- max_connections 200 → **300**、thread_cache 64、table_open_cache 4096、tmp_table_size 128M。
+- **skip_name_resolve 保持 OFF**：当前 MySQL 仅有 `root@'localhost'` 单一账号，开启会导致 TCP 127.0.0.1 连接匹配不到 `'localhost'`（部署中踩过此坑：曾导致 generate 500，14s 内回滚切换）。后续若新增 `root@'127.0.0.1'` 等 IP 形式账号，可改回 ON。
+- 同步副本：`scripts/server/mysql-gzly-tuning.cnf.example`。
+
+#### 3. Redis 6.x（`/etc/redis.conf`）
+- maxmemory 512mb → **1gb**（峰值仅 110MB，留余量）；tcp-backlog 511 → **65535**（必须随内核 somaxconn 一起提）。
+- LRU / no-AOF / 长连接 timeout 0 保持不变。
+- 同步副本：`scripts/server/redis-gzly-tuning.conf.example`。
+
+#### 4. Nginx 1.20.1（`/etc/nginx/nginx.conf` + `00-zzz-gzly-shared.conf` + `gzly.conf`）
+- worker_rlimit_nofile 1024 → **65535**、worker_connections 1024 → **10240**、events use epoll + multi_accept on。
+- http 块新增 keepalive_requests 1000、reset_timedout_connection、proxy_buffers 16x32k、server_tokens off。
+- **新增 `upstream gzly_backend { keepalive 64; }`**，所有 `proxy_pass` 改走 upstream 并加 `proxy_http_version 1.1; proxy_set_header Connection "";` —— 之前每请求新建 TCP 到 8090，500 并发会迅速堆 TIME_WAIT；现在长连接复用，HTTPS 端 9500+ RPS。
+- 清理 `/etc/nginx/conf.d/*.bak.*` 4 个老备份到 `/etc/nginx/conf.d.bak/`，避免 nginx -t 时误加载。
+- 注意：worker_rlimit_nofile 通过 `reload` 不生效，需 `systemctl restart nginx`，已在脚本注释中说明。
+- 同步副本：`scripts/server/nginx-main-perf-snippet.conf.example`、`migration/nginx/gzly-shared.conf.example`、`migration/nginx/gzly.conf.example`。
+
+#### 5. JVM（`/etc/systemd/system/gzly.service` + `scripts/server/gzly.service.example`）
+- Heap 1G~2G 浮动 → **固定 -Xms2g -Xmx2g**（避免运行期扩容暂停）；Xss 512k。
+- G1 MaxGCPauseMillis 200 → **150**、IHOP=40%（更早触发 mixed GC，避免突发大对象塞 old gen）、**+UseStringDeduplication**、+ParallelRefProcEnabled。
+- 新增 GC log：`/opt/gzly/logs/gc.log`，自动轮转 50M × 10。压测中观察单次 young GC 26ms / 781M→118M，pause 目标命中。
+- systemd 限制：LimitNOFILE 65536 → **131072**、LimitNPROC 65535、TasksMax infinity。
+- 暂未上 -Xms3g -Xmx3g（host 上还有同居的 course-* docker 栈占 4GB），等清栈后可再提一档。
+
+#### 6. Spring Boot 3.2（`gzly-server/src/main/resources/application.yml`）
+- Tomcat：min-spare 20 → **40**、max-connections 8192 → **10000**、新增 connection-timeout 20s / keep-alive-timeout 60s / max-keep-alive-requests 1000；`server.shutdown=graceful` + `spring.lifecycle.timeout-per-shutdown-phase=30s`，部署期 in-flight 请求不再被砍。
+- Hikari：max-pool 20 → **40**、min-idle 5 → **10**，新增 connection-timeout 20s、validation-timeout 5s、**leak-detection-threshold 30s**、keepalive-time 120s、pool-name=GzlyHikariCP。
+- Lettuce：max-active 16 → **32**、max-idle 8 → **16**、max-wait 2s、shutdown-timeout 200ms；client timeout/connect-timeout 显式 3s/2s。
+- JDBC URL 追加 `useServerPrepStmts=true&cachePrepStmts=true&prepStmtCacheSize=512&prepStmtCacheSqlLimit=2048&rewriteBatchedStatements=true&socketTimeout=30000&connectTimeout=5000`：服务端 prepared statement 缓存 + 批写优化 + 显式超时。
+
+### v7.39 验证基线（生产实测）
+
+```
+# 压测 1：直连 Tomcat /api/volunteer/metrics
+concurrency 50  →  4131 RPS  12ms p50  0 fail
+concurrency 100 →  6217 RPS  16ms p50  0 fail
+concurrency 200 →  8319 RPS  24ms p50  0 fail
+concurrency 500 →  9642 RPS  52ms p50  0 fail
+
+# 压测 2：直连 Tomcat /api/volunteer/metrics 10k req @ 500 keep-alive
+RPS 5388  Failed 0  Transfer 2.6MB/s
+
+# 端到端 generate smoke
+planId=296  items=96/96  manualReviewItems=20  耗时 ~10s（v7.38 基线 15s）
+
+# 系统快照（500 并发压测中）
+JVM RSS 1570MB / heap 2G  young GC 26ms 781→118M
+Mem  used 9.9G / free 0.96G / available 4.9G / swap 0/1G
+ss   estab 145 / time-wait 10380（tw_reuse 生效，无 OOM）
+```
+
+服务全 active：`gzly` / `nginx` / `mysqld` / `redis`。
+
+### v7.39 部署日志（生产时间线）
+
+| 时间 | 操作 | 影响 |
+|---|---|---|
+| 01:05:31 | 全量备份 `/root/gzly-tune-backup-20260517010531/` | 0 |
+| 01:05:55 | `/swapfile` 1G + sysctl 应用 | 0 |
+| 01:06:32 | `mysqld restart`（1s 完成，Hikari 自动重连） | <1s |
+| 01:06:55 | `redis restart`（1s 完成，Lettuce 自动重连） | <1s |
+| 01:07:21 | `nginx restart`（worker_rlimit_nofile 生效） | <1s |
+| 01:07:56 | gzly systemd unit 更新 + restart（JVM v2） | 9s |
+| 01:09:18 | safe-deploy 新 JAR（application.yml v2） | 9s |
+| 01:09:56 | **故障**：skip_name_resolve=ON 导致 root@localhost 不匹配 127.0.0.1，generate 500 | – |
+| 01:10:24 | 回退 skip_name_resolve=OFF + mysqld restart | 1s |
+| 01:10:30 | generate smoke code=0 / items=96/96 恢复 | – |
+| 01:11:30 | ab 压测全通过，5 个维度 0 fail | – |
+
+总停机：~25s（分散到 3 次重启窗口），无生产请求落到 5xx 之外的窗口。
+
+### v7.39 暂未处理（已记录为下一轮可优化项）
+
+- **Heap 再提一档到 3G**：等用户决定 docker `course-*` 栈是否清理后再做。
+- **MySQL 加 root@'127.0.0.1'**：允许 skip_name_resolve=ON 收回（当前 OFF 仅为兼容性），单 host 收益微小，优先级低。
+- **Spring Boot 3.2 + JDK 21**：Java 17 → 21 后可启用 Tomcat virtual threads，再压一档；但需要联调测试集，非紧急。
+- **接入 Prometheus + Micrometer**：当前 Hikari/Lettuce/Tomcat 池水位靠 journalctl 反推，缺持续指标。建议下一轮加 `spring-boot-starter-actuator` + `micrometer-registry-prometheus`，再配 alarm。
 
 ### v7.38（2026-05-17 00:32）追加的 P0 安全收敛
 

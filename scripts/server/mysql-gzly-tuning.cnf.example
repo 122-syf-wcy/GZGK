@@ -1,0 +1,50 @@
+# === GZLY 高并发 MySQL 调优（生产同步副本 v2 2026-05-17）===
+# 部署：cp mysql-gzly-tuning.cnf.example /etc/my.cnf.d/zz-gzly-tuning.cnf && systemctl restart mysqld
+# 兼容范围：MySQL 8.0.30+（innodb_redo_log_capacity 替代 log_file_size）。
+[mysqld]
+# ---- InnoDB 缓冲池：gzly 整库 ~722MB，2G 足够 cache 热表/索引 ----
+innodb_buffer_pool_size=2G
+innodb_buffer_pool_instances=2
+
+# ---- Redo log / IO ----
+innodb_redo_log_capacity=512M
+innodb_flush_log_at_trx_commit=2
+innodb_flush_method=O_DIRECT
+innodb_io_capacity=1000
+innodb_io_capacity_max=2000
+innodb_read_io_threads=4
+innodb_write_io_threads=4
+innodb_purge_threads=4
+innodb_lru_scan_depth=512
+
+# ---- 并发连接 ----
+max_connections=300
+max_user_connections=290
+thread_cache_size=64
+table_open_cache=4096
+table_definition_cache=2048
+
+# ---- 临时表 / sort buffer ----
+tmp_table_size=128M
+max_heap_table_size=128M
+sort_buffer_size=2M
+join_buffer_size=2M
+
+# ---- 名字解析 / 超时 ----
+# skip_name_resolve 仅在所有用户都用 IP 形式时启用；当前 root@'localhost' 单一用户，需 OFF。
+# 若新增 root@'127.0.0.1' 等 IP 形式用户，可改为 ON。
+skip_name_resolve=OFF
+wait_timeout=600
+interactive_timeout=600
+
+# ---- 慢日志 / binlog ----
+slow_query_log=ON
+slow_query_log_file=/var/log/mysql/mysql-slow.log
+long_query_time=2
+log_queries_not_using_indexes=OFF
+max_binlog_size=100M
+binlog_expire_logs_seconds=86400
+
+# ---- 字符集 ----
+character-set-server=utf8mb4
+collation-server=utf8mb4_0900_ai_ci

@@ -20,6 +20,17 @@ limit_req_zone $binary_remote_addr zone=gzly_stats:10m       rate=120r/m;
 # Concurrent connections per IP cap (defense against SSE / slow loris).
 limit_conn_zone $binary_remote_addr zone=gzly_conn:10m;
 
+# ---------- Upstream with keepalive (added v7.39 2026-05-17 高并发优化) ----------
+# 主 vhost 必须用 proxy_pass http://gzly_backend; + proxy_http_version 1.1;
+# + proxy_set_header Connection ""; 才能复用长连接，否则每请求新建 TCP，
+# 在 4 vCPU 实例上会被 TIME_WAIT 堆积拖死。
+upstream gzly_backend {
+    server 127.0.0.1:8090 max_fails=3 fail_timeout=10s;
+    keepalive 64;
+    keepalive_requests 1000;
+    keepalive_timeout 60s;
+}
+
 # ---------- WAF maps ----------
 # Empty UA / known scanner UA -> $gzly_bad_ua=1
 map $http_user_agent $gzly_bad_ua {

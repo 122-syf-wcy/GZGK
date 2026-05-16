@@ -1,0 +1,17 @@
+# === GZLY Redis 高并发参数补丁（生产同步副本 v7.39 2026-05-17）===
+# Redis 6.x 直接 sed 修改 /etc/redis.conf 即可：
+#   sudo sed -i.bak \
+#     -e 's|^tcp-backlog 511|tcp-backlog 65535|' \
+#     -e 's|^maxmemory 512mb|maxmemory 1gb|' \
+#     /etc/redis.conf
+#   sudo systemctl restart redis
+#
+# 仅作为变更基线参考；实际值随业务调整。
+
+tcp-backlog 65535         # 必须随内核 somaxconn 一起提升，否则 listen() 队列上限仍是 511
+maxmemory 1gb             # GZLY 当前实际使用峰值 ~110MB，留余量给热缓存（院校/分数线 86400s TTL）
+maxmemory-policy allkeys-lru
+tcp-keepalive 300         # 与系统 tcp_keepalive_time 对齐
+appendonly no             # 当前 Redis 仅做缓存，无需 AOF；保留 RDB 快照
+maxclients 10000          # 默认即可，Lettuce 32 + 其他客户端远低于上限
+timeout 0                 # 长连接客户端（Lettuce）保持，不强制超时

@@ -1,0 +1,30 @@
+# === GZLY 高并发 Nginx 主配置补丁（v7.39 2026-05-17）===
+# /etc/nginx/nginx.conf 应用：
+#   * 在 worker_processes auto; 下加 worker_rlimit_nofile 65535;
+#   * events {} 改为下方块
+#   * http {} 顶部加 keepalive_* / client_*_timeout / proxy_buffers 等
+# 操作完成后：
+#   sudo nginx -t && sudo systemctl restart nginx   # restart 而非 reload，让 worker_rlimit_nofile 生效
+
+worker_processes auto;
+worker_rlimit_nofile 65535;
+
+events {
+    worker_connections 10240;
+    use epoll;
+    multi_accept on;
+}
+
+http {
+    keepalive_timeout   65;
+    keepalive_requests  1000;
+    client_header_timeout 30s;
+    client_body_timeout   30s;
+    send_timeout          30s;
+    reset_timedout_connection on;
+    server_tokens         off;
+    proxy_buffers         16 32k;
+    proxy_buffer_size     32k;
+    proxy_busy_buffers_size 64k;
+    # 其余原有 sendfile/tcp_nopush/log_format/include 保持不变。
+}

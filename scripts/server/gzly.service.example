@@ -1,6 +1,6 @@
 [Unit]
 Description=GZLY Spring Boot Backend
-After=network-online.target mysql.service redis.service
+After=network-online.target mysqld.service redis.service
 Wants=network-online.target
 
 [Service]
@@ -8,10 +8,47 @@ Type=simple
 User=root
 WorkingDirectory=/opt/gzly/backend
 EnvironmentFile=/etc/gzly/gzly.env
-ExecStart=/usr/bin/java -Xms512m -Xmx1024m -jar /opt/gzly/backend/app.jar --server.port=8090 --spring.datasource.username=${GZLY_DB_USERNAME} --spring.datasource.password=${GZLY_DB_PASSWORD} --spring.data.redis.password=${GZLY_REDIS_PASSWORD}
+
+# === High-concurrency JVM tuning (v2 2026-05-17) ===
+# Heap fixed at 2g (Xms == Xmx) for predictable footprint on a 14G shared host.
+# Bump to -Xms3g -Xmx3g once any colocated docker stacks are removed.
+# G1 pause goal 150ms; IHOP 40% triggers earlier mixed-GC under bursty load.
+# StringDeduplication trims duplicate immutable strings under load.
+# GC log to /opt/gzly/logs (rotates 50M x 10 files).
+ExecStart=/usr/bin/java \
+  -Xms2g -Xmx2g \
+  -Xss512k \
+  -XX:MetaspaceSize=256m -XX:MaxMetaspaceSize=512m \
+  -XX:+UseG1GC \
+  -XX:MaxGCPauseMillis=150 \
+  -XX:InitiatingHeapOccupancyPercent=40 \
+  -XX:+ParallelRefProcEnabled \
+  -XX:+UseStringDeduplication \
+  -Xlog:gc*:/opt/gzly/logs/gc.log:time,uptime:filecount=10,filesize=50M \
+  -XX:+HeapDumpOnOutOfMemoryError \
+  -XX:HeapDumpPath=/opt/gzly/backend/heapdumps \
+  -XX:+ExitOnOutOfMemoryError \
+  -Dfile.encoding=UTF-8 \
+  -Duser.timezone=Asia/Shanghai \
+  -Djava.net.preferIPv4Stack=true \
+  -jar /opt/gzly/backend/app.jar \
+  --server.port=8090
+
+# Graceful shutdown: Spring Boot finishes in-flight requests before exit.
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+SuccessExitStatus=143
+
 Restart=always
 RestartSec=10
-SuccessExitStatus=143
+
+# fd ceiling: Tomcat (max 200) + Hikari (40) + Lettuce (32) + NIO + TLS handshakes.
+LimitNOFILE=131072
+LimitNPROC=65535
+TasksMax=infinity
+
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

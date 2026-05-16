@@ -9,25 +9,37 @@ server:
   tomcat:
     threads:
       max: 200
-      min-spare: 20
+      min-spare: 40
     accept-count: 200
-    max-connections: 8192
+    max-connections: 10000
+    connection-timeout: 20000
+    keep-alive-timeout: 60000
+    max-keep-alive-requests: 1000
+  shutdown: graceful
 
 spring:
   application:
     name: gzly-server
 
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
   # ---- MySQL ----
   datasource:
-    url: jdbc:mysql://localhost:3306/gzly?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    url: jdbc:mysql://localhost:3306/gzly?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false&useServerPrepStmts=true&cachePrepStmts=true&prepStmtCacheSize=512&prepStmtCacheSqlLimit=2048&rewriteBatchedStatements=true&useLocalSessionState=true&socketTimeout=30000&connectTimeout=5000
     username: ${GZLY_DB_USERNAME:root}
     password: ${GZLY_DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
+      maximum-pool-size: 40
+      minimum-idle: 10
       idle-timeout: 300000
       max-lifetime: 600000
+      connection-timeout: 20000
+      validation-timeout: 5000
+      leak-detection-threshold: 30000
+      keepalive-time: 120000
+      pool-name: GzlyHikariCP
 
   # ---- Redis ----
   data:
@@ -36,11 +48,15 @@ spring:
       port: 6379
       password:
       database: 0
+      timeout: 3000ms
+      connect-timeout: 2000ms
       lettuce:
         pool:
-          max-active: 16
-          max-idle: 8
-          min-idle: 2
+          max-active: 32
+          max-idle: 16
+          min-idle: 4
+          max-wait: 2000ms
+        shutdown-timeout: 200ms
 
   # ---- Multipart ----
   servlet:
