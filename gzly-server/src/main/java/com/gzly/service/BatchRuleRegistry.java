@@ -248,8 +248,8 @@ public final class BatchRuleRegistry {
                 SupportLevel.QUERY_ONLY, RecommendMode.SEQUENTIAL_COLLEGE, 1, "院校顺序志愿", "SequentialCollegeEngine", false,
                 List.of("early_a_b", "early_ab", "提前批A/B段", "提前批AB段", "本科提前批A段", "本科提前批B段", "普通类本科提前批A段", "普通类本科提前批B段", "普通类本科提前批A/B段"), List.of("普通类"), "提前A/B段为1个院校顺序志愿，当前仅展示顺序志愿规则、资格条件和数据缺口"));
         add(rules, new BatchRule("EARLY_C", "普通类本科提前批C段", "普通类", CandidateCategory.EARLY,
-                SupportLevel.QUERY_ONLY, RecommendMode.PARALLEL_MAJOR_60, 60, "专业（类）平行志愿", "EarlyCParallelMajorEngine", false,
-                List.of("early_c", "提前批C段", "本科提前批C段", "普通类本科提前批C段"), List.of("普通类"), "提前C段为60个专业（类）平行志愿，需单独处理公费师范、优师、免费医学、定向和履约风险"));
+                SupportLevel.FULL_RECOMMEND, RecommendMode.PARALLEL_MAJOR_60, 60, "专业（类）平行志愿", "EarlyCParallelMajorEngine", true,
+                List.of("early_c", "提前批C段", "本科提前批C段", "普通类本科提前批C段"), List.of("普通类"), "提前C段按60个专业（类）平行志愿推荐，候选含公费师范、优师、免费医学、定向等需履约志愿，请仔细核对资格与签约要求"));
         add(rules, new BatchRule("SPECIALTY_EARLY", "普通类高职专科提前批", "普通类", CandidateCategory.EARLY,
                 SupportLevel.QUERY_ONLY, RecommendMode.SEQUENTIAL_COLLEGE, 1, "院校顺序志愿", "SequentialCollegeEngine", false,
                 List.of("specialty_early", "early_specialty", "专科提前批", "高职专科提前批", "普通类专科提前批", "普通类高职专科提前批"), List.of("普通类"), "高职专科提前批为1个院校顺序志愿，需单独计划与资格规则，当前仅返回规则与数据缺口"));

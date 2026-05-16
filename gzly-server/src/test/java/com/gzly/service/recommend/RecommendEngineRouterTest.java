@@ -70,8 +70,12 @@ class RecommendEngineRouterTest {
         RecommendEngineDecision decision = router.resolve("GZ", "普通类", "EARLY_C");
 
         assertThat(decision.getEngineName()).isEqualTo(EarlyCParallelMajorEngine.NAME);
-        assertThat(decision.isQueryOnly()).isTrue();
+        // EARLY_C 已升级为 mainRankEngine + FULL_RECOMMEND（数据齐全时走主链路），
+        // BatchSupportService mock 返回 null → 走 baseSupportLevel = FULL_RECOMMEND，queryOnly=false。
+        assertThat(decision.isQueryOnly()).isFalse();
+        assertThat(decision.isMainPipelineEngine()).isTrue();
         assertThat(decision.getRecommendMode()).isEqualTo("PARALLEL_MAJOR_60");
+        assertThat(decision.getMaxVolunteerCount()).isEqualTo(60);
     }
 
     @Test

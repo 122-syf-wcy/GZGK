@@ -60,3 +60,12 @@ gzly-migration-kit-*
 *.sql.gz
 !migration/data/*.sql.gz
 !migration/data/*.sql.gz.sha256
+
+# 反爬代理池 clash/mihomo 订阅配置 - 含订阅源/节点密码/server/port，严禁入库
+# 本地常见落地路径：项目根 ip / ip.yaml / ip_subscription.yaml；mihomo 运行目录
+/ip
+ip.yaml
+ip_subscription.yaml
+*_subscription.yaml
+mihomo_gzly/
+

@@ -1,0 +1,17 @@
+[Unit]
+Description=GZLY dedicated mihomo (crawler IP rotation pool)
+Documentation=man:mihomo(8)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/mihomo -d /root/gzly_scraper/mihomo_gzly
+Restart=on-failure
+RestartSec=3
+LimitNOFILE=65535
+StandardOutput=append:/var/log/gzly-mihomo/mihomo.log
+StandardError=append:/var/log/gzly-mihomo/mihomo.log
+
+[Install]
+WantedBy=multi-user.target

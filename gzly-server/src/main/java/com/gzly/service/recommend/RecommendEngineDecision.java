@@ -32,4 +32,15 @@ public class RecommendEngineDecision {
     public boolean isOrdinaryParallelMajorEngine() {
         return "OrdinaryParallelMajorEngine".equals(engineName) && !queryOnly;
     }
+
+    /**
+     * 主推荐链路（VolunteerService.generate）能直接吃的引擎：
+     * 普通本科批/普通高职专科批/本科提前批 C 段（60 平行）。
+     * 顺序志愿 / 艺术 / 体育 / 特殊计划 走批次列表服务，不进主链路。
+     */
+    public boolean isMainPipelineEngine() {
+        if (queryOnly) return false;
+        return "OrdinaryParallelMajorEngine".equals(engineName)
+                || "EarlyCParallelMajorEngine".equals(engineName);
+    }
 }

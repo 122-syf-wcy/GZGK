@@ -66,10 +66,17 @@ public class VolunteerRecommendController {
                 provinceCode, req.getYear(), req.getCandidateType(), req.getBatchCode());
         applyPolicyToRequest(req, policy.getConfig());
         RecommendEngineDecision engineDecision = recommendEngineRouter.resolve(req, policy.getConfig());
-        if (!engineDecision.isOrdinaryParallelMajorEngine()) {
+        if (!engineDecision.isMainPipelineEngine()) {
             VolunteerService.PlanResult plan = queryOnlyRecommendEngine.generate(req, policy.getConfig(), engineDecision);
             decoratePlan(req, plan, policy, MlPredictionService.ApplyResult.empty(), engineDecision);
             return Result.ok(plan);
+        }
+        if ("EarlyCParallelMajorEngine".equals(engineDecision.getEngineName())) {
+            // EARLY_C 走主推荐链路，但 policyMaxVolunteerCount 必须按 60 平行志愿口径
+            req.setPolicyMaxVolunteerCount(engineDecision.getMaxVolunteerCount() > 0
+                    ? engineDecision.getMaxVolunteerCount() : 60);
+            req.setPolicyBatchName(engineDecision.getBatchName() == null || engineDecision.getBatchName().isBlank()
+                    ? "普通类本科提前批C段" : engineDecision.getBatchName());
         }
 
         VolunteerService.PlanResult plan = provincePolicyService.isProfessionalGroupProvince(provinceCode)

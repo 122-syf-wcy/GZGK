@@ -39,12 +39,23 @@ public class QueryOnlyRecommendEngine implements RecommendEngine {
         String reason = decision.getSupportReason() == null || decision.getSupportReason().isBlank()
                 ? rule.supportNote()
                 : decision.getSupportReason();
-        VolunteerService.PlanResult plan = queryOnlyRecommendService.generate(request, policy, rule, reason);
+        VolunteerService.PlanResult plan = queryOnlyRecommendService.generate(request, policy, rule, reason, decision);
         plan.setRecommendMode(decision.getRecommendMode());
         plan.setSupportLevel(decision.getSupportLevel());
         plan.setEngineName(decision.getEngineName());
-        plan.setSupportReason(reason);
-        plan.setWarnings(decision.getWarnings());
+        if (plan.getSupportReason() == null || plan.getSupportReason().isBlank()) {
+            plan.setSupportReason(reason);
+        }
+        if (decision.getWarnings() != null && !decision.getWarnings().isEmpty()) {
+            java.util.List<String> merged = new java.util.ArrayList<>(
+                    plan.getWarnings() == null ? java.util.List.of() : plan.getWarnings());
+            for (String warning : decision.getWarnings()) {
+                if (warning != null && !warning.isBlank() && !merged.contains(warning)) {
+                    merged.add(warning);
+                }
+            }
+            plan.setWarnings(merged);
+        }
         return plan;
     }
 }

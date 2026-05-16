@@ -217,6 +217,18 @@ public class VolunteerService {
          * 其它取值会在 PlanMetrics.recruitTypeBreakdown 中独立计数，便于报告口径下的回归与审计。</p>
          */
         private String recruitType;
+        /**
+         * 是否被"列表仿真自动调平"重新归档（贵州研究报告第七节）。当整张志愿表的
+         * portfolioSafetyProbability 低于阈值且当前 strategyMode 仍然偏激进时，
+         * VolunteerService 会按 chanceScore 把参考概率较高却被错放在"冲"档的条目
+         * 提升到"保/垫"档；被调平的条目 autoRebalanced=true 并附 rebalanceReason
+         * 写在 PlanMetrics.autoRebalanceNote 里，便于审计与解释。
+         */
+        private boolean autoRebalanced;
+        /** 自动调平时的原始 gradient（冲/稳/保/垫），未调平时为 null。 */
+        private String originalGradient;
+        /** 自动调平的中文说明，比如 "chanceScore=88 已升保"。 */
+        private String rebalanceReason;
     }
 
     /**
@@ -267,6 +279,14 @@ public class VolunteerService {
         private String portfolioSafetyLevel;
         private String portfolioSafetyNote;
         private int safeTailCount;
+        /** 列表仿真自动调平 (R7) ── 自动从冲/稳升档为保/垫的条目数；0 表示未触发或无可调条目。 */
+        private int autoRebalanceCount;
+        /** 自动调平触发前的 portfolioSafetyProbability，调平后与 portfolioSafetyProbability 对比可见提升幅度。 */
+        private double autoRebalanceBeforeProbability;
+        /** 调平后的 portfolioSafetyProbability（= portfolioSafetyProbability 当 autoRebalanceCount>0）。 */
+        private double autoRebalanceAfterProbability;
+        /** 是否自适应升档到下一档策略（例如均衡型 → 保守型）的中文说明。 */
+        private String autoRebalanceNote;
         private int targetCount;
         private String provinceCode;
         private String volunteerUnitType;
@@ -537,7 +557,7 @@ public class VolunteerService {
         }
     }
 
-    private record PortfolioSafety(double probability, String level, String note, int safeTailCount) {
+    record PortfolioSafety(double probability, String level, String note, int safeTailCount) {
     }
 
     @Data
@@ -729,16 +749,33 @@ public class VolunteerService {
         enrichWithDecisionSupport(allItems, profile);
         applyPlanOrdering(allItems, profile);
         normalizePublicChanceFields(allItems, R);
-        PortfolioSafety portfolioSafety = assessPortfolioSafety(allItems);
+        PortfolioSafety portfolioSafetyInitial = assessPortfolioSafety(allItems);
+        // ── 列表仿真自动调平：portfolioSafety 偏低 + 当前策略偏激进时，自动把高 chanceScore 的
+        // "冲/稳"条目升档到"保/垫"，让整张志愿表自身吸收风险，对应贵州研究报告第七节"列表仿真自动调"。
+        AutoRebalanceResult rebalanceResult = autoRebalanceForPortfolioSafety(
+                allItems, portfolioSafetyInitial, profile.getStrategyMode());
+        PortfolioSafety portfolioSafety = rebalanceResult.applied()
+                ? assessPortfolioSafety(allItems)
+                : portfolioSafetyInitial;
 
         // ── 强制人工复核清单 + 监控指标 ──
         List<ManualReviewItem> manualReviewItems = buildManualReviewList(allItems);
         String dataQualityWarning = buildDataQualityWarning(req, subjectType, allItems, rankResolution.summary());
         dataQualityWarning = appendNeighborBackfillWarning(dataQualityWarning, generationStats);
         dataQualityWarning = appendPortfolioSafetyWarning(dataQualityWarning, portfolioSafety);
+        if (rebalanceResult.applied()) {
+            dataQualityWarning = appendAutoRebalanceWarning(dataQualityWarning, rebalanceResult,
+                    portfolioSafetyInitial, portfolioSafety);
+        }
         PlanMetrics metrics = buildPlanMetrics(allItems, manualReviewItems,
                 generationStats.getSpecialExcludedCount(), portfolioSafety,
                 policyTargetCount, provinceCode, policyUnitType, profile.getStrategyMode());
+        if (rebalanceResult.applied()) {
+            metrics.setAutoRebalanceCount(rebalanceResult.rebalancedCount());
+            metrics.setAutoRebalanceBeforeProbability(portfolioSafetyInitial.probability());
+            metrics.setAutoRebalanceAfterProbability(portfolioSafety.probability());
+            metrics.setAutoRebalanceNote(rebalanceResult.note());
+        }
 
         // 4. 保存记录
         PlanHistory history = new PlanHistory();
@@ -3811,6 +3848,95 @@ public class VolunteerService {
             return safetyWarning;
         }
         return warning + " " + safetyWarning;
+    }
+
+    /**
+     * 列表仿真自动调平结果。
+     *
+     * @param applied         是否实际触发了调平（false 表示安全度已经合格或没有可调条目）
+     * @param rebalancedCount 被自动升档的条目数
+     * @param note            供前端 / 审计阅读的中文说明
+     */
+    record AutoRebalanceResult(boolean applied, int rebalancedCount, String note) {
+        static AutoRebalanceResult noop() {
+            return new AutoRebalanceResult(false, 0, "");
+        }
+    }
+
+    /**
+     * 列表仿真自动调平（贵州研究报告第七节"列表仿真自动调"）。
+     *
+     * <p>当整张志愿表的 portfolioSafetyProbability 低于 {@link #PORTFOLIO_SAFETY_THRESHOLD}，
+     * 且当前策略不是"保守型"时，把参考概率较高但被错放在"冲/稳"档的条目自动升档：</p>
+     * <ul>
+     *   <li>chanceScore ≥ 90 的"冲/稳" → 升为"垫"（兜底）</li>
+     *   <li>chanceScore ≥ 75 但 &lt; 90 的"冲" → 升为"保"</li>
+     * </ul>
+     *
+     * <p>每条升档条目设置 autoRebalanced=true 并保留 originalGradient + rebalanceReason，
+     * 便于前端审计显示和导出口径透明化。本方法不替换条目、不重新查询数据库；仅在内存中
+     * 对 gradient 字段做修订，并由调用方重新跑 portfolioSafety 评估观察提升幅度。</p>
+     */
+    static AutoRebalanceResult autoRebalanceForPortfolioSafety(List<VolunteerItem> items,
+                                                               PortfolioSafety baseline,
+                                                               String strategyMode) {
+        if (items == null || items.isEmpty() || baseline == null) {
+            return AutoRebalanceResult.noop();
+        }
+        if (baseline.probability() >= PORTFOLIO_SAFETY_THRESHOLD) {
+            return AutoRebalanceResult.noop();
+        }
+        if ("保守型".equals(strategyMode) || "保守".equals(strategyMode)) {
+            // 已经是最保守策略，无需再升档，保留用户原始选择
+            return AutoRebalanceResult.noop();
+        }
+        int rebalanced = 0;
+        int promotedToBao = 0;
+        int promotedToDian = 0;
+        for (VolunteerItem item : items) {
+            String gradient = item.getGradient() == null ? "" : item.getGradient();
+            int chance = item.getChanceScore();
+            String newGradient = null;
+            if (chance >= 90 && ("冲".equals(gradient) || "稳".equals(gradient))) {
+                newGradient = "垫";
+                promotedToDian++;
+            } else if (chance >= 75 && "冲".equals(gradient)) {
+                newGradient = "保";
+                promotedToBao++;
+            }
+            if (newGradient != null) {
+                item.setOriginalGradient(gradient);
+                item.setGradient(newGradient);
+                item.setAutoRebalanced(true);
+                item.setRebalanceReason(String.format(
+                        "chanceScore=%d 自动从 %s 升至 %s（列表仿真自动调）",
+                        chance, gradient, newGradient));
+                rebalanced++;
+            }
+        }
+        if (rebalanced == 0) {
+            return AutoRebalanceResult.noop();
+        }
+        String note = String.format(
+                "列表仿真自动调平：%d 条参考概率较高的志愿自动升档（%d 条 → 保，%d 条 → 垫），用整张志愿表自身吸收风险；建议仍结合招生章程与体检要求复核。本次自动调档仅参考"
+                        + "梯度归类，不构成任何录取承诺。",
+                rebalanced, promotedToBao, promotedToDian);
+        return new AutoRebalanceResult(true, rebalanced, note);
+    }
+
+    private String appendAutoRebalanceWarning(String warning, AutoRebalanceResult result,
+                                              PortfolioSafety before, PortfolioSafety after) {
+        if (result == null || !result.applied()) {
+            return warning;
+        }
+        double improvement = Math.max(0.0, after.probability() - before.probability());
+        String summary = String.format(
+                "%s 调平后 portfolioSafetyProbability %.1f%% → %.1f%%（+%.1f%%）。",
+                result.note(), before.probability(), after.probability(), improvement);
+        if (warning == null || warning.isBlank()) {
+            return summary;
+        }
+        return warning + " " + summary;
     }
 
     /**

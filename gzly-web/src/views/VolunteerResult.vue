@@ -143,6 +143,62 @@ const gradientConfig: Record<string, { color: string; bg: string }> = {
   垫: { color: '#d97706', bg: '#fffbeb' },
 }
 
+/**
+ * 解析 4 段式 recommendReason：后端用 " | " 把"梯度定位 / 适配理由 / 风险信号 / 可调节项"
+ * 拼接为单字符串透出；前端按前缀拆开后渲染成结构化卡片，遗留单段文本走兜底。
+ */
+interface ReasonSegment {
+  key: 'gradient' | 'fit' | 'risk' | 'adjust'
+  label: string
+  body: string
+}
+const REASON_SEGMENT_LABELS: ReasonSegment[] = [
+  { key: 'gradient', label: '梯度定位', body: '' },
+  { key: 'fit', label: '适配理由', body: '' },
+  { key: 'risk', label: '风险信号', body: '' },
+  { key: 'adjust', label: '可调节项', body: '' },
+]
+function parseRecommendReason(raw?: string): ReasonSegment[] {
+  if (!raw) return []
+  const parts = raw.split(' | ').map((p) => p.trim()).filter(Boolean)
+  if (!parts.length) return []
+  const map = new Map<string, string>()
+  for (const part of parts) {
+    const sep = part.indexOf('：')
+    if (sep > 0) {
+      map.set(part.slice(0, sep).trim(), part.slice(sep + 1).trim())
+    }
+  }
+  if (map.size === 0) {
+    return [{ key: 'gradient', label: '说明', body: raw }]
+  }
+  return REASON_SEGMENT_LABELS
+    .map((seg) => ({ ...seg, body: map.get(seg.label) || '' }))
+    .filter((seg) => seg.body)
+}
+const REASON_SEGMENT_TONE: Record<ReasonSegment['key'], string> = {
+  gradient: 'reason-segment--gradient',
+  fit: 'reason-segment--fit',
+  risk: 'reason-segment--risk',
+  adjust: 'reason-segment--adjust',
+}
+
+/** 自动调平摘要展示。 */
+const autoRebalanceSummary = computed(() => {
+  const m = volunteerStore.planMetrics
+  if (!m || !m.autoRebalanceCount || m.autoRebalanceCount <= 0) return null
+  const before = typeof m.autoRebalanceBeforeProbability === 'number' ? m.autoRebalanceBeforeProbability : null
+  const after = typeof m.autoRebalanceAfterProbability === 'number' ? m.autoRebalanceAfterProbability : null
+  const improvement = before !== null && after !== null ? Math.max(0, after - before) : null
+  return {
+    count: m.autoRebalanceCount,
+    before,
+    after,
+    improvement,
+    note: m.autoRebalanceNote || '',
+  }
+})
+
 const modeItems = computed<VolunteerItem[]>(() => buildPlanModeItems(volunteerStore.planItems, activeMode.value))
 
 const decisionDraftItems = computed<VolunteerItem[]>(() =>
@@ -752,6 +808,18 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
         </div>
       </div>
       <div class="hero-side">
+        <div
+          v-if="typeof volunteerStore.planMetrics?.portfolioSafetyProbability === 'number'"
+          class="metric-card metric-card--accent"
+          :title="volunteerStore.planMetrics?.portfolioSafetyNote || ''"
+        >
+          <div class="metric-label">
+            整表安全
+            <span v-if="autoRebalanceSummary" class="metric-flag">已调平</span>
+          </div>
+          <div class="metric-value">{{ volunteerStore.planMetrics.portfolioSafetyProbability.toFixed(1) }}%</div>
+          <div class="metric-sub">{{ volunteerStore.planMetrics?.portfolioSafetyLevel || '—' }}</div>
+        </div>
         <div class="metric-card">
           <div class="metric-label">较高匹配</div>
           <div class="metric-value">{{ summary.highFit }} 个</div>
@@ -824,6 +892,33 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
         <p v-if="volunteerStore.planMetrics?.portfolioSafetyNote" class="algorithm-card__note">
           {{ volunteerStore.planMetrics.portfolioSafetyLevel }}：{{ volunteerStore.planMetrics.portfolioSafetyNote }}
         </p>
+        <div v-if="autoRebalanceSummary" class="auto-rebalance-card">
+          <div class="auto-rebalance-card__head">
+            <span class="auto-rebalance-card__badge">
+              <Sparkles :size="13" /> 列表仿真自动调平
+            </span>
+            <span class="auto-rebalance-card__count">
+              升档 <strong>{{ autoRebalanceSummary.count }}</strong> 条
+            </span>
+          </div>
+          <div v-if="autoRebalanceSummary.before !== null && autoRebalanceSummary.after !== null" class="auto-rebalance-card__metrics">
+            <div class="auto-rebalance-card__metric">
+              <em>调整前</em>
+              <strong>{{ autoRebalanceSummary.before.toFixed(1) }}%</strong>
+            </div>
+            <ArrowRight :size="14" class="auto-rebalance-card__arrow" />
+            <div class="auto-rebalance-card__metric auto-rebalance-card__metric--after">
+              <em>调整后</em>
+              <strong>{{ autoRebalanceSummary.after.toFixed(1) }}%</strong>
+            </div>
+            <div v-if="autoRebalanceSummary.improvement !== null && autoRebalanceSummary.improvement > 0" class="auto-rebalance-card__delta">
+              +{{ autoRebalanceSummary.improvement.toFixed(1) }}%
+            </div>
+          </div>
+          <p v-if="autoRebalanceSummary.note" class="auto-rebalance-card__note">
+            {{ autoRebalanceSummary.note }}
+          </p>
+        </div>
         <div v-if="recruitTypeRows.length" class="algorithm-recruit-breakdown">
           <div class="algorithm-recruit-breakdown__title">
             <strong>主列表招生类型分布</strong>
@@ -1061,6 +1156,13 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
             <div class="plan-row__main">
               <div class="plan-row__badges">
                 <span class="grad-badge" :style="{ color: gradientConfig[item.gradient].color, background: gradientConfig[item.gradient].bg }">{{ item.gradient }}</span>
+                <span
+                  v-if="item.autoRebalanced && item.originalGradient && item.originalGradient !== item.gradient"
+                  class="rebalance-badge"
+                  :title="item.rebalanceReason || '列表仿真自动调平：参考概率较高的志愿自动升档到 保/垫 档'"
+                >
+                  <Sparkles :size="11" /> 自动调档 {{ item.originalGradient }}→{{ item.gradient }}
+                </span>
                 <span v-if="item.matchTag" class="match-badge">{{ item.matchTag }}</span>
                 <span v-if="item.dataSourceType" class="source-badge">{{ item.dataSourceType }}</span>
                 <span v-if="item.confidenceLabel" class="confidence-badge" :class="confidenceTone(item.confidenceLabel)">{{ item.confidenceLabel }}</span>
@@ -1111,9 +1213,26 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
         <transition name="detail-fade">
           <div v-if="isExpanded(item)" class="plan-row__detail">
             <div class="plan-row__insights">
-              <div class="reason-box">
-                <div class="reason-title"><ShieldCheck :size="14" /> 上榜原因</div>
-                <p>{{ item.recommendReason || '建议结合学校平台、专业方向和官方章程综合判断。' }}</p>
+              <div class="reason-box reason-box--full">
+                <div class="reason-title"><ShieldCheck :size="14" /> 上榜原因（4 段式）</div>
+                <ul v-if="parseRecommendReason(item.recommendReason).length" class="reason-segment-list">
+                  <li
+                    v-for="seg in parseRecommendReason(item.recommendReason)"
+                    :key="seg.key"
+                    :class="['reason-segment', REASON_SEGMENT_TONE[seg.key]]"
+                  >
+                    <span class="reason-segment__label">{{ seg.label }}</span>
+                    <p class="reason-segment__body">{{ seg.body }}</p>
+                  </li>
+                </ul>
+                <p v-else class="reason-fallback">建议结合学校平台、专业方向和官方章程综合判断。</p>
+              </div>
+              <div v-if="item.autoRebalanced" class="reason-box reason-box--rebalance">
+                <div class="reason-title"><Sparkles :size="14" /> 列表仿真自动调平</div>
+                <p>
+                  原梯度 <strong>{{ item.originalGradient || '冲' }}</strong> → 当前 <strong>{{ item.gradient }}</strong>。
+                  {{ item.rebalanceReason || '整张志愿表自动吸收风险。' }}
+                </p>
               </div>
               <div class="reason-box reason-box--warn">
                 <div class="reason-title"><AlertTriangle :size="14" /> 风险提醒</div>
@@ -1392,11 +1511,41 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   border-radius: 20px;
   background: #fff;
   border: 1px solid rgba(15, 23, 42, 0.06);
+  position: relative;
+}
+
+.metric-card--accent {
+  background: linear-gradient(140deg, #ecfdf5 0%, #f0fdfa 100%);
+  border-color: #a7f3d0;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.08);
 }
 
 .metric-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   color: #64748b;
+}
+
+.metric-flag {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 10px;
+  font-weight: 800;
+  border: 1px solid #fde68a;
+}
+
+.metric-sub {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #047857;
+  letter-spacing: 0.02em;
 }
 
 .metric-value {
@@ -1547,23 +1696,32 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 }
 
 .algorithm-metrics {
-  margin-top: 10px;
-  display: flex;
-  flex-wrap: wrap;
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 6px;
 }
 
 .algorithm-metrics span {
   display: inline-flex;
   align-items: center;
-  min-height: 26px;
-  padding: 4px 9px;
-  border-radius: 999px;
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 8px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   color: #475569;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.algorithm-metrics span:nth-child(odd) {
+  background: #f9fafb;
 }
 
 .algorithm-range-grid {
@@ -2216,6 +2374,16 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   border-color: #bbf7d0;
 }
 
+.reason-box--full {
+  background: linear-gradient(160deg, #fffefb 0%, #f8fbff 100%);
+  border-color: #d8e6ff;
+}
+
+.reason-box--rebalance {
+  background: linear-gradient(135deg, #fff8eb 0%, #fefce8 100%);
+  border-color: #fde68a;
+}
+
 .reason-title {
   display: flex;
   align-items: center;
@@ -2230,6 +2398,187 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   font-size: 13px;
   line-height: 1.75;
   color: #475569;
+}
+
+.reason-fallback {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: #64748b;
+}
+
+.reason-segment-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reason-segment {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border-left: 3px solid currentColor;
+  background: #ffffff;
+}
+
+.reason-segment__label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: currentColor;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.reason-segment__body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.72;
+  color: #1f2933;
+}
+
+.reason-segment--gradient {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.reason-segment--fit {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.reason-segment--risk {
+  color: #b45309;
+  background: #fff7ed;
+}
+
+.reason-segment--adjust {
+  color: #7c3aed;
+  background: #f5f3ff;
+}
+
+.auto-rebalance-card {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid #fde68a;
+  background: linear-gradient(135deg, #fff8eb 0%, #fef3c7 100%);
+  display: grid;
+  gap: 10px;
+}
+
+.auto-rebalance-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auto-rebalance-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid #fbbf24;
+}
+
+.auto-rebalance-card__count {
+  font-size: 13px;
+  color: #78350f;
+}
+
+.auto-rebalance-card__count strong {
+  font-size: 18px;
+  font-weight: 850;
+  color: #b45309;
+  margin: 0 2px;
+}
+
+.auto-rebalance-card__metrics {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.auto-rebalance-card__metric {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.auto-rebalance-card__metric em {
+  font-style: normal;
+  font-size: 11px;
+  color: #92400e;
+  letter-spacing: 0.04em;
+}
+
+.auto-rebalance-card__metric strong {
+  font-size: 16px;
+  font-weight: 850;
+  color: #78350f;
+}
+
+.auto-rebalance-card__metric--after strong {
+  color: #047857;
+}
+
+.auto-rebalance-card__arrow {
+  color: #b45309;
+}
+
+.auto-rebalance-card__delta {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #d1fae5;
+  color: #065f46;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.auto-rebalance-card__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: #78350f;
+}
+
+.rebalance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  white-space: nowrap;
 }
 
 .history-card {

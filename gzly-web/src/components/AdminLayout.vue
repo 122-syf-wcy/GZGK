@@ -58,21 +58,30 @@ function doLogout() {
   loginPassword.value = ''
 }
 
-const navItems = [
+// 一级核心：志愿主流程相关，每天/每周高频访问
+const primaryNav = [
   { key: 'dashboard', label: '数据看板', iconImg: '/admin-dashboard.png', path: '/admin' },
   { key: 'data-year-readiness', label: '数据准备进度', iconImg: '/admin-dashboard.png', path: '/admin/data-year-readiness' },
-  { key: 'users', label: '用户管理', iconImg: '/admin-users.png', path: '/admin/users' },
   { key: 'plans', label: '方案记录', iconImg: '/admin-plans.png', path: '/admin/plans' },
+  { key: 'users', label: '用户管理', iconImg: '/admin-users.png', path: '/admin/users' },
   { key: 'universities', label: '院校管理', iconImg: '/admin-university.png', path: '/admin/universities' },
   { key: 'score-lines', label: '分数线管理', iconImg: '/admin-scoreline.png', path: '/admin/score-lines' },
   { key: 'official-links', label: '官方入口', iconImg: '/admin-university.png', path: '/admin/official-links' },
+]
+
+// 二级：偶发使用的运营/AI/数据治理工具
+const secondaryNav = [
   { key: 'announcements', label: '公告管理', iconImg: '/admin-dashboard.png', path: '/admin/announcements' },
   { key: 'ai-config', label: 'AI配置', iconImg: '/admin-dashboard.png', path: '/admin/ai-config' },
   { key: 'feedbacks', label: '反馈管理', iconImg: '/admin-users.png', path: '/admin/feedbacks' },
-  { key: 'encouragement-messages', label: '留言管理', iconImg: '/admin-users.png', path: '/admin/encouragement-messages' },
-  { key: 'alumni-review', label: '校友审核', iconImg: '/admin-alumni.png', path: '/admin/alumni-review' },
-  { key: 'qa-review', label: '问答审核', iconImg: '/admin-alumni.png', path: '/admin/qa-review' },
 ]
+
+// 历史保留：以下功能此前已开发，但和主志愿流程关联较弱，仅保留路由可访问、不在
+// 侧栏频繁占位（直接访问 /admin/<path> 仍可使用，避免删除既有数据）：
+// - encouragement-messages（加油墙留言管理）
+// - alumni-review（校友审核）
+// - qa-review（院校问答审核）
+const navItems = [...primaryNav, ...secondaryNav]
 
 const activeKey = computed(() => {
   const p = route.path

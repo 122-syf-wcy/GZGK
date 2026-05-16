@@ -450,10 +450,16 @@ export interface VolunteerItem {
   dataSourceType?: '专业级' | '院校级' | '院校专业组'
   /** 数据可信度标签 */
   confidenceLabel?: '高可信' | '中可信' | '需复核'
-  /** 推荐原因 */
+  /** 推荐原因（4 段式：梯度定位 | 适配理由 | 风险信号 | 可调节项） */
   recommendReason?: string
   /** 风险原因 */
   riskReason?: string
+  /** R7 列表仿真自动调平 ── 该条目是否被自动从冲/稳升档到保/垫 */
+  autoRebalanced?: boolean
+  /** 自动调平前的 gradient（冲/稳/保/垫） */
+  originalGradient?: string
+  /** 自动调平的中文说明（如 "chanceScore=88 自动从 冲 升至 保"） */
+  rebalanceReason?: string
   /** 替代建议 */
   alternativeOption?: string
   /** 更适合哪类考生 */
@@ -528,6 +534,14 @@ export interface PlanMetrics {
   portfolioSafetyLevel?: string
   portfolioSafetyNote?: string
   safeTailCount?: number
+  /** R7 列表仿真自动调平：自动从 冲/稳 升档到 保/垫 的条目数；0 表示未触发。 */
+  autoRebalanceCount?: number
+  /** 自动调平前的 portfolioSafetyProbability。 */
+  autoRebalanceBeforeProbability?: number
+  /** 自动调平后的 portfolioSafetyProbability。 */
+  autoRebalanceAfterProbability?: number
+  /** 自动调平的中文说明，可直接拼到结果页提示。 */
+  autoRebalanceNote?: string
   targetCount?: number
   provinceCode?: 'GZ' | 'SC' | 'HB' | 'AH' | string
   volunteerUnitType?: 'MAJOR_96' | 'PROFESSIONAL_GROUP_45' | string
