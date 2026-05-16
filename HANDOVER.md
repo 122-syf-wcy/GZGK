@@ -1,8 +1,9 @@
 # GZLY 贵州高考志愿公益辅助系统交接文档
 
-> 更新时间: 2026-05-06 19:49  
+> 更新时间: 2026-05-17 00:32（v7.38 P0 安全收敛 + AI 锁运维接口）
 > 项目路径: `/Users/dongsiwei/Desktop/skills/projects/GZLY/`
 > Git 仓库: `https://github.com/122-syf-wcy/-`
+> 当前生产分支: `chore/snapshot-main-wip-20260515`（暂未合并到 main，新服务器迁移按 `migration/README.md` 拉此分支）
 
 ## 一、项目定位
 
@@ -151,6 +152,35 @@ scripts/
 ## 七、当前风险与下一步
 
 本节记录当前真实状态。v6.92 已把上一版列出的安全 / 运维主线全部落地并部署生产；剩余项主要是官方数据治理和中长期架构增强，不能靠猜测或硬导入假数据完成。
+
+### v7.38（2026-05-17 00:32）追加的 P0 安全收敛
+
+承接 b5a9225 / 2862f04 / 0330799 三个 commit，已部署生产且健康检查通过：
+
+1. **GlobalExceptionHandler 异常收敛**：新增 `HttpRequestMethodNotSupported` 405、`HttpMediaTypeNotSupported` 415、`NoResourceFoundException` 404、`MaxUploadSizeExceededException` 413、`DataAccessException` 503、`HttpMessageNotReadableException` 400、`IOException` 兼容 `ClientAbortException` / `AsyncRequestNotUsableException` / `AsyncRequestTimeoutException` 等客户端断开异常处理。
+   - 404 降级为 DEBUG，避免爬虫扫描 `/wp-admin` 等刷 ERROR 淹没日志。
+   - DB 异常单独 ERROR + 503，方便 grep "DB异常" 拉报警。
+   - 客户端断开类异常降级为 DEBUG，不再刷 stacktrace。
+2. **AI planId 互斥锁**：`VolunteerController` 在 IP/全局并发槽之外新增 Redis `SETNX` `active:ai-analysis:plan:<planId>` TTL=120s 维度锁，防止同 IP 多 tab / 多次点击对同一方案重复发起 SSE 浪费 OpenAI token。配套新增 `AdminAiLockController`（`/admin/volunteer/ai-lock/{status,release,reset-counters}`）用于运维清残留锁。
+3. **Logback 滚动切割**：新增 `gzly-server/src/main/resources/logback-spring.xml`，按天 + 100MB 切割，保留 14 天 / 总 5GB；ERROR 单独 `gzly-error.log` 保留 30 天 / 总 2GB；异步 appender + neverBlock。
+   - 生产 `/etc/gzly/gzly.env` 已加 `GZLY_LOG_DIR=/opt/gzly/logs`（备份 `gzly.env.20260517002845.bak`），日志统一写到 `/opt/gzly/logs/{gzly.log,gzly-error.log}`，归档 `/opt/gzly/logs/archive/`。
+4. **Migration kit nginx 模板对齐**：生产 `/etc/nginx/conf.d/00-zzz-gzly-shared.conf` 已有完整 5-zone 反爬（gzly_api 30r/s、generate 20r/m、ai 6r/m、admin_login 5r/m、stats 120r/m）+ UA/path WAF maps + default-deny server，本轮反向沉淀为 `migration/nginx/gzly-shared.conf.example`；`migration/nginx/gzly.conf.example` 改为引用 shared 模板，避免新服务器迁移时只装一份配置导致 zone 未定义。
+5. **`ip` clash 订阅配置 .gitignore 加固**：项目根本来存在 `ip`（975 行 mihomo/clash 订阅配置含节点密码 / 订阅源），未被 `.gitignore` 覆盖，仓库公开易泄漏；本轮加 `/ip`、`ip.yaml`、`ip_subscription.yaml`、`*_subscription.yaml`、`mihomo_gzly/` 黑名单。
+
+### v7.38 验证基线
+
+- 后端 `./mvnw clean test` 通过 **259/0/0**，0 失败 0 错误。
+- 前端 `gzly-web npm run build` 通过。
+- 生产 `deploy_backend_safe.sh` 部署成功，旧 JAR 备份 `app.jar.20260517002327.bak`。
+- 生产 `generate` smoke：`planId=293`，96/96 志愿，耗时 15s，manual review 20 条。
+- 生产异常处理 smoke：`404 → {code:404,message:资源未找到}`、`405 → 请求方法不支持`、`415 → 请求 Content-Type 不支持`；`gzly-error.log` 部署后 30 分钟保持 0 字节。
+- 日志切换后 `/opt/gzly/backend/logs/` 已清理；`/opt/gzly/logs/gzly.log` 正常滚动。
+
+### v7.38 暂未处理（已记录为下一轮可优化项）
+
+- **分支重命名**：`chore/snapshot-main-wip-20260515` 与 main 差 22 个 commit，建议改名为 `release/2026-05-x` 并在 GitHub 后台设为 default branch。本轮未做，等 main 同步策略确定。
+- **根分区 84%**：清理出 ~270MB（旧 backup JAR / dnf cache / 老 messages.gz）；`/var/lib/docker/overlay2` 占 8.7G 是另一项目数据，不在本项目处置范围。
+- **磁盘容量**：当前 31G/40G，剩 6.3G，HANDOVER 第七节"补数导入与磁盘容量"列出的 binlog 过期已落地（86400s），短期无风险。
 
 ### 已完成的 P0 / P1 安全主线
 
