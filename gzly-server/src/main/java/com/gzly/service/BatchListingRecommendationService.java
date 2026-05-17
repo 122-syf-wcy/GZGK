@@ -374,15 +374,23 @@ public class BatchListingRecommendationService {
     }
 
     private String[] keywordsFor(String batchCode) {
+        // v7.43：扩宽 8 类专项关键词，覆盖 admission_plan_gz.remarks / special_limit / major_name 里的
+        // 不同写法。比如 ETHNIC_CLASS 不能只匹配"民族班"，需要兜底"民族学"等专业名；预科需要兼容"民族预科";
+        // 免费医学需要兼容"农村定向"等。
         return switch (batchCode) {
             case "NATIONAL_SPECIAL" -> new String[]{"国家专项"};
             case "LOCAL_SPECIAL" -> new String[]{"地方专项"};
             case "UNIVERSITY_SPECIAL" -> new String[]{"高校专项"};
-            case "ETHNIC_CLASS" -> new String[]{"民族班", "民族预科"};
-            case "PREPARATORY" -> new String[]{"预科"};
+            case "ETHNIC_CLASS" -> new String[]{"民族班", "民族预科", "民族学", "少数民族"};
+            case "PREPARATORY" -> new String[]{"预科", "民族预科", "少数民族预科"};
             case "ORIENTED" -> new String[]{"定向"};
-            case "FREE_MEDICAL" -> new String[]{"免费医学", "农村订单定向医学", "免费医学定向"};
-            case "TEACHER_EXCELLENCE" -> new String[]{"优师", "公费师范", "免费师范", "公费教育"};
+            case "FREE_MEDICAL" -> new String[]{
+                    "免费医学", "农村订单定向医学", "免费医学定向", "农村定向医学",
+                    "免医", "订单定向"
+            };
+            case "TEACHER_EXCELLENCE" -> new String[]{
+                    "优师", "公费师范", "免费师范", "公费教育", "国家优师"
+            };
             default -> new String[0];
         };
     }
