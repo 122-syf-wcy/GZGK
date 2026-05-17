@@ -48,7 +48,17 @@ public class VolunteerController {
     private final VolunteerMetricsRecorder metricsRecorder;
     private final JwtUtil jwtUtil;
     private final ObjectMapper objectMapper;
+    /**
+     * v7.41：通用任务池，保留给短异步任务（导出、邮件、统计等）。
+     * AI SSE 长流改走 aiAnalysisExecutor，避免阻塞此池。
+     */
     private final Executor taskExecutor;
+    /**
+     * v7.41：专为 AI SSE 长流（mimo / openai 30~90s）准备的独立线程池，
+     * SynchronousQueue + CallerRunsPolicy 让超载请求自然降级，不抢通用池配额。
+     */
+    @org.springframework.beans.factory.annotation.Qualifier("aiAnalysisExecutor")
+    private final java.util.concurrent.ExecutorService aiAnalysisExecutor;
     private final StringRedisTemplate stringRedisTemplate;
     private static final String SAFETY_CODE_FORBIDDEN_MESSAGE = "安全码错误或无权访问该方案";
     private static final String NO_REDIS_LOCK_TOKEN = "";
@@ -387,7 +397,8 @@ public class VolunteerController {
         emitter.onError((ex) -> releaser.run());
 
         try {
-            taskExecutor.execute(() -> {
+            // v7.41：AI SSE 改走独立池，避免 30~90s 长流挤通用任务池。
+            aiAnalysisExecutor.execute(() -> {
                 try {
                     aiService.streamAnalysis(emitter, finalSummary);
                 } finally {

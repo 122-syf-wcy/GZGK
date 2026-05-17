@@ -63,6 +63,14 @@ class VolunteerControllerAccessSecurityTest {
     @BeforeEach
     void setUp() {
         Executor directExecutor = Runnable::run;
+        java.util.concurrent.ExecutorService directAiExecutor = new java.util.concurrent.AbstractExecutorService() {
+            @Override public void shutdown() {}
+            @Override public java.util.List<Runnable> shutdownNow() { return java.util.List.of(); }
+            @Override public boolean isShutdown() { return false; }
+            @Override public boolean isTerminated() { return false; }
+            @Override public boolean awaitTermination(long timeout, java.util.concurrent.TimeUnit unit) { return true; }
+            @Override public void execute(Runnable command) { command.run(); }
+        };
         VolunteerController controller = new VolunteerController(
                 volunteerService,
                 professionalGroupVolunteerService,
@@ -74,6 +82,7 @@ class VolunteerControllerAccessSecurityTest {
                 jwtUtil,
                 objectMapper,
                 directExecutor,
+                directAiExecutor,
                 stringRedisTemplate
         );
         ReflectionTestUtils.setField(controller, "aiAnalysisActiveGlobalLimit", 30);
