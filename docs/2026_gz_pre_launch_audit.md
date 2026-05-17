@@ -1,5 +1,6 @@
 # 贵州板块 2026 上线前数据与功能大审查
 
+> 第二轮更新：2026-05-17 14:45（追加 18 批次算法实测 + v7.42/v7.43 落地）
 > 审查时间：2026-05-17 14:35  
 > 审查范围：贵州 18 个批次的全量数据 + 配套（院校 / 政策 / 链接 / 一分一段 / 选科 / 专项政策）  
 > 审查口径：以生产数据库 `gzly` 实测为准；以前端 RegionHome / VolunteerForm / VolunteerResult 实际路径为准  
@@ -207,6 +208,56 @@
 - v7.41 后 `/api/volunteer/recommend` 端到端 ≈7.2s（v7.39 基线 10s）
 - `/api/volunteer/gz/batch-support` 冷 2.046s → 热 0.006s（Caffeine L1 256x 加速）
 - `/actuator/prometheus` 已暴露 gzly.task.executor + gzly.ai.sse.executor + Redis cache hit + HikariCP + G1 GC
-- 后端 `./mvnw test` 266/0/0；前端 `npm run build` 通过；deploy_backend_safe 三轮 0 5xx
+- 后端 `./mvnw test` 266/0/0；前端 `npm run build` 通过；deploy_backend_safe 五轮 0 5xx
 - ICP：`gzly.dongsiwei.com` 公网 HTTP 80 被阿里云返 ICP 拦截、HTTPS 443 被 RST；`http://39.97.232.141/` 直连可用
+
+## 八、18 批次算法实测矩阵（v7.43，2026-05-17 14:45）
+
+每个批次实测条件：`provinceCode=GZ year=2026 候选普通类/艺术类/体育类 score=520 rank=60000 firstSubject=物理 安全码自动生成`，生产 `/api/volunteer/recommend` 直接调用。
+
+| 批次代码 | engine | supportLevel | items | items 来源 |
+|---|---|---|---|---|
+| NORMAL_UNDERGRADUATE | OrdinaryParallelMajor | TRIAL_RECOMMEND | 96 | 主链路（VolunteerService.generate） |
+| NORMAL_SPECIALTY | OrdinaryParallelMajor | TRIAL_RECOMMEND | 96 | 主链路 |
+| EARLY_C | EarlyCParallelMajor | TRIAL_RECOMMEND | 16~27 | 主链路（v7.42 升级开放） |
+| EARLY_A_B | SequentialCollege | QUERY_ONLY | 60 | listEarlyBatch 2025 招生计划 |
+| SPECIALTY_EARLY | SequentialCollege | QUERY_ONLY | 19 | listEarlyBatch 2025 招生计划 |
+| ART_UNDERGRADUATE_A | ArtCompositeRecommend | QUERY_ONLY | 60 | listCompositeBatch 历史录取 |
+| ART_UNDERGRADUATE_B | ArtCompositeRecommend | QUERY_ONLY | 60 | listCompositeBatch 历史录取 |
+| ART_SPECIALTY | ArtCompositeRecommend | QUERY_ONLY | 60 | listCompositeBatch 历史录取 |
+| SPORTS_UNDERGRADUATE | SportsCompositeRecommend | QUERY_ONLY | 60 | listCompositeBatch 历史录取 |
+| SPORTS_SPECIALTY | SportsCompositeRecommend | QUERY_ONLY | 60 | listCompositeBatch 历史录取 |
+| NATIONAL_SPECIAL | SpecialPlanEligibility | QUERY_ONLY | 60 | 关键词匹配 2025 admission_plan |
+| LOCAL_SPECIAL | SpecialPlanEligibility | QUERY_ONLY | 60 | 关键词匹配（回退 2023） |
+| UNIVERSITY_SPECIAL | SpecialPlanEligibility | QUERY_ONLY | 43 | 关键词匹配 2025 |
+| ETHNIC_CLASS | SpecialPlanEligibility | QUERY_ONLY | 3 | v7.43 关键词扩宽后匹配"民族学" |
+| ORIENTED | SpecialPlanEligibility | QUERY_ONLY | 1 | 关键词匹配 2025 |
+| TEACHER_EXCELLENCE | SpecialPlanEligibility | QUERY_ONLY | 4 | 关键词匹配 2025 |
+| PREPARATORY | SpecialPlanEligibility | QUERY_ONLY | 0 | 底层 admission_plan_gz 无"预科"字样，仅提示手动核对 |
+| FREE_MEDICAL | SpecialPlanEligibility | QUERY_ONLY | 0 | 底层 admission_plan_gz 无"免费医学/农村订单/免医"字样 |
+
+汇总：
+- **18 / 18 批次的算法路由和列表实现全部到位**（OrdinaryParallelMajor / EarlyCParallelMajor / SequentialCollege / ArtComposite / SportsComposite / SpecialPlanEligibility 6 个 engine + BatchListingRecommendationService 5 个 listing 方法 + 8 类专项关键词模糊匹配）。
+- **16 / 18 批次能返回候选列表**（含主链路 96/96/16 + QUERY_ONLY 60×6 + 43 + 60 + 3 + 1 + 4）。
+- **2 / 18 批次返回空候选**：PREPARATORY 与 FREE_MEDICAL 因 2025 招生计划本身无对应字样，需要等 6 月底 2026 官方招生计划导入或 scrape 补齐后再次救回；当前页面已显式提示「请按高校招生章程与资格审查表手动核对」。
+
+## 九、本轮（2026-05-17 13:50-14:45）所有交付
+
+| 提交 | 范围 | 关键产出 |
+|---|---|---|
+| v7.40 | AI 志愿推荐恢复 + 全栈安全收敛 | PRE_OFFICIAL_DATA + 历史回退 → TRIAL_RECOMMEND；Spring Boot 3.2.5→3.2.12；Tomcat 127.0.0.1；新增限流规则 + Redis 原子锁 |
+| v7.41 | 高并发优化 | BatchSupportService Caffeine L1 缓存（256× 加速）；AI SSE 独立 executor；Prometheus 指标全开 |
+| v7.42 | EARLY_C 放开 + 前端分类文案 | EARLY_C 升级 TRIAL_RECOMMEND；艺术 / 体育 / 8 专项 QUERY_ONLY 页面分类文案 |
+| v7.43 | 8 类专项关键词扩宽 | ETHNIC_CLASS / PREPARATORY / FREE_MEDICAL / TEACHER_EXCELLENCE 关键词加宽；民族班从 0 升 3 候选 |
+| docs/handover | 文档收口 | 速览段、已知未解决项、上线 GO/NO-GO 清单 |
+| audit 报告 | 数据 + 算法双维度 | 18 批次实测矩阵、官方链接覆盖率、专项数据缺口、立即可动作的 P0/P1 |
+
+**爬虫补数任务**：`pid 335946` 在跑，LIMIT=500 SCOPE=official-missing；进度 172/304 = 56%（截至 14:45）；预计 15~25 分钟跑完。补完后生成 SQL 等人工核验，按 HANDOVER 走 `server/import_official_links.sh` 单次导入，禁止恢复循环 importer。
+
+**仍需人工的 4 项**：
+
+1. 历史类选科要求 OCR / 人工 CSV（按 `docs/HISTORY_MAJOR_REQUIREMENT_IMPORT.md` 流程）。
+2. `special_admission_policy` 静态政策补齐到 ≥2 条 / 类（需 2026 贵州省招生考试院官方公告原文 / 链接）。
+3. ICP 备案在阿里云控制台重新提交（代码侧不可修复）。
+4. 6 月下旬 2026 贵州官方招生计划 + 一分一段表 + 选科要求三件套导入 → recommendation_phase 推进到 OFFICIAL_DATA_IMPORTED → 重训 ML → MODEL_RETRAINED。
 
