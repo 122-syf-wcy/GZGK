@@ -1,9 +1,38 @@
 # GZLY 贵州高考志愿公益辅助系统交接文档
 
-> 更新时间: 2026-05-17 01:12（v7.39 全栈高并发优化：内核 / MySQL / Redis / Nginx / JVM / Spring）
+> 更新时间: 2026-05-17 14:25（v7.41 Caffeine L1 缓存 + AI SSE 独立池 + Prometheus 指标；v7.40 AI 志愿推荐预官方数据期间放开 TRIAL_RECOMMEND + Spring Boot 3.2.12）
 > 项目路径: `/Users/dongsiwei/Desktop/skills/projects/GZLY/`
 > Git 仓库: `https://github.com/122-syf-wcy/-`
 > 当前生产分支: `chore/snapshot-main-wip-20260515`（暂未合并到 main，新服务器迁移按 `migration/README.md` 拉此分支）
+
+## 0. 最近两轮变更速览（v7.40 / v7.41，2026-05-17 14:00-14:25）
+
+### v7.41（2026-05-17 14:25）Caffeine + AI 池 + Prometheus
+
+- `BatchSupportService.supportMatrix` 加 Caffeine L1 缓存（5min TTL，256 容量），同省同年 + publicYearLocked 维度共享。生产实测冷启 2.046s → 热路径 0.006s，约 256× 加速；50/200 并发 ab 压测 1401/1852 RPS、0 failed。
+- 新增 `aiAnalysisExecutor`（core=8/max=32/SynchronousQueue/CallerRunsPolicy/daemon），AI SSE 30~90s 长流从通用 `taskExecutor` 解耦，避免长流堵短任务。
+- `TaskExecutorConfig` 全部 executor 接入 `ExecutorServiceMetrics.monitor`，`/actuator/prometheus` 现暴露 `gzly.task.executor` 与 `gzly.ai.sse.executor` 的 pool_core/pool_max/pool_size/active/queued/queue_remaining/completed/idle_seconds，可直接 Grafana 出图 + 告警。
+- pom.xml 新增 `com.github.ben-manes.caffeine:caffeine`（继承 Spring Boot 3.2.12 BOM 版本）。
+- 后端 `./mvnw test` 266/0/0 全绿，`deploy_backend_safe.sh` 部署成功，旧 JAR 备份 `app.jar.20260517142158.bak`。
+- 生产实测：`/api/volunteer/recommend` 端到端 ≈7.2s（v7.39 基线 10s，主要省下 supportMatrix 2-3s 的 batch 矩阵查询）。
+
+### v7.40（2026-05-17 14:15）AI 志愿推荐恢复 + 全栈安全收敛
+
+- **主修复**：`BatchSupportService.resolveSupportLevel` 在 `PRE_OFFICIAL_DATA` 阶段对 `NORMAL_UNDERGRADUATE` / `NORMAL_SPECIALTY` 且 `historicalReferenceCount > 0` 时升级为 `TRIAL_RECOMMEND`，恢复 96 条志愿草稿；`VolunteerRecommendController.decoratePlan` 同步去掉无差别覆写 QUERY_ONLY 的硬编码，engine 已判 TRIAL 的批次保留口径，避免出现"96 条志愿生成成功但前端按 QUERY_ONLY 隐藏 AI 解读"的自相矛盾。
+- Spring Boot 3.2.5 → 3.2.12（修 CVE-2024-38821 / 38819 / 38816 / 38809 等 4 个）。
+- 接入 `spring-boot-starter-actuator` + `micrometer-registry-prometheus`，独立端口 9099 仅 127.0.0.1，只开 health/info/metrics/prometheus。
+- Tomcat `server.address=127.0.0.1`，业务端口仅内网暴露，外网必须经 nginx upstream。
+- `WebMvcConfig` 新增 `/volunteer/recommend`、`ai-analysis-ticket`、`plans/*/ai-analysis`、`plans/*/skills/ask`、`zhangxuefeng-skills-chat` 限流规则；`PublicRateLimitInterceptor` 支持 path 通配符 `*` 匹配。
+- `VolunteerService.releaseGenerateLock` 与 `VolunteerController.releaseAiAnalysisPlanLock` 改为 Lua 脚本 CAS（`GET == token then DEL`），UUID token 防误释放别人持有的锁。
+- 新增 `AiDeepAnalysisService` 结构化 AI 分析（dataIssues / 兜底模板版本号），对应 `/volunteer/plans/{id}/ai-analysis` JSON 接口（与 SSE 互为补充）。
+- 前端 `VolunteerForm` 增加"贵州数据口径"提示卡，说明 2024/2025 历史口径覆盖范围。
+- 生产实测：`POST /api/volunteer/recommend` `code=0 / items=96 / manualReview=19 / portfolioSafetyProbability=99.9% / supportLevel=TRIAL_RECOMMEND / modelInfo.queryOnly=false / visibleMetric=chanceScore`。
+
+### 已知未解决的运维项
+
+- **域名 ICP 备案**：`gzly.dongsiwei.com` HTTP 80 被阿里云返 `Non-compliance ICP Filing` 403、HTTPS 443 被 TCP RST。直接 IP `http://39.97.232.141/`（无 Host 头）仍可访问。需要去阿里云控制台重新备案或迁出大陆机房；代码层无法修复。
+- **2026 官方数据未发布**：目前生产口径走「2024+2025 历史数据估算」的 `TRIAL_RECOMMEND`，对应 96 条志愿草稿带显式「PRE_OFFICIAL_DATA」警告。6 月下旬贵州考试院出 2026 官方数据后，需要重跑导入并将 `recommendation_phase` 推进到 `OFFICIAL_DATA_IMPORTED`，重训模型后再升 `MODEL_RETRAINED`。
+- **JDK 21 + virtual threads**：v7.39 已记录，AI SSE 改用 virtual thread 后单 host 并发 SSE 数能再翻倍，但需要 OkHttp / lettuce / mybatis-plus 兼容性回归，暂未排期。
 
 ## 一、项目定位
 
