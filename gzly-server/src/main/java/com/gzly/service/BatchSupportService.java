@@ -335,7 +335,13 @@ public class BatchSupportService {
     }
 
     private boolean supportsHistoricalReferenceRecommendByCode(String batchCode) {
-        return "NORMAL_UNDERGRADUATE".equals(batchCode) || "NORMAL_SPECIALTY".equals(batchCode);
+        // v7.42：在 PRE_OFFICIAL_DATA 期间允许走「历史数据回退试推荐」的批次白名单。
+        // - NORMAL_UNDERGRADUATE / NORMAL_SPECIALTY：96 志愿主链路。
+        // - EARLY_C：本科提前批 C 段 60 志愿；2025 plan 78 + line 18 + major_score 238，
+        //   面向公费师范 / 优师 / 免医 / 军警 / 定向类考生开放试推荐，等 2026 官方数据。
+        return "NORMAL_UNDERGRADUATE".equals(batchCode)
+                || "NORMAL_SPECIALTY".equals(batchCode)
+                || "EARLY_C".equals(batchCode);
     }
 
     private long historicalReferenceCount(BatchSupportItem item) {

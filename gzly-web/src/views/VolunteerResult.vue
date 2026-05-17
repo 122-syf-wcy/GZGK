@@ -283,13 +283,41 @@ const isOfficialDataPartialPlan = computed(() => (
 const trainingYearText = computed(() => (
   volunteerStore.trainingYears.length ? volunteerStore.trainingYears.join('、') : '2024、2025'
 ))
-const yearPhaseNotice = computed(() => (
-  isPreOfficialDataPlan.value
-    ? `${volunteerStore.activeAdmissionYear || 2026} 年官方招生计划和一分一段表尚未发布；本页仅展示基于 ${trainingYearText.value} 年历史数据的预估/缺口说明，不是正式推荐方案。`
-    : isOfficialDataPartialPlan.value
-      ? `${volunteerStore.activeAdmissionYear || 2026} 年官方数据正在分批导入和质检；本页仅展示数据准备进度或缺口说明，不开放完整推荐。`
-      : ''
+/**
+ * v7.42：识别批次大类，给艺术 / 体育 / 8 类专项的 QUERY_ONLY 页面单独的说明文案，
+ * 避免把"2026 数据未发布"作为唯一原因展示（这些批次本来就不依赖普通位次推荐）。
+ */
+const planBatchCode = computed(() => (
+  String(volunteerStore.policy?.batchCode || volunteerStore.formData.batchCode || '')
 ))
+const ART_BATCHES = ['ART_UNDERGRADUATE_A', 'ART_UNDERGRADUATE_B', 'ART_SPECIALTY']
+const SPORTS_BATCHES = ['SPORTS_UNDERGRADUATE', 'SPORTS_SPECIALTY']
+const SPECIAL_PROGRAM_BATCHES = [
+  'NATIONAL_SPECIAL', 'LOCAL_SPECIAL', 'UNIVERSITY_SPECIAL',
+  'ETHNIC_CLASS', 'PREPARATORY', 'ORIENTED',
+  'FREE_MEDICAL', 'TEACHER_EXCELLENCE',
+]
+const isArtBatch = computed(() => ART_BATCHES.includes(planBatchCode.value))
+const isSportsBatch = computed(() => SPORTS_BATCHES.includes(planBatchCode.value))
+const isSpecialProgramBatch = computed(() => SPECIAL_PROGRAM_BATCHES.includes(planBatchCode.value))
+const yearPhaseNotice = computed(() => {
+  if (isArtBatch.value) {
+    return `艺术类批次以"高考文化分 + 校考/统考专业成绩"按贵州综合分公式独立投档，本系统不替代专业课校考成绩计算；2025 年贵州艺术类官方录取数据尚未公开，当前页面仅做政策说明与历史候选展示，正式志愿需以贵州省招生考试院文件和高校招生章程为准。`
+  }
+  if (isSportsBatch.value) {
+    return `体育类批次以"高考文化分 + 体育统考成绩"按贵州综合分公式独立投档，本系统不替代体育统考成绩计算；2025 年贵州体育类官方录取数据尚未公开，当前页面仅做政策说明与历史候选展示，正式志愿需以贵州省招生考试院文件和高校招生章程为准。`
+  }
+  if (isSpecialProgramBatch.value) {
+    return `国家专项 / 地方专项 / 高校专项 / 民族班 / 预科 / 定向 / 免费医学定向 / 优师等专项类批次需先按贵州省招生考试院公布的户籍 / 学籍 / 综合素质 / 履约协议等条件做资格审核；本系统不替代资格审核与单独投档程序，请到对应高校招生章程和贵州省招生考试院专项公告核验。`
+  }
+  if (isPreOfficialDataPlan.value) {
+    return `${volunteerStore.activeAdmissionYear || 2026} 年官方招生计划和一分一段表尚未发布；本页仅展示基于 ${trainingYearText.value} 年历史数据的预估/缺口说明，不是正式推荐方案。`
+  }
+  if (isOfficialDataPartialPlan.value) {
+    return `${volunteerStore.activeAdmissionYear || 2026} 年官方数据正在分批导入和质检；本页仅展示数据准备进度或缺口说明，不开放完整推荐。`
+  }
+  return ''
+})
 const hasPersistedPlan = computed(() => Number(volunteerStore.planId || 0) > 0)
 const canUsePlanActions = computed(() => !isQueryOnlyPlan.value && hasPersistedPlan.value)
 const planTitle = computed(() => (

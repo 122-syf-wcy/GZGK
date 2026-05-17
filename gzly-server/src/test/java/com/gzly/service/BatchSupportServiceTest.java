@@ -190,17 +190,21 @@ class BatchSupportServiceTest {
         BatchSupportService.BatchSupportResponse response = readyService().supportMatrix("GZ", 2026, true);
 
         assertThat(response.getSummary()).containsEntry("FULL_RECOMMEND", 0L);
-        assertThat(response.getSummary().get("TRIAL_RECOMMEND")).isEqualTo(2L);
+        // v7.42：NORMAL_UNDERGRADUATE + NORMAL_SPECIALTY + EARLY_C 共 3 个批次升 TRIAL_RECOMMEND。
+        // EARLY_C 历史回退面向公费师范 / 优师 / 免医 / 军警 / 定向类考生。
+        assertThat(response.getSummary().get("TRIAL_RECOMMEND")).isEqualTo(3L);
         assertThat(response.getSummary().get("QUERY_ONLY"))
-                .isEqualTo((long) response.getItems().size() - 2L);
+                .isEqualTo((long) response.getItems().size() - 3L);
         assertThat(response.getRecommendationPhase()).isEqualTo(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
         assertThat(response.isOfficialDataReady()).isFalse();
         assertThat(response.isEstimateMode()).isTrue();
         assertThat(item(response, "NORMAL_UNDERGRADUATE").getSupportLevel()).isEqualTo("TRIAL_RECOMMEND");
         assertThat(item(response, "NORMAL_SPECIALTY").getSupportLevel()).isEqualTo("TRIAL_RECOMMEND");
+        assertThat(item(response, "EARLY_C").getSupportLevel()).isEqualTo("TRIAL_RECOMMEND");
         response.getItems().stream()
                 .filter(item -> !"NORMAL_UNDERGRADUATE".equals(item.getBatchCode())
-                        && !"NORMAL_SPECIALTY".equals(item.getBatchCode()))
+                        && !"NORMAL_SPECIALTY".equals(item.getBatchCode())
+                        && !"EARLY_C".equals(item.getBatchCode()))
                 .forEach(item -> assertThat(item.getSupportLevel()).isEqualTo("QUERY_ONLY"));
         response.getItems().forEach(item ->
                 assertThat(item.getWarnings()).contains(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING));
