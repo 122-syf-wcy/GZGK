@@ -19,17 +19,22 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -195,5 +200,46 @@ class VolunteerControllerAccessSecurityTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.reply").value("> 本内容由 AI 生成，仅供参考。\n\n建议先删掉数据置信度最低的冲档项。"))
                 .andExpect(jsonPath("$.data.sourceProjectName").value(VolunteerService.ADVISOR_SOURCE_PROJECT_NAME));
+    }
+
+    @Test
+    void aiAnalysis_shouldReleasePlanLockByOwnerToken() throws Exception {
+        PlanHistory plan = new PlanHistory();
+        plan.setId(99L);
+        plan.setTotalScore(601);
+        plan.setProvinceRank(18970);
+        plan.setFirstSubject("物理");
+        plan.setResubjects("[\"化学\",\"生物\"]");
+        plan.setPlanJson("[]");
+        plan.setManualReviewJson("[]");
+        plan.setMetricsJson("{}");
+        plan.setRequestSnapshotJson("{}");
+        AtomicReference<String> planLockToken = new AtomicReference<>();
+
+        when(volunteerService.getPlanById(99L)).thenReturn(plan);
+        when(volunteerService.isValidPlanAccessKey(99L, "secret-access-key")).thenReturn(true);
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(eq("active:ai-analysis:plan:99"), anyString(), any(Duration.class)))
+                .thenAnswer(inv -> {
+                    planLockToken.set(inv.getArgument(1, String.class));
+                    return Boolean.TRUE;
+                });
+        when(valueOperations.increment(anyString())).thenReturn(1L);
+        when(valueOperations.decrement(anyString())).thenReturn(0L);
+        doAnswer(inv -> {
+            inv.getArgument(0, SseEmitter.class).complete();
+            return null;
+        }).when(aiService).streamAnalysis(any(SseEmitter.class), anyString());
+
+        mockMvc.perform(get("/volunteer/ai-analysis")
+                        .param("planId", "99")
+                        .param("accessKey", "secret-access-key"))
+                .andExpect(status().isOk());
+
+        assertThat(planLockToken.get()).isNotBlank();
+        verify(stringRedisTemplate).execute(
+                any(RedisScript.class),
+                eq(List.of("active:ai-analysis:plan:99")),
+                eq(planLockToken.get()));
     }
 }

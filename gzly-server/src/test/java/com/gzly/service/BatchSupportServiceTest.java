@@ -138,6 +138,18 @@ class BatchSupportServiceTest {
     }
 
     @Test
+    void registryOnlyBatches_shouldNotReportPolicyRuleConfigAsMissing() {
+        BatchSupportService.BatchSupportResponse response = serviceWithNoDatabaseRows().supportMatrix("GZ", 2026, true);
+
+        assertThat(response.getItems()).hasSize(18);
+        assertThat(item(response, "ART_UNDERGRADUATE_B").isPolicyConfigured()).isTrue();
+        assertThat(item(response, "ART_UNDERGRADUATE_B").getPolicyStatus()).isEqualTo("registry_only");
+        assertThat(item(response, "ART_UNDERGRADUATE_B").getMissingData()).doesNotContain("policy_rule_config");
+        assertThat(item(response, "NATIONAL_SPECIAL").isPolicyConfigured()).isTrue();
+        assertThat(item(response, "NATIONAL_SPECIAL").getMissingData()).doesNotContain("policy_rule_config");
+    }
+
+    @Test
     void batchSupport_shouldNotOnlyReturnNormalUndergraduate() {
         BatchSupportService.BatchSupportResponse response = serviceWithNoDatabaseRows().supportMatrix("GZ", 2025);
 
@@ -162,29 +174,36 @@ class BatchSupportServiceTest {
     }
 
     @Test
-    void publicActiveYear_shouldNotExposeFullRecommendBeforeOfficialDataReady() {
+    void publicActiveYear_shouldExposeTrialRecommendBeforeOfficialDataReadyWhenHistoryAvailable() {
         BatchSupportService.BatchSupportItem item = item(readyService().supportMatrix("GZ", 2026, true), "NORMAL_UNDERGRADUATE");
 
-        assertThat(item.getSupportLevel()).isEqualTo("QUERY_ONLY");
+        assertThat(item.getSupportLevel()).isEqualTo("TRIAL_RECOMMEND");
         assertThat(item.getDataStatus().getStatus()).isEqualTo("PRE_OFFICIAL_DATA");
+        assertThat(item.getDataStatus().getDetail())
+                .isEqualTo("目标年份官方数据尚未发布；当前可基于历史录取数据生成参考志愿草稿");
         assertThat(item.getSupportReason()).isEqualTo(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING);
         assertThat(item.getWarnings()).contains(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING);
     }
 
     @Test
-    void PRE_OFFICIAL_DATA_shouldForceAllPublicBatchesQueryOnly() {
+    void PRE_OFFICIAL_DATA_shouldOnlyTrialRecommendNormalBatchesWithHistory() {
         BatchSupportService.BatchSupportResponse response = readyService().supportMatrix("GZ", 2026, true);
 
         assertThat(response.getSummary()).containsEntry("FULL_RECOMMEND", 0L);
-        assertThat(response.getSummary()).containsEntry("TRIAL_RECOMMEND", 0L);
-        assertThat(response.getSummary().get("QUERY_ONLY")).isEqualTo((long) response.getItems().size());
+        assertThat(response.getSummary().get("TRIAL_RECOMMEND")).isEqualTo(2L);
+        assertThat(response.getSummary().get("QUERY_ONLY"))
+                .isEqualTo((long) response.getItems().size() - 2L);
         assertThat(response.getRecommendationPhase()).isEqualTo(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
         assertThat(response.isOfficialDataReady()).isFalse();
         assertThat(response.isEstimateMode()).isTrue();
-        assertThat(response.getItems()).allSatisfy(item -> {
-            assertThat(item.getSupportLevel()).isEqualTo("QUERY_ONLY");
-            assertThat(item.getWarnings()).contains(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING);
-        });
+        assertThat(item(response, "NORMAL_UNDERGRADUATE").getSupportLevel()).isEqualTo("TRIAL_RECOMMEND");
+        assertThat(item(response, "NORMAL_SPECIALTY").getSupportLevel()).isEqualTo("TRIAL_RECOMMEND");
+        response.getItems().stream()
+                .filter(item -> !"NORMAL_UNDERGRADUATE".equals(item.getBatchCode())
+                        && !"NORMAL_SPECIALTY".equals(item.getBatchCode()))
+                .forEach(item -> assertThat(item.getSupportLevel()).isEqualTo("QUERY_ONLY"));
+        response.getItems().forEach(item ->
+                assertThat(item.getWarnings()).contains(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING));
     }
 
     @Test

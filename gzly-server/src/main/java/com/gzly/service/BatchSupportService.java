@@ -58,15 +58,19 @@ public class BatchSupportService {
         response.setDataSourceYears(resolveDataSourceYears(readiness, response.getTrainingYears(), resolvedYear));
         List<BatchSupportItem> items = new ArrayList<>();
         for (BatchRuleRegistry.BatchRule rule : BatchRuleRegistry.allRules()) {
-            items.add(buildItem(rule, response.getProvinceCode(), resolvedYear, readiness));
+            items.add(buildItem(rule, response.getProvinceCode(), resolvedYear, readiness, response.getDataSourceYears()));
         }
         response.setItems(items);
         response.setSummary(buildSummary(items));
         return response;
     }
 
-    private BatchSupportItem buildItem(BatchRuleRegistry.BatchRule rule, String provinceCode, int year, DataReadiness readiness) {
-        PolicySnapshot policy = policySnapshot(provinceCode, year, rule.batchCode(), rule.candidateType());
+    private BatchSupportItem buildItem(BatchRuleRegistry.BatchRule rule,
+                                       String provinceCode,
+                                       int year,
+                                       DataReadiness readiness,
+                                       List<Integer> dataSourceYears) {
+        PolicySnapshot policy = policySnapshot(provinceCode, year, rule);
         BatchSupportItem item = new BatchSupportItem();
         item.setBatchCode(rule.batchCode());
         item.setBatchName(rule.batchName());
@@ -85,11 +89,13 @@ public class BatchSupportService {
         item.setPolicyStatus(policy.status());
         item.setScoreLineCount(countByBatch("data_score_line_gz", year, rule));
         item.setMajorScoreCount(countByBatch("data_major_score_gz", year, rule));
+        item.setHistoricalScoreLineCount(countByBatchAcrossYears("data_score_line_gz", dataSourceYears, rule));
+        item.setHistoricalMajorScoreCount(countByBatchAcrossYears("data_major_score_gz", dataSourceYears, rule));
         item.setRequirementCount(countRequirements(year));
         item.setPlanCount(countPlanRows(year, rule));
         item.setSupportLevel(resolveSupportLevel(rule, item, readiness, year));
         item.setDataStatus(dataStatus(item, readiness, year));
-        item.setMissingData(missingData(rule, item));
+        item.setMissingData(missingData(rule, item, readiness, year));
         item.setSupportReason(supportReason(rule, item, readiness, year));
         item.setWarnings(warnings(rule, item, readiness, year));
         return item;
@@ -100,6 +106,12 @@ public class BatchSupportService {
             return rule.baseSupportLevel().name();
         }
         if (year == admissionYearService.getTargetYear() && !admissionYearService.isOfficialDataReady(readiness)) {
+            if (admissionYearService.isPreOfficialDataPhase(readiness.getRecommendationPhase())
+                    && supportsHistoricalReferenceRecommend(rule)
+                    && item.isPolicyConfigured()
+                    && historicalReferenceCount(item) > 0) {
+                return BatchRuleRegistry.SupportLevel.TRIAL_RECOMMEND.name();
+            }
             return BatchRuleRegistry.SupportLevel.QUERY_ONLY.name();
         }
         boolean hasHistory = item.getScoreLineCount() + item.getMajorScoreCount() > 0;
@@ -124,13 +136,16 @@ public class BatchSupportService {
         dataStatus.setPolicyCount(item.isPolicyConfigured() ? 1 : 0);
         dataStatus.setScoreLineCount(item.getScoreLineCount());
         dataStatus.setMajorScoreCount(item.getMajorScoreCount());
-        dataStatus.setHistoryCount(item.getScoreLineCount() + item.getMajorScoreCount());
+        dataStatus.setHistoryCount(historyCountForDisplay(item, readiness, year));
         dataStatus.setPlanCount(item.getPlanCount());
         dataStatus.setRequirementCount(item.getRequirementCount());
         if (year == admissionYearService.getTargetYear() && !admissionYearService.isOfficialDataReady(readiness)) {
             if (admissionYearService.isOfficialDataPartialPhase(readiness.getRecommendationPhase())) {
                 dataStatus.setStatus(AdmissionYearService.PHASE_OFFICIAL_DATA_PARTIAL);
                 dataStatus.setDetail("目标年份官方数据正在分批导入和质检，关键数据尚未全部就绪");
+            } else if (supportsHistoricalReferenceRecommendByCode(item.getBatchCode()) && historicalReferenceCount(item) > 0) {
+                dataStatus.setStatus(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+                dataStatus.setDetail("目标年份官方数据尚未发布；当前可基于历史录取数据生成参考志愿草稿");
             } else {
                 dataStatus.setStatus(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
                 dataStatus.setDetail("目标年份官方招生计划、一分一段表或政策数据尚未全部就绪");
@@ -171,6 +186,11 @@ public class BatchSupportService {
             return rule.supportNote();
         }
         if (year == admissionYearService.getTargetYear() && !admissionYearService.isOfficialDataReady(readiness)) {
+            if (admissionYearService.isPreOfficialDataPhase(readiness.getRecommendationPhase())
+                    && supportsHistoricalReferenceRecommend(rule)
+                    && historicalReferenceCount(item) > 0) {
+                return AdmissionYearService.PRE_OFFICIAL_DATA_WARNING;
+            }
             return admissionYearService.isOfficialDataPartialPhase(readiness.getRecommendationPhase())
                     ? AdmissionYearService.OFFICIAL_DATA_PARTIAL_WARNING
                     : AdmissionYearService.PRE_OFFICIAL_DATA_WARNING;
@@ -208,7 +228,7 @@ public class BatchSupportService {
         if (!item.isPolicyConfigured()) {
             warnings.add("政策配置未落库，使用内置支持矩阵展示");
         }
-        if (item.getScoreLineCount() + item.getMajorScoreCount() <= 0) {
+        if (historyCountForMissing(rule, item, readiness, year) <= 0) {
             warnings.add("未检索到该批次历史分数数据");
         }
         if (item.getPlanCount() <= 0) {
@@ -232,12 +252,15 @@ public class BatchSupportService {
         return years;
     }
 
-    private List<String> missingData(BatchRuleRegistry.BatchRule rule, BatchSupportItem item) {
+    private List<String> missingData(BatchRuleRegistry.BatchRule rule,
+                                     BatchSupportItem item,
+                                     DataReadiness readiness,
+                                     int year) {
         List<String> missing = new ArrayList<>();
         if (!item.isPolicyConfigured()) {
             missing.add("policy_rule_config");
         }
-        if (item.getScoreLineCount() + item.getMajorScoreCount() <= 0) {
+        if (historyCountForMissing(rule, item, readiness, year) <= 0) {
             missing.add("data_score_line_gz/data_major_score_gz");
         }
         if (item.getPlanCount() <= 0) {
@@ -258,6 +281,53 @@ public class BatchSupportService {
         return missing.stream().distinct().toList();
     }
 
+    private boolean supportsHistoricalReferenceRecommend(BatchRuleRegistry.BatchRule rule) {
+        if (rule == null) {
+            return false;
+        }
+        return supportsHistoricalReferenceRecommendByCode(rule.batchCode());
+    }
+
+    private boolean supportsHistoricalReferenceRecommendByCode(String batchCode) {
+        return "NORMAL_UNDERGRADUATE".equals(batchCode) || "NORMAL_SPECIALTY".equals(batchCode);
+    }
+
+    private long historicalReferenceCount(BatchSupportItem item) {
+        if (item == null) {
+            return 0;
+        }
+        return item.getHistoricalScoreLineCount() + item.getHistoricalMajorScoreCount();
+    }
+
+    private long historyCountForDisplay(BatchSupportItem item, DataReadiness readiness, int year) {
+        if (item == null) {
+            return 0;
+        }
+        if (year == admissionYearService.getTargetYear()
+                && readiness != null
+                && admissionYearService.isPreOfficialDataPhase(readiness.getRecommendationPhase())
+                && supportsHistoricalReferenceRecommendByCode(item.getBatchCode())) {
+            return historicalReferenceCount(item);
+        }
+        return item.getScoreLineCount() + item.getMajorScoreCount();
+    }
+
+    private long historyCountForMissing(BatchRuleRegistry.BatchRule rule,
+                                        BatchSupportItem item,
+                                        DataReadiness readiness,
+                                        int year) {
+        if (item == null) {
+            return 0;
+        }
+        if (year == admissionYearService.getTargetYear()
+                && readiness != null
+                && admissionYearService.isPreOfficialDataPhase(readiness.getRecommendationPhase())
+                && supportsHistoricalReferenceRecommend(rule)) {
+            return historicalReferenceCount(item);
+        }
+        return item.getScoreLineCount() + item.getMajorScoreCount();
+    }
+
     private Map<String, Long> buildSummary(List<BatchSupportItem> items) {
         Map<String, Long> summary = new LinkedHashMap<>();
         for (String level : List.of("FULL_RECOMMEND", "TRIAL_RECOMMEND", "QUERY_ONLY", "UNSUPPORTED")) {
@@ -266,13 +336,13 @@ public class BatchSupportService {
         return summary;
     }
 
-    private PolicySnapshot policySnapshot(String provinceCode, int year, String batchCode, String candidateType) {
+    private PolicySnapshot policySnapshot(String provinceCode, int year, BatchRuleRegistry.BatchRule rule) {
         try {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                     "SELECT policy_status, max_volunteer_count, major_per_school_count, has_adjustment FROM policy_rule_config WHERE province = ? AND year = ? AND batch_code = ? AND candidate_type = ? AND enabled = 1 LIMIT 1",
-                    provinceCode, year, batchCode, candidateType);
+                    provinceCode, year, rule.batchCode(), rule.candidateType());
             if (rows.isEmpty()) {
-                return new PolicySnapshot(false, "registry_only", 0, 0, false);
+                return registryPolicySnapshot(rule);
             }
             Map<String, Object> row = rows.get(0);
             Object status = row.get("policy_status");
@@ -282,8 +352,12 @@ public class BatchSupportService {
                     toInt(row.get("major_per_school_count")),
                     toInt(row.get("has_adjustment")) == 1);
         } catch (Exception ignored) {
-            return new PolicySnapshot(false, "registry_only", 0, 0, false);
+            return registryPolicySnapshot(rule);
         }
+    }
+
+    private PolicySnapshot registryPolicySnapshot(BatchRuleRegistry.BatchRule rule) {
+        return new PolicySnapshot(true, "registry_only", rule.targetCount(), 0, false);
     }
 
     private int toInt(Object value) {
@@ -316,6 +390,44 @@ public class BatchSupportService {
             total += countByBatch("admission_plan", year, rule);
         }
         return total;
+    }
+
+    private long countByBatchAcrossYears(String table, List<Integer> years, BatchRuleRegistry.BatchRule rule) {
+        if (years == null || years.isEmpty() || !tableExists(table)) {
+            return 0;
+        }
+        String batchColumn = batchColumn(table);
+        if (batchColumn.isBlank()) {
+            return 0;
+        }
+        List<Integer> distinctYears = years.stream()
+                .filter(year -> year != null && year > 0)
+                .distinct()
+                .toList();
+        if (distinctYears.isEmpty()) {
+            return 0;
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(distinctYears.size(), "?"));
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                    "SELECT " + batchColumn + " AS data_batch, COUNT(*) AS cnt FROM " + table
+                            + " WHERE year IN (" + placeholders + ") GROUP BY " + batchColumn,
+                    distinctYears.toArray());
+            long total = 0;
+            for (Map<String, Object> row : rows) {
+                Object batch = row.get("data_batch");
+                if (!BatchRuleRegistry.batchMatches(rule.batchCode(), batch == null ? "" : batch.toString())) {
+                    continue;
+                }
+                Object count = row.get("cnt");
+                if (count instanceof Number number) {
+                    total += number.longValue();
+                }
+            }
+            return total;
+        } catch (Exception ignored) {
+            return 0;
+        }
     }
 
     private long countByBatch(String table, int year, BatchRuleRegistry.BatchRule rule) {
@@ -416,6 +528,8 @@ public class BatchSupportService {
         private String policyStatus;
         private long scoreLineCount;
         private long majorScoreCount;
+        private long historicalScoreLineCount;
+        private long historicalMajorScoreCount;
         private long planCount;
         private long requirementCount;
         private DataStatus dataStatus;

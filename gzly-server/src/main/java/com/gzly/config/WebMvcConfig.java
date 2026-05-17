@@ -74,7 +74,19 @@ public class WebMvcConfig implements WebMvcConfigurer {
             rules.add(new PublicRateLimitInterceptor.RateLimitRule(
                     "volunteer-generate", "/api/volunteer/generate", "POST", volunteerGenerateLimit, volunteerGenerateWindowSeconds));
             rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "volunteer-recommend", "/api/volunteer/recommend", "POST", volunteerGenerateLimit, volunteerGenerateWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
                     "ai-analysis", "/api/volunteer/ai-analysis", "GET", aiAnalysisLimit, aiAnalysisWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "ai-analysis-ticket", "/api/volunteer/ai-analysis-ticket", "POST", aiAnalysisLimit, aiAnalysisWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "ai-analysis-plan-get", "/api/volunteer/plans/*/ai-analysis", "GET", aiAnalysisLimit, aiAnalysisWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "ai-analysis-plan-post", "/api/volunteer/plans/*/ai-analysis", "POST", aiAnalysisLimit, aiAnalysisWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "skills-ask", "/api/volunteer/plans/*/skills/ask", "POST", aiAnalysisLimit, aiAnalysisWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "advisor-skill-chat", "/api/volunteer/zhangxuefeng-skills-chat", "POST", aiAnalysisLimit, aiAnalysisWindowSeconds));
             rules.add(new PublicRateLimitInterceptor.RateLimitRule(
                     "feedback", "/api/feedback", "POST", feedbackLimit, feedbackWindowSeconds));
             rules.add(new PublicRateLimitInterceptor.RateLimitRule(

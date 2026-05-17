@@ -30,6 +30,18 @@ class PublicRateLimitInterceptorTest {
     }
 
     @Test
+    void shouldMatchSingleSegmentWildcardPaths() {
+        PublicRateLimitInterceptor.RateLimitRule rule =
+                new PublicRateLimitInterceptor.RateLimitRule(
+                        "ai-analysis", "/api/volunteer/plans/*/ai-analysis", "POST", 6, 60);
+
+        assertThat(rule.matches("/api/volunteer/plans/99/ai-analysis", "POST")).isTrue();
+        assertThat(rule.matches("/api/volunteer/plans/abc/ai-analysis", "POST")).isTrue();
+        assertThat(rule.matches("/api/volunteer/plans/99/skills/ask", "POST")).isFalse();
+        assertThat(rule.matches("/api/volunteer/plans/99/extra/ai-analysis", "POST")).isFalse();
+    }
+
+    @Test
     void shouldUseLocalLimiterWhenRedisUnavailable() throws Exception {
         PublicRateLimitInterceptor.RateLimitRule rule =
                 new PublicRateLimitInterceptor.RateLimitRule("login", "/api/admin/login", "POST", 1, 60);

@@ -7,7 +7,13 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <!-- v7.40 2026-05-17: 3.2.5 → 3.2.12 (last 3.2.x OSS release, Nov 2024).
+             Closes: CVE-2024-38821 (Spring Security auth bypass, fixed 3.2.11),
+             CVE-2024-38819 (Spring Framework path traversal, fixed 3.2.11),
+             CVE-2024-38816 (Spring Framework path traversal, fixed 3.2.10),
+             CVE-2024-38809 (Spring Framework DoS, fixed 3.2.9) 等。
+             Spring Boot 3.2 OSS 支持已结束（2024-11），后续需要再升时跳 3.3.x LTS。 -->
+        <version>3.2.12</version>
         <relativePath/>
     </parent>
 
@@ -41,6 +47,16 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+
+        <!-- Actuator + Micrometer (v7.40 监控指标，仅 127.0.0.1 暴露) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
 
         <!-- MyBatis-Plus -->

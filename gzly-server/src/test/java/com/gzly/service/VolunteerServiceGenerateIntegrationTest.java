@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Method;
@@ -30,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,8 +39,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 /**
  * VolunteerService.generate() 主流程**真实集成测试**：
@@ -370,6 +374,49 @@ class VolunteerServiceGenerateIntegrationTest {
         assertThat(first).isNotEqualTo(third);
         assertThat(first).isNotEqualTo(fourth);
         assertThat(first).doesNotContain("SAFE1234");
+    }
+
+    @Test
+    void generate_shouldPersistSafetyCodeFingerprintForPlanIsolation() {
+        List<MajorScoreGz> candidates = new ArrayList<>();
+        candidates.add(major("1001", "贵州大学", "计算机科学与技术", 22000, 2024));
+        candidates.add(major("1002", "贵州师范大学", "数学与应用数学", 26000, 2024));
+        stubCandidatesAcrossGradients(candidates);
+        stubUniversities("1001", "贵州大学", "贵阳", "公办");
+        stubUniversities("1002", "贵州师范大学", "贵阳", "公办");
+
+        GenerateRequest req = baseValidRequest();
+        req.setSafetyCode("safe-1234");
+
+        service.generate(req, null, "127.0.0.1");
+
+        org.mockito.ArgumentCaptor<PlanHistory> captor = org.mockito.ArgumentCaptor.forClass(PlanHistory.class);
+        verify(planHistoryMapper).insert(captor.capture());
+        PlanHistory saved = captor.getValue();
+        assertThat(saved.getSafetyCodeHash()).isNotBlank();
+        assertThat(saved.getSafetyCodeFingerprint()).isEqualTo(safetyCodeService.fingerprint("SAFE1234"));
+        assertThat(saved.getSafetyCodeFingerprint()).doesNotContain("SAFE1234");
+    }
+
+    @Test
+    void generate_shouldReleaseGenerateLockByOwnerToken() {
+        AtomicReference<String> lockToken = new AtomicReference<>();
+        lenient().when(valueOps.setIfAbsent(anyString(), anyString(), any())).thenAnswer(inv -> {
+            lockToken.set(inv.getArgument(1, String.class));
+            return Boolean.TRUE;
+        });
+        List<MajorScoreGz> candidates = new ArrayList<>();
+        candidates.add(major("1001", "贵州大学", "计算机科学与技术", 22000, 2024));
+        candidates.add(major("1002", "贵州师范大学", "数学与应用数学", 26000, 2024));
+        stubCandidatesAcrossGradients(candidates);
+        stubUniversities("1001", "贵州大学", "贵阳", "公办");
+        stubUniversities("1002", "贵州师范大学", "贵阳", "公办");
+
+        PlanResult result = service.generate(baseValidRequest(), null, "127.0.0.1");
+
+        assertThat(result.getItems()).isNotEmpty();
+        assertThat(lockToken.get()).isNotBlank();
+        verify(stringRedisTemplate).execute(any(RedisScript.class), anyList(), eq(lockToken.get()));
     }
 
     @Test

@@ -20,6 +20,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -50,6 +51,10 @@ public class VolunteerController {
     private final Executor taskExecutor;
     private final StringRedisTemplate stringRedisTemplate;
     private static final String SAFETY_CODE_FORBIDDEN_MESSAGE = "安全码错误或无权访问该方案";
+    private static final String NO_REDIS_LOCK_TOKEN = "";
+    private static final DefaultRedisScript<Long> RELEASE_AI_ANALYSIS_PLAN_LOCK_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+            Long.class);
 
     @Value("${gzly.stability.ai-analysis-active-global-limit:30}")
     private int aiAnalysisActiveGlobalLimit;
@@ -355,7 +360,8 @@ public class VolunteerController {
         String ipKey = "active:ai-analysis:ip:" + clientIp;
         String planLockKey = "active:ai-analysis:plan:" + planId;
         // planId 互斥：同一方案同时只允许一路 SSE，否则用户多次点击 / 多 tab 会重复消耗 OpenAI token。
-        if (!tryAcquireAiAnalysisPlanLock(planLockKey)) {
+        String planLockToken = tryAcquireAiAnalysisPlanLock(planLockKey);
+        if (planLockToken == null) {
             try {
                 emitter.send(SseEmitter.event().data("[ERROR] 该方案的 AI 解读正在生成中，请等待结果或稍后再试"));
             } catch (Exception ignored) {}
@@ -363,7 +369,7 @@ public class VolunteerController {
             return emitter;
         }
         if (!tryAcquireAiAnalysisSlot(globalKey, ipKey)) {
-            releaseAiAnalysisPlanLock(planLockKey);
+            releaseAiAnalysisPlanLock(planLockKey, planLockToken);
             try {
                 emitter.send(SseEmitter.event().data("[ERROR] 当前AI解读请求较多，请稍后再试"));
             } catch (Exception ignored) {}
@@ -374,14 +380,20 @@ public class VolunteerController {
         AtomicBoolean released = new AtomicBoolean(false);
         Runnable releaser = () -> {
             releaseAiAnalysisSlot(globalKey, ipKey, released);
-            releaseAiAnalysisPlanLock(planLockKey);
+            releaseAiAnalysisPlanLock(planLockKey, planLockToken);
         };
         emitter.onCompletion(releaser);
         emitter.onTimeout(releaser);
         emitter.onError((ex) -> releaser.run());
 
         try {
-            taskExecutor.execute(() -> aiService.streamAnalysis(emitter, finalSummary));
+            taskExecutor.execute(() -> {
+                try {
+                    aiService.streamAnalysis(emitter, finalSummary);
+                } finally {
+                    releaser.run();
+                }
+            });
         } catch (RejectedExecutionException e) {
             releaser.run();
             try {
@@ -734,19 +746,23 @@ public class VolunteerController {
      * planId 维度的 AI 解读互斥锁：SETNX + TTL。
      * Redis 不可用时 fail-open（兼容现有降级语义），不阻塞用户。
      */
-    private boolean tryAcquireAiAnalysisPlanLock(String planLockKey) {
+    private String tryAcquireAiAnalysisPlanLock(String planLockKey) {
         try {
+            String token = UUID.randomUUID().toString();
             Boolean ok = stringRedisTemplate.opsForValue().setIfAbsent(
-                    planLockKey, "1", Duration.ofSeconds(Math.max(aiAnalysisPlanLockTtlSeconds, 30)));
-            return ok == null || ok;
+                    planLockKey, token, Duration.ofSeconds(Math.max(aiAnalysisPlanLockTtlSeconds, 30)));
+            return ok == null || ok ? token : null;
         } catch (Exception e) {
-            return true;
+            return NO_REDIS_LOCK_TOKEN;
         }
     }
 
-    private void releaseAiAnalysisPlanLock(String planLockKey) {
+    private void releaseAiAnalysisPlanLock(String planLockKey, String planLockToken) {
+        if (NO_REDIS_LOCK_TOKEN.equals(planLockToken)) {
+            return;
+        }
         try {
-            stringRedisTemplate.delete(planLockKey);
+            stringRedisTemplate.execute(RELEASE_AI_ANALYSIS_PLAN_LOCK_SCRIPT, List.of(planLockKey), planLockToken);
         } catch (Exception ignored) {
         }
     }

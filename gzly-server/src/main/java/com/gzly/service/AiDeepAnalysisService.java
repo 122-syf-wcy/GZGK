@@ -14,13 +14,17 @@ import com.gzly.mapper.VolunteerAiAnalysisMapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -34,6 +38,11 @@ public class AiDeepAnalysisService {
     private final ComplianceTextGuard complianceTextGuard;
     private final AiService aiService;
     private final VolunteerDiagnosisEngine volunteerDiagnosisEngine;
+    private final StringRedisTemplate stringRedisTemplate;
+    private static final String NO_REDIS_LOCK_TOKEN = "";
+    private static final DefaultRedisScript<Long> RELEASE_GENERATE_LOCK_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+            Long.class);
 
     public AiAnalysisVO generate(Long planId, String accessKey, boolean forceRefresh) {
         VolunteerService.PlanResult plan = requirePlan(planId, accessKey);
@@ -43,7 +52,24 @@ public class AiDeepAnalysisService {
                 return existing;
             }
         }
+        String lockKey = "active:ai-analysis:structured:plan:" + planId;
+        String lockToken = tryAcquireGenerateLock(lockKey);
+        if (lockToken == null) {
+            AiAnalysisVO existing = get(planId, accessKey);
+            if (existing != null && "completed".equals(existing.getStatus())) {
+                return existing;
+            }
+            throw new BizException(429, "该方案的 AI 深度解读正在生成中，请稍后再试");
+        }
 
+        try {
+            return doGenerate(planId, plan);
+        } finally {
+            releaseGenerateLock(lockKey, lockToken);
+        }
+    }
+
+    private AiAnalysisVO doGenerate(Long planId, VolunteerService.PlanResult plan) {
         List<VolunteerService.VolunteerItem> items = plan.getItems() == null ? List.of() : plan.getItems();
         // collectDataIssues 可能返回 immutable List.of()，下面 appendDiagnosisWarnings 需要能 add，这里包一层 ArrayList
         List<String> dataIssues = new java.util.ArrayList<>(collectDataIssues(items));
@@ -120,6 +146,30 @@ public class AiDeepAnalysisService {
 
         save(planId, plan, vo);
         return vo;
+    }
+
+    private String tryAcquireGenerateLock(String lockKey) {
+        if (stringRedisTemplate == null) {
+            return NO_REDIS_LOCK_TOKEN;
+        }
+        try {
+            String token = UUID.randomUUID().toString();
+            Boolean ok = stringRedisTemplate.opsForValue().setIfAbsent(lockKey, token, Duration.ofSeconds(120));
+            return ok == null || ok ? token : null;
+        } catch (Exception e) {
+            log.warn("[ai-analysis] Redis 互斥锁不可用，放行结构化 AI 解读: {}", e.getMessage());
+            return NO_REDIS_LOCK_TOKEN;
+        }
+    }
+
+    private void releaseGenerateLock(String lockKey, String lockToken) {
+        if (stringRedisTemplate == null || NO_REDIS_LOCK_TOKEN.equals(lockToken)) {
+            return;
+        }
+        try {
+            stringRedisTemplate.execute(RELEASE_GENERATE_LOCK_SCRIPT, List.of(lockKey), lockToken);
+        } catch (Exception ignored) {
+        }
     }
 
     /**

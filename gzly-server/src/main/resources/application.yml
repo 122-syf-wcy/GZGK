@@ -1,5 +1,8 @@
 server:
   port: 8082
+  # v7.40 安全收敛：Tomcat 仅监听 127.0.0.1，公网请求必须经 nginx upstream。
+  # systemd 经 --server.port=8090 覆盖端口；address 不被覆盖，故必须放 yml。
+  address: 127.0.0.1
   compression:
     enabled: true
     min-response-size: 2048
@@ -16,6 +19,32 @@ server:
     keep-alive-timeout: 60000
     max-keep-alive-requests: 1000
   shutdown: graceful
+
+# v7.40：Actuator 监控指标用独立端口 9099，仅 127.0.0.1 暴露
+# 只开 health / info / metrics / prometheus，绝不开 env / heapdump / shutdown / loggers 等敏感端点。
+management:
+  server:
+    port: 9099
+    address: 127.0.0.1
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health,info,metrics,prometheus
+      cors:
+        allowed-origins: "*"
+        allowed-methods: GET
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: gzly-server
+      env: prod
 
 spring:
   application:

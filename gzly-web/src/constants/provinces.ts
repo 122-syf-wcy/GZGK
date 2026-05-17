@@ -49,7 +49,7 @@ export const PROVINCE_CONFIGS: Record<ProvinceCode, ProvinceConfig> = {
     heroTitle: '贵州普通本科批志愿工作台',
     heroDescription: '围绕贵州新高考“3+1+2”和 96 个“专业（类）+ 院校”志愿，提供院校查询、历年分数线、智能草稿和官方复核入口。',
     dataStatusTitle: '贵州数据已开放',
-    dataStatusDescription: '已接入贵州院校级与专业级录取线、官方一分一段、物理类选科要求和高校官方材料入口。',
+    dataStatusDescription: '已补齐贵州 2024/2025 普通类历史、物理专业分数据与院校级投档线；2024 艺术/体育历史数据可查询，2025 艺体专业分以考试院后续公开源为准。',
     volunteerCta: '生成 96 个志愿草稿',
     volunteerLockTitle: '贵州智能生成已开放',
     volunteerLockDescription: '生成前仍需阅读风险告知，结果只作为公益辅助参考。',

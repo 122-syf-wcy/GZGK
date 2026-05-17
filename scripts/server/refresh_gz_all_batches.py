@@ -77,6 +77,16 @@ API_URI = "apidata/api/gk/score/special"
 PROVINCE_ID = "52"
 PAGE_SIZE = "20"
 
+MAJOR_SCORE_VARCHAR_LIMITS = {
+    "school_id": 20,
+    "university_name": 100,
+    "major_name": 200,
+    "major_id": 20,
+    "subject_type": 10,
+    "batch": 50,
+    "resubject_requirement": 100,
+}
+
 DEFAULT_TYPES = [
     ("2073", "物理类"),
     ("2074", "历史类"),
@@ -155,6 +165,133 @@ def mysql_value(value) -> str:
     if isinstance(value, (int, float)):
         return str(value)
     return sql_quote(str(value))
+
+
+def fit_mysql_varchar(value, limit: int):
+    if value is None:
+        return None
+    text = str(value)
+    if len(text) <= limit:
+        return value
+    return text[:limit].rstrip()
+
+
+def normalize_major_score_rows(rows: list[dict]) -> tuple[list[dict], dict]:
+    normalized: list[dict] = []
+    truncated_fields = {field: 0 for field in MAJOR_SCORE_VARCHAR_LIMITS}
+    truncated_rows = 0
+    for row in rows:
+        updated = dict(row)
+        row_truncated = False
+        for field, limit in MAJOR_SCORE_VARCHAR_LIMITS.items():
+            original = updated.get(field)
+            fitted = fit_mysql_varchar(original, limit)
+            if original is not None and str(fitted) != str(original):
+                updated[field] = fitted
+                truncated_fields[field] += 1
+                row_truncated = True
+        if row_truncated:
+            truncated_rows += 1
+        normalized.append(updated)
+    report = {
+        "major_score_sql_rows": len(rows),
+        "major_score_truncated_rows": truncated_rows,
+        "major_score_truncated_fields": {
+            field: count for field, count in truncated_fields.items() if count
+        },
+    }
+    return normalized, report
+
+
+def mysql_unique_major_key(row: dict) -> tuple[str, str, int, str, str]:
+    """Match production uk_record, including MySQL prefix lengths."""
+    return (
+        str(row.get("school_id") or ""),
+        str(row.get("major_name") or "")[:100],
+        int(row.get("year") or 0),
+        str(row.get("subject_type") or ""),
+        str(row.get("batch") or "")[:30],
+    )
+
+
+def _major_disambiguation_suffix(row: dict, index: int) -> str:
+    major_code = str(row.get("major_code") or "").strip()
+    if major_code:
+        return f"（专业代码：{major_code}）"
+    source_record_id = str(row.get("source_record_id") or "").strip()
+    if source_record_id:
+        return f"（源记录：{source_record_id[-8:]}）"
+    min_score = row.get("min_score")
+    min_rank = row.get("min_rank")
+    if min_score is not None and min_rank is not None:
+        return f"（分数：{min_score}，位次：{min_rank}）"
+    return f"（同名项：{index}）"
+
+
+def _with_major_disambiguation(name: str, suffix: str) -> str:
+    if len(name) + len(suffix) <= 100:
+        return f"{name}{suffix}"
+    max_insert_at = max(1, 95 - len(suffix))
+    first_paren_end = name.find("）")
+    if 0 <= first_paren_end < max_insert_at:
+        insert_at = first_paren_end + 1
+    else:
+        insert_at = min(len(name), max_insert_at)
+    return f"{name[:insert_at]}{suffix}{name[insert_at:]}"
+
+
+def disambiguate_major_rows(rows: list[dict]) -> tuple[list[dict], dict]:
+    """Keep all source rows insertable under production uk_record.
+
+    The upstream API can return multiple rows for the same school / major /
+    year / subject / batch, distinguished by source fields such as sp_scode.
+    Production currently has no separate major-code column, so we append a
+    compact suffix only inside collided groups instead of letting MySQL
+    ON DUPLICATE KEY UPDATE overwrite earlier rows.
+    """
+    grouped: dict[tuple[str, str, int, str, str], list[dict]] = {}
+    for row in rows:
+        grouped.setdefault(mysql_unique_major_key(row), []).append(row)
+
+    result: list[dict] = []
+    disambiguated = 0
+    collision_groups = 0
+    collision_rows = 0
+    for group_rows in grouped.values():
+        if len(group_rows) == 1:
+            result.append(dict(group_rows[0]))
+            continue
+        collision_groups += 1
+        collision_rows += len(group_rows)
+        for idx, row in enumerate(group_rows, start=1):
+            updated = dict(row)
+            updated["major_name"] = _with_major_disambiguation(
+                row.get("major_name") or "",
+                _major_disambiguation_suffix(row, idx),
+            )
+            updated["source_major_name"] = row.get("source_major_name") or row.get("major_name") or ""
+            result.append(updated)
+            disambiguated += 1
+
+    # Guard against suffix collisions, especially with old raw files that lack
+    # source fields. This second pass is rare but makes the SQL deterministic.
+    seen: dict[tuple[str, str, int, str, str], int] = {}
+    for row in result:
+        key = mysql_unique_major_key(row)
+        count = seen.get(key, 0) + 1
+        seen[key] = count
+        if count > 1:
+            row["major_name"] = _with_major_disambiguation(row.get("major_name") or "", f"（序号：{count}）")
+            disambiguated += 1
+
+    remaining = len(result) - len({mysql_unique_major_key(row) for row in result})
+    report = {
+        "major_collision_groups": collision_groups,
+        "major_collision_rows": collision_rows,
+        "major_disambiguated_rows": disambiguated,
+        "major_remaining_mysql_key_collisions": remaining,
+    }
+    return result, report
 
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -360,7 +497,11 @@ def fetch_school(
                         "school_id": sid,
                         "university_name": sname,
                         "major_name": cleaned_major,
+                        "source_major_name": cleaned_major,
                         "major_id": str(it.get("special_id") or "").strip(),
+                        "major_code": str(it.get("sp_scode") or "").strip(),
+                        "enrollment_type": str(it.get("zslx_name") or "").strip(),
+                        "source_record_id": str(it.get("id") or "").strip(),
                         "year": int(year),
                         "subject_type": (it.get("local_type_name") or type_label).strip(),
                         "batch": (it.get("local_batch_name") or "").strip(),
@@ -444,6 +585,7 @@ def write_major_score_sql(rows: list[dict], output_path: Path) -> None:
         fh.write(
             "\nON DUPLICATE KEY UPDATE\n"
             "  `university_name` = VALUES(`university_name`),\n"
+            "  `major_name`      = VALUES(`major_name`),\n"
             "  `major_id`        = VALUES(`major_id`),\n"
             "  `resubject_requirement` = VALUES(`resubject_requirement`),\n"
             "  `min_score`       = VALUES(`min_score`),\n"
@@ -669,6 +811,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="恢复同一 batch_id 之前未完成的 schools")
     parser.add_argument("--print-only", action="store_true",
                         help="只读出 schools / 配置摘要，不抓取")
+    parser.add_argument("--rebuild-sql-only", action="store_true",
+                        help="只从现有 raw JSONL 重建 summary / SQL，不重新请求源站")
     parser.add_argument("--proxy", default=os.getenv("GZLY_API_PROXY"),
                         help="HTTP/SOCKS 代理 URL，例如 http://127.0.0.1:7891；"
                              "建议指向 gzly-mihomo 的 mixed-port 以做 IP 轮询。"
@@ -686,6 +830,60 @@ def main() -> int:
     checkpoint_path = work_dir / "checkpoint.json"
     raw_path = work_dir / "raw"
     raw_path.mkdir(exist_ok=True)
+
+    if args.rebuild_sql_only:
+        sql_rows = load_rows_from_raw(raw_path)
+        raw_summary = summarize_rows(sql_rows)
+        major_sql_rows, major_disambiguation = disambiguate_major_rows(sql_rows)
+        major_sql_rows, major_normalization = normalize_major_score_rows(major_sql_rows)
+        major_remaining_after_normalization = (
+            len(major_sql_rows) - len({mysql_unique_major_key(row) for row in major_sql_rows})
+        )
+        (work_dir / "major_disambiguation_report.json").write_text(
+            json.dumps(
+                {
+                    **major_disambiguation,
+                    **major_normalization,
+                    "major_remaining_mysql_key_collisions_after_normalization": (
+                        major_remaining_after_normalization
+                    ),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        if (
+            major_disambiguation["major_remaining_mysql_key_collisions"] > 0
+            or major_remaining_after_normalization > 0
+        ):
+            raise SystemExit(
+                "major disambiguation still has MySQL key collisions; "
+                f"see {work_dir / 'major_disambiguation_report.json'}"
+            )
+        summary = {
+            "batch_id": batch_id,
+            "completed_at": datetime.now().isoformat(),
+            "rebuild_sql_only": True,
+            "years": years,
+            "types": types,
+            **raw_summary,
+            **major_disambiguation,
+            **major_normalization,
+            "major_remaining_mysql_key_collisions_after_normalization": major_remaining_after_normalization,
+        }
+        (work_dir / "summary_rebuild_sql.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        write_major_score_sql(major_sql_rows, work_dir / "upsert_major_score.sql")
+        write_score_line_sql(sql_rows, work_dir / "upsert_score_line.sql")
+        print(f"summary={json.dumps(summary, ensure_ascii=False)}", flush=True)
+        print(
+            f"sql files: {work_dir / 'upsert_major_score.sql'}; {work_dir / 'upsert_score_line.sql'}",
+            flush=True,
+        )
+        return 0
 
     schools = load_schools_from_db(args)
     if args.school_ids:
@@ -821,13 +1019,70 @@ def main() -> int:
             "\n".join(sorted(failed_school_ids, key=lambda v: int(v) if v.isdigit() else v)) + "\n",
             encoding="utf-8",
         )
-        write_major_score_sql(complete_sql_rows, work_dir / "upsert_major_score_complete_only.sql")
+        complete_major_sql_rows, complete_major_disambiguation = disambiguate_major_rows(complete_sql_rows)
+        complete_major_sql_rows, complete_major_normalization = normalize_major_score_rows(
+            complete_major_sql_rows
+        )
+        complete_remaining_after_normalization = (
+            len(complete_major_sql_rows)
+            - len({mysql_unique_major_key(row) for row in complete_major_sql_rows})
+        )
+        (work_dir / "major_disambiguation_complete_only_report.json").write_text(
+            json.dumps(
+                {
+                    **complete_major_disambiguation,
+                    **complete_major_normalization,
+                    "major_remaining_mysql_key_collisions_after_normalization": (
+                        complete_remaining_after_normalization
+                    ),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        if (
+            complete_major_disambiguation["major_remaining_mysql_key_collisions"] > 0
+            or complete_remaining_after_normalization > 0
+        ):
+            raise SystemExit(
+                "complete-only major disambiguation still has MySQL key collisions; "
+                f"see {work_dir / 'major_disambiguation_complete_only_report.json'}"
+            )
+        write_major_score_sql(complete_major_sql_rows, work_dir / "upsert_major_score_complete_only.sql")
         write_score_line_sql(complete_sql_rows, work_dir / "upsert_score_line_complete_only.sql")
         print(
             f"complete-only sql excludes failed schools={len(failed_school_ids)}",
             flush=True,
         )
-    write_major_score_sql(sql_rows, work_dir / "upsert_major_score.sql")
+    major_sql_rows, major_disambiguation = disambiguate_major_rows(sql_rows)
+    major_sql_rows, major_normalization = normalize_major_score_rows(major_sql_rows)
+    major_remaining_after_normalization = (
+        len(major_sql_rows) - len({mysql_unique_major_key(row) for row in major_sql_rows})
+    )
+    (work_dir / "major_disambiguation_report.json").write_text(
+        json.dumps(
+            {
+                **major_disambiguation,
+                **major_normalization,
+                "major_remaining_mysql_key_collisions_after_normalization": (
+                    major_remaining_after_normalization
+                ),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    if (
+        major_disambiguation["major_remaining_mysql_key_collisions"] > 0
+        or major_remaining_after_normalization > 0
+    ):
+        raise SystemExit(
+            "major disambiguation still has MySQL key collisions; "
+            f"see {work_dir / 'major_disambiguation_report.json'}"
+        )
+    write_major_score_sql(major_sql_rows, work_dir / "upsert_major_score.sql")
     write_score_line_sql(sql_rows, work_dir / "upsert_score_line.sql")
     print(
         f"sql files: {work_dir / 'upsert_major_score.sql'}; {work_dir / 'upsert_score_line.sql'}",

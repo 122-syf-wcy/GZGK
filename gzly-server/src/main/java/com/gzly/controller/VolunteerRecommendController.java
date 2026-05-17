@@ -162,7 +162,11 @@ public class VolunteerRecommendController {
                 recommendMode = engineDecision.getRecommendMode();
                 engineName = engineDecision.getEngineName();
             }
-            if (rule.mainRankEngine() && isPreOfficialDataResponse(supportResponse)) {
+            if (rule.mainRankEngine() && isPreOfficialDataResponse(supportResponse)
+                    && !BatchRuleRegistry.SupportLevel.TRIAL_RECOMMEND.name().equals(supportLevel)) {
+                // 当前年份官方数据尚未发布且 engine 没有判定为试推荐时（如批次不在历史回退白名单或没有历史数据），
+                // 仍按 QUERY_ONLY 收口；engine 已判 TRIAL_RECOMMEND 的批次（普通本科批 / 高职专科批 + 有 2024/2025
+                // 历史数据）保留试推荐口径，对应前端 96 志愿草稿和 AI 解读入口可见。
                 supportLevel = BatchRuleRegistry.SupportLevel.QUERY_ONLY.name();
                 recommendMode = BatchRuleRegistry.RecommendMode.QUERY_ONLY.name();
                 engineName = QueryOnlyRecommendEngine.NAME;

@@ -448,7 +448,7 @@ class SafetyCodePlanAccessControllerTest {
 
     private static class FakeAiDeepAnalysisService extends AiDeepAnalysisService {
         FakeAiDeepAnalysisService() {
-            super(null, null, null, new ObjectMapper(), null, null, null);
+            super(null, null, null, new ObjectMapper(), null, null, null, null);
         }
 
         @Override

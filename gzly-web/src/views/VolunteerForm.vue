@@ -211,6 +211,11 @@ const heroDescription = computed(() => (
       ? currentProvince.value.volunteerLockDescription
       : `系统会按${admissionYearText.value}批次综合分数、位次、选科、偏好、预算与风险取向给出对应结果。`
 ))
+const gzDataScopeText = computed(() => {
+  if (provinceCode.value !== 'GZ') return ''
+  const years = trainingYears.value.length ? trainingYears.value.join('、') : '2024、2025'
+  return `贵州历史库已按 ${years} 年口径补入普通类历史/物理专业分与院校级投档线；2024 艺术、体育批次保留查询与复核入口，2025 艺体专业分等待考试院或高校后续公开源补充。`
+})
 watch(pageTitle, (title) => {
   document.title = title
 }, { immediate: true })
@@ -1000,6 +1005,10 @@ async function submitPlan() {
               <div v-if="shouldShowPhaseNotice" class="volunteer-note volunteer-note--warning">
                 <strong>{{ phaseBadgeText }}</strong>
                 <span>{{ phaseNoticeText }}</span>
+              </div>
+              <div v-if="gzDataScopeText" class="volunteer-note volunteer-note--data">
+                <strong>贵州数据口径</strong>
+                <span>{{ gzDataScopeText }}</span>
               </div>
               <div v-if="selectedBatchSupport && !canGenerateForSelectedBatch" class="volunteer-note volunteer-note--warning">
                 <strong>{{ supportLevelText(selectedBatchSupport.supportLevel) }}</strong>
@@ -2070,6 +2079,18 @@ async function submitPlan() {
   padding: 12px 14px;
   border-radius: 16px;
   background: #f8fafc;
+}
+
+.volunteer-note--data {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.volunteer-note--data strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #14532d;
 }
 
 .interest-layout {

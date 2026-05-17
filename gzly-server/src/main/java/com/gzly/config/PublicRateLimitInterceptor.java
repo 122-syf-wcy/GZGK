@@ -123,6 +123,22 @@ public class PublicRateLimitInterceptor implements HandlerInterceptor {
                 String prefix = path.substring(0, path.length() - 3);
                 return requestPath.equals(prefix) || requestPath.startsWith(prefix + "/");
             }
+            if (path.contains("*")) {
+                StringBuilder regex = new StringBuilder("^");
+                for (int i = 0; i < path.length(); i++) {
+                    char ch = path.charAt(i);
+                    if (ch == '*') {
+                        regex.append("[^/]+");
+                    } else {
+                        if ("\\.[]{}()+-^$?|".indexOf(ch) >= 0) {
+                            regex.append('\\');
+                        }
+                        regex.append(ch);
+                    }
+                }
+                regex.append('$');
+                return requestPath.matches(regex.toString());
+            }
             return path.equals(requestPath);
         }
     }

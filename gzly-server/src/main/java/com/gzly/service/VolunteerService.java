@@ -29,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -87,6 +88,9 @@ public class VolunteerService {
     private static final int MAX_POSITIVE_OFFSET = 100000;
     private static final List<String> GRADIENT_ORDER = List.of("冲", "稳", "保", "垫");
     private static final String NEIGHBOR_GRADIENT_BACKFILL = "NEIGHBOR_GRADIENT_BACKFILL";
+    private static final DefaultRedisScript<Long> RELEASE_GENERATE_LOCK_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+            Long.class);
     public static final String ADVISOR_SOURCE_PROJECT_NAME = "Eric-Yibo-Shen/zhangxuefeng-skillset";
     public static final String ADVISOR_SOURCE_PROJECT_URL = "https://github.com/Eric-Yibo-Shen/zhangxuefeng-skillset";
     public static final String ADVISOR_SOURCE_NOTE =
@@ -799,6 +803,7 @@ public class VolunteerService {
         history.setDataQualityWarning(dataQualityWarning);
         SafetyCodeService.SafetyCodeIssue safetyCodeIssue = safetyCodeService.issue(req.getSafetyCode());
         history.setSafetyCodeHash(safetyCodeIssue.safetyCodeHash());
+        history.setSafetyCodeFingerprint(safetyCodeService.fingerprint(safetyCodeIssue.safetyCode()));
         history.setSafetyCodeCreatedAt(LocalDateTime.now());
         history.setSafetyCodeVersion(1);
         try {
@@ -3062,10 +3067,7 @@ public class VolunteerService {
 
     private void releaseGenerateLock(String lockKey, String lockValue) {
         try {
-            String current = stringRedisTemplate.opsForValue().get(lockKey);
-            if (lockValue.equals(current)) {
-                stringRedisTemplate.delete(lockKey);
-            }
+            stringRedisTemplate.execute(RELEASE_GENERATE_LOCK_SCRIPT, List.of(lockKey), lockValue);
         } catch (Exception e) {
             log.warn("释放志愿生成锁失败: key={}", lockKey, e);
         }

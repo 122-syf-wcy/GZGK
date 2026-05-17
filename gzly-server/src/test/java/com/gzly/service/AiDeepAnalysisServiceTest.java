@@ -8,6 +8,9 @@ import com.gzly.mapper.VolunteerAiAnalysisMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -16,11 +19,16 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.util.ArrayList;
+import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,6 +52,8 @@ class AiDeepAnalysisServiceTest {
     @Mock PlanHistoryMapper planHistoryMapper;
     @Mock ComplianceTextGuard complianceTextGuard;
     @Mock AiService aiService;
+    @Mock StringRedisTemplate stringRedisTemplate;
+    @Mock ValueOperations<String, String> valueOperations;
 
     @Spy ObjectMapper objectMapper = new ObjectMapper();
 
@@ -54,6 +64,8 @@ class AiDeepAnalysisServiceTest {
         // sanitizeText 默认透传，便于断言原文；真实合规审查由独立测试覆盖
         when(complianceTextGuard.sanitizeText(anyString(), anyString(), anyString()))
                 .thenAnswer(inv -> inv.getArgument(2, String.class));
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(Boolean.TRUE);
     }
 
     @Test
@@ -133,6 +145,37 @@ class AiDeepAnalysisServiceTest {
         assertThat(vo.getConclusion()).isEqualTo("缓存的解读结论。");
         // 不应当再次走 AI 调用
         verify(aiService, org.mockito.Mockito.never()).generateStructuredAnalysisJson(anyString());
+    }
+
+    @Test
+    void generate_shouldRejectConcurrentStructuredAnalysisForSamePlan() {
+        VolunteerService.PlanResult plan = samplePlan();
+        when(volunteerService.getPlanResult(plan.getId(), null)).thenReturn(plan);
+        when(analysisMapper.selectOne(any())).thenReturn(null);
+        when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenReturn(Boolean.FALSE);
+
+        assertThatThrownBy(() -> service.generate(plan.getId(), null, true))
+                .isInstanceOf(com.gzly.common.exception.BizException.class)
+                .hasMessageContaining("正在生成中");
+    }
+
+    @Test
+    void generate_shouldReleaseStructuredAnalysisLockByOwnerToken() {
+        VolunteerService.PlanResult plan = samplePlan();
+        when(volunteerService.getPlanResult(plan.getId(), null)).thenReturn(plan);
+        when(analysisMapper.selectOne(any())).thenReturn(null);
+        when(aiService.generateStructuredAnalysisJson(anyString())).thenReturn("");
+        AtomicReference<String> lockToken = new AtomicReference<>();
+        when(valueOperations.setIfAbsent(anyString(), anyString(), any(Duration.class))).thenAnswer(inv -> {
+            lockToken.set(inv.getArgument(1, String.class));
+            return Boolean.TRUE;
+        });
+
+        AiDeepAnalysisService.AiAnalysisVO vo = service.generate(plan.getId(), null, true);
+
+        assertThat(vo.getStatus()).isEqualTo("completed");
+        assertThat(lockToken.get()).isNotBlank();
+        verify(stringRedisTemplate).execute(any(RedisScript.class), anyList(), eq(lockToken.get()));
     }
 
     private VolunteerService.PlanResult samplePlan() {
