@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getCurrentSafetyCode, setCurrentSafetyCode, useVolunteerStore } from '@/stores/volunteer'
-import { generateVolunteerPlan, getBatchSupportByProvince, getScCompositeScore, rankCheck } from '@/api/volunteer'
+import { generateVolunteerPlan, getAhCompositeScore, getBatchSupportByProvince, getScCompositeScore, rankCheck } from '@/api/volunteer'
 import { getHotMajors, type HotMajor } from '@/api/scoreLine'
 import DisclaimerDialog from '@/components/DisclaimerDialog.vue'
 import type { BatchSupportItem, CandidateType, GradientRangeKey, GradientRanges } from '@/types'
@@ -74,15 +74,28 @@ const qualificationTags = ref<string[]>([...(volunteerStore.formData.qualificati
 const artProfessionalScore = ref<number | undefined>(volunteerStore.formData.artProfessionalScore)
 const sportsProfessionalScore = ref<number | undefined>(volunteerStore.formData.sportsProfessionalScore)
 const comprehensiveScore = ref<number | undefined>(volunteerStore.formData.comprehensiveScore)
-// 四川艺术统考类别（11 个），用于按"美术 50/50"或"音乐 30/70"路由综合分公式
+// 四川 / 安徽艺术统考类别。SC 按 11 类（5050 vs 3070）、AH 按 7 类（5050 vs 7030 播音）
 const scArtCategory = ref<string>('美术与设计类')
 const scArtCategories = ref<string[]>([
   '美术与设计类', '戏剧影视编导类', '戏剧影视表演类', '戏剧影视导演类',
   '服装表演类', '播音与主持类', '音乐表演类', '音乐教育类',
   '舞蹈类', '书法类', '航空服务艺术类',
 ])
+const ahArtCategories = ref<string[]>([
+  '音乐表演类', '音乐教育类', '舞蹈类', '表（导）演类',
+  '美术与设计类', '书法类', '播音与主持类',
+])
+const artCategoryOptions = computed<string[]>(() => (
+  provinceCode.value === 'AH' ? ahArtCategories.value : scArtCategories.value
+))
+// 综合分实时预览（与省份无关，sc/ah 公式由 watch 自动分发）
 const scCompositeFormula = ref<string>('')
 const scCompositeScore = ref<number | null>(null)
+const compositeProvinceSourceLabel = computed<string>(() => (
+  provinceCode.value === 'AH'
+    ? '安徽 2025 皖招委〔2024〕11 号 + 2025 体育文化控线公告'
+    : '四川省教育考试院 2026 公告'
+))
 let compositeTimer: ReturnType<typeof setTimeout> | null = null
 const currentSafetyCode = ref(getCurrentSafetyCode())
 
@@ -681,14 +694,19 @@ watch(provinceCode, (code: ProvinceCode) => {
   if (getProvinceConfig(code).volunteerUnitType === 'PROFESSIONAL_GROUP_45' && !candidateType.value) {
     candidateType.value = '普通类'
   }
+  // 切省时，如果当前艺术统考类别不在新省份的下拉中，重置为新省份的第一个有效项（避免后端 success=false）
+  if (!artCategoryOptions.value.includes(scArtCategory.value)) {
+    scArtCategory.value = artCategoryOptions.value[0] || '美术与设计类'
+  }
 })
 
 /**
- * 四川艺术 / 体育综合分实时预览：当 candidateType=艺术类/体育类 + 文化分 + 统考分齐备时，
- * 600ms debounce 调用 /api/volunteer/sc/composite-score，展示按四川 2026 公式估算的综合分。
+ * 四川 / 安徽艺术 / 体育综合分实时预览：当 candidateType=艺术类/体育类 + 文化分 + 统考分齐备时，
+ * 600ms debounce 调用对应省份 composite-score 接口（SC → /sc/composite-score, AH → /ah/composite-score），
+ * 展示按官方公告公式估算的综合分。
  * 不进数据库、不影响生成请求；用户最终填的综合分仍以表单中的 comprehensiveScore 字段为准。
  */
-watch([provinceCode, candidateType, scArtCategory, artProfessionalScore, sportsProfessionalScore, totalScore], () => {
+watch([provinceCode, candidateType, scArtCategory, artProfessionalScore, sportsProfessionalScore, totalScore, firstSubject], () => {
   if (compositeTimer) clearTimeout(compositeTimer)
   scCompositeFormula.value = ''
   scCompositeScore.value = null
@@ -703,12 +721,21 @@ watch([provinceCode, candidateType, scArtCategory, artProfessionalScore, sportsP
   if (!professional || professional <= 0) return
   compositeTimer = setTimeout(async () => {
     try {
-      const res = await getScCompositeScore({
-        candidateType: candidateType.value as '艺术类' | '体育类',
-        artCategory: candidateType.value === '艺术类' ? scArtCategory.value : undefined,
-        cultureScore: culture as number,
-        professionalScore: professional as number,
-      })
+      const isAh = provinceCode.value === 'AH'
+      const res = isAh
+        ? await getAhCompositeScore({
+            candidateType: candidateType.value as '艺术类' | '体育类',
+            artCategory: candidateType.value === '艺术类' ? scArtCategory.value : undefined,
+            firstSubject: firstSubject.value,
+            cultureScore: culture as number,
+            professionalScore: professional as number,
+          })
+        : await getScCompositeScore({
+            candidateType: candidateType.value as '艺术类' | '体育类',
+            artCategory: candidateType.value === '艺术类' ? scArtCategory.value : undefined,
+            cultureScore: culture as number,
+            professionalScore: professional as number,
+          })
       const data = res.data?.data
       if (data?.success) {
         scCompositeScore.value = data.score
@@ -1190,7 +1217,7 @@ async function submitPlan() {
                 <label class="field-card__label">艺术统考类别</label>
                 <div class="field-card__input-wrap">
                   <select v-model="scArtCategory" class="custom-field" style="width:100%;height:40px;padding:0 12px;border:1px solid #e5e7eb;border-radius:8px;">
-                    <option v-for="cat in scArtCategories" :key="cat" :value="cat">{{ cat }}</option>
+                    <option v-for="cat in artCategoryOptions" :key="cat" :value="cat">{{ cat }}</option>
                   </select>
                 </div>
               </div>
@@ -1224,7 +1251,7 @@ async function submitPlan() {
                   {{ scCompositeFormula }}
                 </div>
                 <div style="font-size:11px;color:#94a3b8;margin-top:4px;">
-                  此值仅作为前端预览，最终以你手填的"综合分"为准；公式按四川省教育考试院 2026 公告。
+                  此值仅作为前端预览，最终以你手填的"综合分"为准；公式按 {{ compositeProvinceSourceLabel }}。
                 </div>
               </div>
             </div>

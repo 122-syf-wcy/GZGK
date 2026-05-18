@@ -334,6 +334,7 @@ class SafetyCodePlanAccessControllerTest {
                 null,
                 null,
                 null,
+                null,
                 router,
                 Mockito.mock(QueryOnlyRecommendEngine.class),
                 new SafetyCodeRequestResolver(),

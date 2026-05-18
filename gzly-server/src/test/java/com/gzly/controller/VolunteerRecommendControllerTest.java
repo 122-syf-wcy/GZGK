@@ -6,6 +6,7 @@ import com.gzly.common.exception.BizException;
 import com.gzly.service.AdmissionYearService;
 import com.gzly.service.AnhuiBatchListingService;
 import com.gzly.service.AnhuiBatchSupportService;
+import com.gzly.service.AnhuiCompositeScoreCalculator;
 import com.gzly.service.BatchSupportService;
 import com.gzly.service.MlPredictionService;
 import com.gzly.service.PolicyRuleService;
@@ -56,6 +57,7 @@ class VolunteerRecommendControllerTest {
     @Mock private SichuanCompositeScoreCalculator sichuanCompositeScoreCalculator;
     @Mock private AnhuiBatchSupportService anhuiBatchSupportService;
     @Mock private AnhuiBatchListingService anhuiBatchListingService;
+    @Mock private AnhuiCompositeScoreCalculator anhuiCompositeScoreCalculator;
     @Mock private RecommendEngineRouter recommendEngineRouter;
     @Mock private QueryOnlyRecommendEngine queryOnlyRecommendEngine;
     @Mock private SafetyCodeRequestResolver safetyCodeRequestResolver;
@@ -82,6 +84,7 @@ class VolunteerRecommendControllerTest {
                 sichuanCompositeScoreCalculator,
                 anhuiBatchSupportService,
                 anhuiBatchListingService,
+                anhuiCompositeScoreCalculator,
                 recommendEngineRouter,
                 queryOnlyRecommendEngine,
                 safetyCodeRequestResolver,

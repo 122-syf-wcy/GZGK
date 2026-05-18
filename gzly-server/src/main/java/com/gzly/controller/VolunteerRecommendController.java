@@ -6,6 +6,7 @@ import com.gzly.service.AdmissionYearService;
 import com.gzly.service.AnhuiBatchListingService;
 import com.gzly.service.AnhuiBatchRuleRegistry;
 import com.gzly.service.AnhuiBatchSupportService;
+import com.gzly.service.AnhuiCompositeScoreCalculator;
 import com.gzly.service.BatchRuleRegistry;
 import com.gzly.service.BatchSupportService;
 import com.gzly.service.PolicyRuleService;
@@ -49,6 +50,7 @@ public class VolunteerRecommendController {
     private final SichuanCompositeScoreCalculator sichuanCompositeScoreCalculator;
     private final AnhuiBatchSupportService anhuiBatchSupportService;
     private final AnhuiBatchListingService anhuiBatchListingService;
+    private final AnhuiCompositeScoreCalculator anhuiCompositeScoreCalculator;
     private final RecommendEngineRouter recommendEngineRouter;
     private final QueryOnlyRecommendEngine queryOnlyRecommendEngine;
     private final SafetyCodeRequestResolver safetyCodeRequestResolver;
@@ -130,6 +132,54 @@ public class VolunteerRecommendController {
     public Result<BatchSupportService.BatchSupportResponse> ahBatchSupport(@RequestParam(required = false) Integer year) {
         int publicYear = admissionYearService.normalizePublicYear(year);
         return Result.ok(anhuiBatchSupportService.supportMatrix(ProvincePolicyService.AH, publicYear, true));
+    }
+
+    /**
+     * 安徽艺术 / 体育综合分实时计算（皖招委〔2024〕11 号 + 2025 体育文化控线公告）。
+     *
+     * <p>艺术类两档公式：</p>
+     * <ul>
+     *   <li>综合分1（音乐 / 舞蹈 / 表（导）演 / 美术与设计 / 书法）：文化 × 50% + 统考 × 2.5 × 50%</li>
+     *   <li>综合分2（播音与主持）：文化 × 70% + 统考 × 2.5 × 30%</li>
+     * </ul>
+     *
+     * <p>体育类公式：综合 = 1.2 × 专业 + 0.8 × [60 + 40 × (文化 - 本科文化控线) ÷ (750 - 控线)]，
+     * 默认按 2025 安徽本科文化控线（物理 300 / 历史 310）。</p>
+     */
+    @GetMapping("/ah/composite-score")
+    public Result<Map<String, Object>> ahCompositeScore(
+            @RequestParam(required = false, defaultValue = "艺术类") String candidateType,
+            @RequestParam(required = false) String artCategory,
+            @RequestParam(required = false, defaultValue = "物理") String firstSubject,
+            @RequestParam int cultureScore,
+            @RequestParam int professionalScore) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("candidateType", candidateType);
+        payload.put("artCategory", artCategory == null ? "" : artCategory);
+        payload.put("firstSubject", firstSubject == null ? "" : firstSubject);
+        payload.put("cultureScore", cultureScore);
+        payload.put("professionalScore", professionalScore);
+        payload.put("supportedArtCategories", anhuiCompositeScoreCalculator.listArtCategories());
+
+        anhuiCompositeScoreCalculator.calculate(candidateType, cultureScore, professionalScore, artCategory, firstSubject)
+                .ifPresentOrElse(result -> {
+                    payload.put("success", true);
+                    payload.put("score", result.getScore());
+                    payload.put("category", result.getCategory());
+                    payload.put("selectedCategory", result.getSelectedCategory());
+                    payload.put("cultureRatio", result.getCultureRatio());
+                    payload.put("professionalRatio", result.getProfessionalRatio());
+                    payload.put("cultureWeighted", result.getCultureWeighted());
+                    payload.put("professionalWeighted", result.getProfessionalWeighted());
+                    payload.put("professionalScale", result.getProfessionalScale());
+                    payload.put("cultureBenkeLine", result.getCultureBenkeLine());
+                    payload.put("formula", result.getFormula());
+                }, () -> {
+                    payload.put("success", false);
+                    payload.put("score", 0.0);
+                    payload.put("formula", "考生类别 + 统考类别无法识别，无法计算综合分");
+                });
+        return Result.ok(payload);
     }
 
     /**

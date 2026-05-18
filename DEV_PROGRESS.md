@@ -1,10 +1,62 @@
 # GZLY 开发进度交接
 
-更新时间：2026-05-18 14:25（v7.48 AH 主流程 recommend 上线 + score_rank 强校验放宽，已部署生产）
+更新时间：2026-05-18 14:36（v7.49 AH 艺术 / 体育综合分实时计算上线 + 部署）
 
 > 完整历史流水已归档到 `DEV_PROGRESS_ARCHIVE_20260426.md`。本文件只保留当前交接所需信息，后续每轮只追加高价值结论，避免继续膨胀。
 
-## 最新一轮变更（v7.48 AH wiring + 部署，2026-05-18 14:25）
+## 最新一轮变更（v7.49 AH 艺体综合分，2026-05-18 14:36）
+
+### 1. AnhuiCompositeScoreCalculator + 12 单测
+
+承接 v7.48 AH 主流程上线，本轮把安徽艺术 / 体育综合分公式以官方源码做服务化，让前端在用户填文化分 + 统考分时实时显示估算综合分（与 SC 综合分实时预览同款）。
+
+- **公式源**：皖招委〔2024〕11 号《关于做好 2025 年普通高校艺术类专业招生考试工作的通知》+ 安徽省 2025 年体育类本科文化课录取控制分数线公告（物理 300 / 历史 310）。
+- **艺术类两档**：
+  - 综合分1（音乐 / 舞蹈 / 表（导）演 / 美术与设计 / 书法）：`文化 × 50% + 统考 × 2.5 × 50%`
+  - 综合分2（播音与主持）：`文化 × 70% + 统考 × 2.5 × 30%`（注意是 70/30，文化为主）
+- **体育类**：`综合 = 1.2 × 专业总分 + 0.8 × [60 + 40 × (文化 - 本科文化控线) ÷ (750 - 控线)]`，按物理/历史首选自动路由文化控线（300 / 310）。
+- **AnhuiCompositeScoreCalculator** 195 行，新增 12 单测覆盖：美术 5050、音乐 5050、舞蹈 5050、表导演 5050、书法 5050、播音 7030、未知类别 empty、体育物理（控线 300）、体育历史（控线 310）、空 firstSubject 兜底物理、calculate 总分发、listArtCategories 7 项。
+- 与 SC 关键差异：AH 没有"航空服务艺术 / 戏剧编导 / 戏剧表演 / 戏剧导演 / 服装表演"等独立类别（合并为表（导）演 5050），且 AH 播音是 7030 而 SC 播音是 5050（AH 文化更重）。
+
+### 2. /api/volunteer/ah/composite-score 端点
+
+- 与 `/sc/composite-score` 同款 schema，参数：`candidateType / artCategory / firstSubject / cultureScore / professionalScore`
+- 响应额外字段：`category` / `selectedCategory` / `cultureRatio` / `professionalRatio` / `cultureBenkeLine`（体育专有）/ `formula`
+- `VolunteerRecommendController` 注入 `AnhuiCompositeScoreCalculator`，控制器/测试构造器同步加参数（共 16 个依赖项）。
+
+### 3. 前端 VolunteerForm AH 艺体综合分支持
+
+- `api/volunteer.ts` 新增 `getAhCompositeScore` + `AhCompositeScoreResponse` 类型
+- `VolunteerForm.vue`：
+  - 新增 `ahArtCategories` 7 项（与后端 listArtCategories 严格对齐）+ `artCategoryOptions` computed 按 province 分发（SC 11 / AH 7）
+  - 新增 `compositeProvinceSourceLabel` 文案：SC=「四川省教育考试院 2026 公告」/ AH=「安徽 2025 皖招委〔2024〕11 号 + 2025 体育文化控线公告」
+  - 综合分实时预览 watch 增加 `firstSubject` 依赖（体育文化控线需要），按 `provinceCode==='AH'` 分发到 `getAhCompositeScore` 或 `getScCompositeScore`
+  - 切省 watch 检测 `scArtCategory` 是否在新省份的下拉中，不在则自动重置为新省份首项，避免后端 success=false
+
+### 4. 部署 + 公网验证
+
+- 后端 `./mvnw test` 302/0/0 全绿（v7.48 基线 290 + 12 AnhuiCompositeScoreCalculatorTest）
+- 前端 `npm run build` 通过：VolunteerForm 53.80 → 54.21 KB（+0.4 KB AH composite refactor）
+- `deploy_backend_safe.sh` 一轮：14:34 health-check 通过，旧 JAR `backup/app.jar.20260518143424.bak`
+- 前端 rsync + nginx reload OK
+- **公网 smoke**（`http://39.97.232.141`）5 个用例全过、与单测精确一致：
+
+| 用例 | 输入 | 公式 | 计算 | 结果 |
+|---|---|---|---|---|
+| AH 美术 (综合分1) | 480 + 280 | `480×0.5 + 280×2.5×0.5` | 240+350 | **590.00** ✅ |
+| AH 播音 (综合分2 7030) | 520 + 250 | `520×0.7 + 250×2.5×0.3` | 364+187.5 | **551.50** ✅ |
+| AH 体育物理 (控线 300) | 420 + 85 | `1.2×85 + 0.8×[60+40×(420-300)/450]` | 102+56.53 | **158.53** ✅ |
+| AH 体育历史 (控线 310) | 420 + 85 | `1.2×85 + 0.8×[60+40×(420-310)/440]` | 102+56.00 | **158.00** ✅ |
+| SC 美术 (regression 5050) | 480 + 280 | 同 AH | 240+350 | **590.0** ✅ |
+
+### v7.49 待办
+
+- AH 一分一段 OCR / vision 补（score_rank=0 现状 → 用户必须自填位次）
+- AH 招生计划 plan_count 补（影响 dataQualityWarning 提示）
+- AH ML 基地（参考 `docs/ops/sichuan_ml_baseline_runbook.md` 复制一份 AH 版，等 6 月底 2026 数据）
+- AH 高水平运动队 / 西藏定向 / 边防军人子女预科等"OTHER"类批次（已建模 AH_BENKE 内提示，前端默认不出独立批次）
+
+## 上一轮变更（v7.48 AH wiring + 部署，2026-05-18 14:25）
 
 ### 1. VolunteerRecommendController 多省 wiring
 

@@ -104,6 +104,51 @@ export function getScCompositeScore(params: {
   return http.get<Result<ScCompositeScoreResponse>>('/volunteer/sc/composite-score', { params })
 }
 
+/**
+ * 安徽艺术 / 体育综合分实时计算接口。
+ *
+ * <p>口径：皖招委〔2024〕11 号 + 2025 安徽体育文化控线公告（物理 300 / 历史 310）。</p>
+ *
+ * <p>艺术类两档公式：</p>
+ * <ul>
+ *   <li>综合分1（音乐 / 舞蹈 / 表（导）演 / 美术与设计 / 书法）：文化 × 50% + 统考 × 2.5 × 50%</li>
+ *   <li>综合分2（播音与主持）：文化 × 70% + 统考 × 2.5 × 30%</li>
+ * </ul>
+ *
+ * <p>体育类公式：综合 = 1.2 × 专业 + 0.8 × [60 + 40 × (文化 - 本科文化控线) ÷ (750 - 控线)]
+ *  （firstSubject 路由：物理→300，历史→310；空值默认物理）。</p>
+ */
+export interface AhCompositeScoreResponse {
+  success: boolean
+  candidateType: string
+  artCategory: string
+  firstSubject: string
+  cultureScore: number
+  professionalScore: number
+  score: number
+  category?: string
+  selectedCategory?: string
+  cultureRatio?: number
+  professionalRatio?: number
+  cultureWeighted?: number
+  professionalWeighted?: number
+  professionalScale?: number
+  /** 体育类专有：本次计算所用的本科文化控线（物理 300 / 历史 310 默认）。 */
+  cultureBenkeLine?: number | null
+  formula: string
+  supportedArtCategories: string[]
+}
+
+export function getAhCompositeScore(params: {
+  candidateType: '艺术类' | '体育类'
+  artCategory?: string
+  firstSubject?: '物理' | '历史'
+  cultureScore: number
+  professionalScore: number
+}) {
+  return http.get<Result<AhCompositeScoreResponse>>('/volunteer/ah/composite-score', { params })
+}
+
 /** 查询历史方案 */
 export function fetchPlanHistory(identifier: string) {
   return http.get<Result<VolunteerPlan[]>>('/volunteer/history', {
