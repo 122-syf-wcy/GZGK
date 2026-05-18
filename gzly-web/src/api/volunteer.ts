@@ -37,6 +37,73 @@ export function getGzBatchSupport() {
   return http.get<Result<BatchSupportResponse>>('/volunteer/gz/batch-support')
 }
 
+/**
+ * 四川（PROFESSIONAL_GROUP_45 省份）18 批次支持矩阵。
+ * 与 getGzBatchSupport 返回结构一致，前端无需感知数据源差异。
+ */
+export function getScBatchSupport() {
+  return http.get<Result<BatchSupportResponse>>('/volunteer/sc/batch-support')
+}
+
+/**
+ * 安徽（PROFESSIONAL_GROUP_45 省份）14 批次支持矩阵。
+ * 与 getGzBatchSupport / getScBatchSupport 返回结构一致；
+ * 批次代码以 AH_* 前缀命名（AH_BENKE 主流程 + 13 个 QUERY_ONLY 兜底批次）。
+ */
+export function getAhBatchSupport() {
+  return http.get<Result<BatchSupportResponse>>('/volunteer/ah/batch-support')
+}
+
+/**
+ * 按 provinceCode 自动分发到 GZ / SC / AH 批次支持矩阵接口；
+ * HB 暂走 SC 同款（PROFESSIONAL_GROUP_45）兜底。
+ */
+export function getBatchSupportByProvince(provinceCode: ProvinceCode | string) {
+  const code = (typeof provinceCode === 'string' ? provinceCode : '').trim().toUpperCase()
+  if (code === 'GZ') return getGzBatchSupport()
+  if (code === 'AH') return getAhBatchSupport()
+  return getScBatchSupport()
+}
+
+/**
+ * 四川艺术 / 体育综合分实时计算接口。
+ *
+ * 响应字段：
+ *   - success: 是否计算成功（普通类 / 未知统考类别 → false）
+ *   - score: 综合分（艺术 ≤ 750，体育 ≤ 750）
+ *   - category: 公式归属（"美术/设计/戏剧/服装/播音类" 等）
+ *   - cultureRatio / professionalRatio: 文化 / 统考权重
+ *   - cultureWeighted / professionalWeighted: 加权后的分数
+ *   - professionalScale: 折算系数（艺术 2.5 / 体育 7.5）
+ *   - formula: 可读公式描述
+ *   - supportedArtCategories: 11 个艺术统考类别列表，给前端下拉用
+ */
+export interface ScCompositeScoreResponse {
+  success: boolean
+  candidateType: string
+  artCategory: string
+  cultureScore: number
+  professionalScore: number
+  score: number
+  category?: string
+  cultureRatio?: number
+  professionalRatio?: number
+  cultureWeighted?: number
+  professionalWeighted?: number
+  professionalScale?: number
+  formula: string
+  supportedArtCategories: string[]
+}
+
+export function getScCompositeScore(params: {
+  candidateType: '艺术类' | '体育类'
+  artCategory?: string
+  cultureScore: number
+  professionalScore: number
+}) {
+  return http.get<Result<ScCompositeScoreResponse>>('/volunteer/sc/composite-score', { params })
+}
+
 /** 查询历史方案 */
 export function fetchPlanHistory(identifier: string) {
   return http.get<Result<VolunteerPlan[]>>('/volunteer/history', {

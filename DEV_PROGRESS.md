@@ -1,10 +1,352 @@
 # GZLY 开发进度交接
 
-更新时间：2026-04-30 21:27
+更新时间：2026-05-18 14:25（v7.48 AH 主流程 recommend 上线 + score_rank 强校验放宽，已部署生产）
 
 > 完整历史流水已归档到 `DEV_PROGRESS_ARCHIVE_20260426.md`。本文件只保留当前交接所需信息，后续每轮只追加高价值结论，避免继续膨胀。
 
-## 最新一轮变更（v7.37，2026-04-30 21:27）
+## 最新一轮变更（v7.48 AH wiring + 部署，2026-05-18 14:25）
+
+### 1. VolunteerRecommendController 多省 wiring
+
+承接 v7.47 AH 数据落库（4282 行 / 1048 院校已在 `data_admission_group_line`），本轮把后端 recommend 路由真正接通到 `AnhuiBatchRuleRegistry`，AH 用户从「400 当前省份不支持该批次」转为「45/45 TRIAL_RECOMMEND」满志愿。
+
+- **`recommend()` 入口分发**：在 `provincePolicyService.isProfessionalGroupProvince(provinceCode)` 之前先判 `AH` 走 `recommendForAnhuiProvince`，避免 fallback 到 `SC_BENKE_B`。
+- **新增 `recommendForAnhuiProvince` / `buildAnhuiQueryOnlyPlanSkeleton` / `resolveAnhuiSupportMatrix` / `locateAnhuiSupportItem` / `decorateAnhuiPlan`**：与 SC 同款（共享 `applySichuanYearContext` / `isPreOfficialDataResponseSichuan` 等省份无关 helper），rule 走 `AnhuiBatchRuleRegistry`、supportMatrix 走 `AnhuiBatchSupportService`、非主流程 listing 走 `AnhuiBatchListingService`。
+- **新增 `@GetMapping("/ah/batch-support")`** 端点：与 `/sc/batch-support` 同款，返回 14 批次（1 TRIAL_RECOMMEND + 13 QUERY_ONLY）。
+- **`normalizePublicRequest` 三档分发**：GZ → `BatchRuleRegistry`、AH → `AnhuiBatchRuleRegistry`、其它 PROFESSIONAL_GROUP → `SichuanBatchRuleRegistry`，避免 AH 考生类别归一化错走 SC。
+- **`SafetyCodePlanAccessControllerTest` / `VolunteerRecommendControllerTest`** 适配新构造器参数（AnhuiBatchSupportService / AnhuiBatchListingService）。
+
+### 2. ProfessionalGroupVolunteerService 放宽 score_rank 强校验
+
+原 `selectLatestYear(province, subjectType) < 2025 → throw` 对 AH 等暂未导入一分一段的省份过严，会拒绝「用户自填位次 + 院校专业组线已就位」的合理请求。本轮：
+
+- 改为「`score_rank` 缺失 **且** 用户未填位次」时才抛错，等价于 `resolveRankResolution` 内的「用户未填且估算失败」分支的显式校验。
+- 用户已提供 `provinceRank` 时直接使用，`buildRangeSummary` 用比例梯度生成 45 志愿；score_rank 仅作为「未填位次时的回退估算来源」，与生成主链路解耦。
+- `groupLineMapper.selectLatestYear == null` 仍硬抛（彻底无数据时不能生成）。
+- 后端 290 个测试全绿（包括 SichuanDataAdminServiceTest 9 个、VolunteerRecommendControllerTest 10 个），未引入 regression。
+
+### 3. AH `/api/volunteer/ah/batch-support` 上线
+
+- 14 批次返回，summary `{FULL_RECOMMEND:0, TRIAL_RECOMMEND:1, QUERY_ONLY:13, UNSUPPORTED:0}`
+- AH_BENKE = TRIAL_RECOMMEND（主流程 45 平行院校专业组）
+- 其它 13 批次 = QUERY_ONLY（艺术 / 体育 / 提前批 / 专项 / 高校专项顺序），等数据补齐后会按 `AnhuiBatchListingService` 注入 N 条候选 + 综合分/规则/资格审核说明。
+
+### 4. 前端 AH 主流程开关
+
+- `provinces.ts` AH 切 `status: open`，statusLabel = "已开放"，sourceType / hero / dataStatus / volunteerCta / lock 等文案全切到主流程口径，与 SC 平行。
+- `VolunteerForm.vue` 新增 `fallbackBatchSupportItemsAnhui`（14 批次，与后端 `AnhuiBatchRuleRegistry` 严格对齐）+ `fallbackBatchSupportItemsForProvince(code)` 三档分发；默认批次 `defaultBatchCodeForProvince` 新增 AH → `AH_BENKE`。
+- `api/volunteer.ts` 新增 `getAhBatchSupport()` + `getBatchSupportByProvince` 三档分发（GZ / AH / SC&HB）。
+- `VolunteerResult.vue` ART_BATCHES / SPORTS_BATCHES / SPECIAL_PROGRAM_BATCHES / SEQUENTIAL_BATCHES 全部追加 AH_* 批次代码，文案动态用 `planProvinceName + planOfficialSourceName`。
+- `npm run build` 通过：VolunteerForm 50.65 → 53.80 KB（+3 KB AH fallback）。
+
+### 5. 生产部署 + 公网验证
+
+- `deploy_backend_safe.sh` 两轮：第一轮先部署 AH wiring（健康检查通过，旧 JAR `app.jar.20260518142046.bak`），第二轮部署 score_rank 放宽（旧 JAR `app.jar.20260518142244.bak`）。两轮均经 health-check 自动回滚兜底（未触发回滚）。
+- 前端 `rsync dist + nginx reload`：发出 788 KB / 收到 34 KB，nginx -t OK + reload 成功。
+- **公网 smoke**（`http://39.97.232.141/...`）：
+
+```
+GET /api/volunteer/ah/batch-support?year=2026
+  code=0 items=14 summary={FULL:0, TRIAL:1, QUERY_ONLY:13, UNSUPPORTED:0}
+
+POST /api/volunteer/recommend  AH+AH_BENKE  580/35000 物理化生
+  code=0 items=45/45 supportLevel=TRIAL_RECOMMEND engineName=ProfessionalGroupVolunteerEngine
+  phase=PRE_OFFICIAL_DATA provinceCode=AH
+  first=中国石油大学（华东） group=004 gradient=冲
+  last=温州大学 group=001 gradient=垫
+
+POST /api/volunteer/recommend  AH+AH_BENKE  550/15000 历史政地
+  code=0 items=45/45 supportLevel=TRIAL_RECOMMEND engineName=ProfessionalGroupVolunteerEngine
+
+POST /api/volunteer/recommend  AH+AH_ART_TONGKAO_BENKE  480/30000 (非主流程)
+  code=0 items=0 supportLevel=QUERY_ONLY engineName=QueryOnlyRecommendEngine
+  warning="2026 年艺术类统考本科批院校专业组数据暂未导入。安徽 2026 艺术类统考本科批投档要点（按《2025 年实施办法》第 26 条）：投档按「综合分优先，遵循志愿」..."
+
+POST /api/volunteer/recommend  SC+SC_BENKE_B (regression)  580/35000 物理化生
+  code=0 items=45/45 supportLevel=TRIAL_RECOMMEND
+
+POST /api/volunteer/recommend  GZ+NORMAL_UNDERGRADUATE (regression)  520/60000 物理化生
+  code=0 items=96/96 supportLevel=TRIAL_RECOMMEND engineName=OrdinaryParallelMajorEngine
+```
+
+### v7.48 验证基线
+
+- 后端 `./mvnw test` 290/0/0（v7.47 之前 289 + 1 个新增 `decorateAnhuiPlan_shouldUseTrialRecommendForMainPipeline`）
+- 前端 `npm run build` 通过，主页 / Volunteer 页面体积小幅+3KB
+- 生产 5 个端到端 smoke 全 `code=0`（AH 物理/历史/艺术 + SC + GZ）
+- DB 状态：SC 2025 = 4994 行 / 1085 院校，AH 2025 = 4282 行 / 1048 院校（物 2958 / 史 1324），policy_rule_config AH 42 行 + SC 54 行
+- 服务器磁盘：34G/40G (90%)
+
+### v7.48 待办
+
+- **AH 一分一段补齐**：当前 score_rank=0 行，用户必须自填位次才能生成；后续补 OCR / vision 抽取后会自动启用估算（已记录到 `AnhuiBatchSupportService` 缺口提示）。
+- **AH 招生计划与选科要求**：影响组内 6 专业匹配精度、`planCount` 字段，主流程能跑但 dataQualityWarning 中会提示 "45 个院校专业组缺计划数或未结构化"。
+- **AH 艺术综合分公式**（同 SC 思路）：`SichuanCompositeScoreCalculator` 复制为 `AnhuiCompositeScoreCalculator`（音乐 / 美术 / 表演等 11 类 + `AH_ART_TONGKAO_BENKE` 综合分公式按皖招委〔2024〕11 号文）。
+- **AH ML 基地**：参考 `docs/ops/sichuan_ml_baseline_runbook.md` 复制 `build_training_csv_ah.py`，等 6 月底 2026 数据发布。
+
+## 上一轮变更（v7.47 SC delta + AH 数据落库，2026-05-18 14:15）
+
+### 1. SC 院校专业组数据：5004 行全量回灌（4803 → 4994）
+
+承接 v7.46 SC 非主流程 listing，本轮把 5-17 夜间的 zjzw_pull 全量结果 `draft/zjzw_full_sc_2025_20260517_170431.csv` (5185 行 / 5004 行属本科批B段) 重新过 `sichuan_2025/merge_zjzw_to_reviewed.py`，按既定政策（gaokao.cn → 校招 URL、school_verified、本科批B段→普通本科批B段、去重、URL 黑名单过滤）跑出一份完整 reviewed CSV。
+
+- 服务器路径：`/root/gzly_scraper/sichuan_2025/`
+  - 备份：`reviewed/group_lines_sc_2025_reviewed.bak.20260518140550.csv`（4820 行旧版）
+  - 新版：`reviewed/group_lines_sc_2025_reviewed.csv`（4994 行）
+  - 报告：`reports/zjzw_sc_full_merge_report.json`
+- merge 关键统计：`existing=4803, total=5185, batch_skip=181, dup_existing=4810, no_url=3, kept=191, new_universities=51`
+- 通过新通用脚本 `/root/gzly_scraper/anhui_bootstrap/import_province_group_lines.py`（基于 AH 脚本通用化，按 `--province` 路由到 `/admin/province-data/{province}/group-lines/import`）入库：
+  - dryRun：1087 payload / 191 ins + 4803 upd + 0 rej
+  - real：1087 payload / 191 ins + 4803 upd + 0 rej
+- DB 实测：`SELECT * FROM data_admission_group_line WHERE province_code='SC' AND year=2025` → `4994 行 / 1085 院校`（比之前多 191 行 / 50 院校）
+
+### 2. SC recommend 端到端：12 → 45 满志愿
+
+- 安全码 SMOKE2026SC、`SC_BENKE_B`、580/35000 物理化生主流程：
+  ```
+  code=0 items=45/45 supportLevel=TRIAL_RECOMMEND engineName=ProfessionalGroupVolunteerEngine
+  phase=PRE_OFFICIAL_DATA first=中北大学 group=103 gradient=冲
+  warning="已默认排除7条提前批、专项、军警公安、定向、预科、艺术体育等普通批不适用记录。45个院校专业组缺计划数或未结构化，需复核省级考试院专业目录和学校招生官网。"
+  ```
+- dataQualityWarning 由「12/45 数据不足」升级为「45/45 命中但缺 plan_count」（健康信号），用户终于能拿到完整 45 志愿草稿。
+
+### 3. AH 14 批次 policy_rule_config + readiness 入库
+
+- `mysql gzly < /root/gzly_scraper/anhui_bootstrap/20260517_ah_policy_rule_config.sql` → AH × 2024/2025/2026 × 14 = 42 行
+  - 2024/2025 status=confirmed（与 `AnhuiBatchRuleRegistry` 14 批次严格对齐：volunteer_mode、max_volunteer_count、majors_per_group、has_adjustment、filing_principle、admission_order、official_source_* 全字段就位）
+  - 2026 行 status=pending_confirm（等 6 月下旬安徽 2026 实施办法正式发文）
+- `mysql gzly < /root/gzly_scraper/anhui_bootstrap/20260517_ah_data_year_readiness.sql` → AH × (2024/2025/2026) = 3 行
+  - AH 2024：MODEL_RETRAINED（老高考兜底，不进 ML 训练）
+  - AH 2025：PRE_OFFICIAL_DATA + policy_ready=1
+  - AH 2026：PRE_OFFICIAL_DATA + policy_ready=0（等正式发文）
+
+### 4. AH 院校专业组本科批数据：0 → 4282 行 / 1048 院校
+
+- 服务器路径：`/root/gzly_scraper/province_group_2025/reviewed/AH/`
+  - 备份：`group_lines_ah_2025_reviewed.bak.20260518140952.csv`（185 字节 sample 行）
+  - 新版：`group_lines_ah_2025_reviewed.csv`（4282 行）
+  - 报告：`/root/gzly_scraper/province_group_2025/reports/AH/zjzw_ah_full_merge_report.json`
+- 草稿源：`sichuan_2025/draft/zjzw_full_ah_2025_20260517_180155.csv`（4288 行，全部为「本科批」）
+- merge_zjzw_to_reviewed_ah.py 关键统计：`existing=0, total=4288, batch_skip=0, dup_existing=0, dup_new=3, no_url=3, kept=4282, new_universities=1048`
+- import_province_group_lines.py --province=AH dryRun + real：1048 payload / 4282 ins + 0 upd + 0 rej
+- DB 实测：`SELECT * FROM data_admission_group_line WHERE province_code='AH' AND year=2025`
+  - 物理类：`2958 行 / 1034 院校`
+  - 历史类：`1324 行 / 861 院校`
+  - 合计：`4282 行 / 1048 院校`（首次入库）
+
+### 5. AH recommend 端到端：v7.48 已完成 wiring + 部署
+
+v7.47 写入时生产 JAR 尚未含 AH controller 路由；v7.48（同一会话紧接执行）已完成 controller 三档分发、`/ah/batch-support` 端点、`ProfessionalGroupVolunteerService` score_rank 强校验放宽、后端 290 测试全绿 + 双轮 deploy_backend_safe.sh + 前端 rsync + nginx reload，公网 AH+AH_BENKE 端到端 45/45 TRIAL_RECOMMEND。详见上方 v7.48 章节。
+
+### 6. 通用化 import_province_group_lines.py
+
+将既有 `anhui_bootstrap/import_ah_group_lines.py` 通用化为 `anhui_bootstrap/import_province_group_lines.py`，新增 `--province` 参数（SC / AH / HB / ...），调用 `/admin/province-data/{province}/group-lines/import`。后续 HB / 其它新省份直接复用，不必再 fork 脚本。
+
+### v7.47 验证基线
+
+- SC：DB 4994 行 / 1085 院校；`/api/volunteer/recommend` 580/35000 物理化生 → code=0 items=45/45 TRIAL_RECOMMEND
+- AH：DB 4282 行 / 1048 院校；v7.47 写入时 `/api/volunteer/recommend` 仍 code=400（已在 v7.48 通过 controller wiring + score_rank 放宽修复为 45/45 TRIAL_RECOMMEND，详见上方 v7.48 公网 smoke）
+- policy_rule_config：AH 42 行新增、SC 54 行不变
+- data_year_readiness：AH 3 行新增、SC 3 行不变
+- 服务器磁盘：`df -h /` 仍 34G/40G (90%)；本轮新增 CSV/SQL/报告共 ~3 MB
+
+### v7.47 待办（v7.48 已就 AH wiring 完成；剩余项继承到 v7.48 待办）
+
+- ~~**AH 后端 wiring + 部署**~~ ✅ v7.48 已完成
+- **SC 历史类 score_segment 6 行待 OCR vision 补**（详见 `docs/ops/sichuan_ml_baseline_runbook.md` Phase B0）。
+- **AH 一分一段 / 招生计划 / 选科要求**：均未导入；AH 走 TRIAL_RECOMMEND 必须由用户自填位次，OCR draft 31 行质量诊断「数据非单调」不能入库。等 vision 模型凭据到位后补一轮 OCR 校验。
+
+## 上一轮变更（v7.46 SC 非主流程 listing，2026-05-17 16:28）
+
+### 四川 17 个非主流程批次 listing 兜底 + 综合分 / 资格审核说明
+
+承接 v7.45 SC ML 基地交付后，本轮把 SC 非主流程 17 批次（艺术 3 + 体育 2 + 顺序志愿 5 + 8 类专项）的 QUERY_ONLY 兜底从"纯文案"升级为"按 group_line 批次关键词 LIKE 查 N 条候选 + 综合分公式 / 顺序志愿规则 / 资格审核说明的结构化响应"，等 SC 非主批次数据补齐后立即生效。
+
+- **新增 `SichuanBatchListingService`**（296 行）：
+  - 数据源：`data_admission_group_line`（按 province_code + year + 批次关键词 LIKE 过滤）
+  - 4 路 listing：EARLY/OTHER（顺序志愿）/ ART/SPORTS（综合分平行）/ SPECIAL_PROGRAM（专项资格）
+  - 自动按 `SichuanBatchRuleRegistry.batchKeywords` 拼 SQL OR LIKE，目标年份无数据时回退最近 3 年
+  - 物理类优先排序 + min_rank 升序
+  - 输出 N 条 `VolunteerItem`（universityName / groupCode / minRank / planCount / batch / dataSourceType="院校专业组（XX）"）
+  - 每路 listing 自带 `compositeFormula` / `sequentialNote` / `eligibilityNote` 等批次专属说明
+  - 0 行时返回 emptyResult + 显式 dataQualityWarning（带公式 / 规则 / 资格说明）
+- **`VolunteerRecommendController.recommendForProfessionalGroupProvince`** 非主流程分支重构：
+  - 删除原 `queryOnlyRecommendEngine.generate(...)` 调用（避免对 GZ `BatchRuleRegistry.BatchRule` 的硬依赖导致 NPE）
+  - 新增 `buildSichuanQueryOnlyPlanSkeleton`：自己 new PlanResult 填基础字段（provinceCode/volunteerUnitType/targetBatch/targetCount/strategyMode/...），跳过 GZ 专用 engine
+  - 调 `sichuanBatchListingService.listForBatch`，把 items / warnings / dataQualityWarning 注入 plan
+  - `decorateSichuanPlan` 继续填 policy / supportLevel / modelInfo / yearContext
+- **修复**：v7.45 部署后 SC_ART_BENKE / SC_TIQIAN_A 调用返回 500（NullPointerException: rule is null），本轮跳过 GZ engine 后修复
+
+### v7.46 验证基线
+
+- 后端 `./mvnw test` 289/0/0 全绿
+- 生产部署 deploy_backend_safe.sh 成功（旧 JAR 备份 `backup/app.jar.20260517162705.bak`）
+- 生产端到端 5 个 SC 批次 smoke 全 200：
+
+| 批次 | code | items | supportLevel | engineName | dataQualityWarning |
+|---|---:|---:|---|---|---|
+| SC_BENKE_B（主流程） | 0 | **12** | TRIAL_RECOMMEND | ProfessionalGroupVolunteerEngine | "当前仅找到 12 个公开可核验院校专业组，未达到 45 个..." |
+| SC_ART_BENKE（艺术类） | 0 | 0 | QUERY_ONLY | QueryOnlyRecommendEngine | "...四川艺术综合分公式（教育考试院 2026-05 公告）..." |
+| SC_TIQIAN_A（提前 A 顺序志愿） | 0 | 0 | QUERY_ONLY | QueryOnlyRecommendEngine | "...本批次按"根据志愿、从高分到低分、按比例投档"录取..." |
+| SC_SPORTS_BENKE（体育类） | 0 | 0 | QUERY_ONLY | QueryOnlyRecommendEngine | "...四川体育综合分公式：综合 = 文化×30% + 体育统考×(750/100)×70%..." |
+| SC_BENKE_A_NATIONAL（国家专项） | 0 | 0 | QUERY_ONLY | QueryOnlyRecommendEngine | "...本批次需先按四川省教育考试院公布的户籍 / 学籍 / 综合素质 / 履约协议等条件做资格审核..." |
+
+### v7.46 影响
+
+- SC 主流程不变（12 条志愿 / TRIAL_RECOMMEND 保持）
+- 17 个非主流程批次的 dataQualityWarning 从"纯兜底"升级到包含公式/规则/资格审核说明
+- 等 SC 非主批次 group_line 数据补齐后（即使 1 行），items 立即返回，不需要再改代码
+
+## 上一轮变更（v7.45 ML 基地，2026-05-17 16:20）
+
+### 四川 ML 训练基地（baseline）打通
+
+承接同一会话的 v7.44 与 v7.45 综合分上线，本轮把四川 ML 训练管线雏形搭好，等 2026 官方数据出后立即可重训。
+
+- **新增 `ml-service/scripts/build_training_csv_sc.py`**（415 行）：
+  - 数据源切到 `data_admission_group_line × data_admission_group_plan × sys_university`
+  - 训练单元改为 `(school_id, group_code, subject_type)`（对齐四川"院校专业组"口径）
+  - 批次代码映射 `SC_*` 前缀（与 `SichuanBatchRuleRegistry` 严格对齐）
+  - `subject_regime`：new(2025+) / old(2024-)
+  - 新增 `--allow-no-lag`：允许单年数据 baseline 跑通流程（不强求 ≥2 年）
+  - 新增 `--min-rows 10`：低门槛（贵州默认 50，SC 当前数据少先放宽）
+  - 输出 quality report 严格记录"哪些列空 / 数据缺口在哪 / 下一步动作"
+- **`db/20260517_sichuan_data_year_readiness.sql` 落库**：SC × (2024 / 2025 / 2026) = 3 行
+  - SC 2024：老高考"院校+专业"兜底 phase=MODEL_RETRAINED（不进训练）
+  - SC 2025：score_segment_ready=1（一分一段 541+514）+ admission_plan_ready=0（27/90 + 21/90 待补）
+  - SC 2026：PRE_OFFICIAL_DATA（等 6 月底官方数据）
+- **生产 ETL 跑通**：`training_rank_sc_2025_baseline.csv` 27 行 × 31 列 + `sc_training_quality_baseline.md`
+  - 8 个 key columns completeness=100%（year/school_code/major_code/subject_type/batch_code/min_rank/current_plan_count/...）
+  - min_rank_lag_1=0%（单年数据预期，等 2026 后自动有 lag）
+- **不训练 SC 专属模型**（不激活到 `ml_model_registry`）：4 个理由（详见 runbook 第 4 节）
+  - 27 行训练集会 LightGBM 严重过拟合
+  - lag 0% → rank prediction 退化为常数预测
+  - 误激活会挤掉 GZ active 模型
+  - 用户预期是 baseline pipeline，不强求出可用模型
+- **新增运营 runbook**：`docs/ops/sichuan_ml_baseline_runbook.md` 300+ 行
+  - Phase B0 / B1 / B2 / B3 完整路线图
+  - Phase B2（6 月下旬 2026 数据出）的全量命令行
+  - 与贵州训练管线的关系 ASCII 架构图
+  - "不要做的事"清单（防止数据混淆、模型误激活）
+- **后台启动 SC schools 爬虫扩范围**（pid=349190 in `/root/gzly_scraper/sichuan_2025`）：`limit=80 max-pages-per-school=6`，预计 15-30 分钟跑完；产出 `school_candidate_review_queue` 增量行供人工复核。
+
+### 验证基线（v7.45 ML 基地）
+
+- 后端 `./mvnw test` 289/0/0 全绿（v7.44 280 → +9 SichuanCompositeScoreCalculator 单测）
+- 前端 `npm run build` 通过（VolunteerForm 48.65 → 50.65 KB）
+- 生产 readiness 查询：`SC 2024/2025/2026 = MODEL_RETRAINED/PRE_OFFICIAL_DATA/PRE_OFFICIAL_DATA`，与预期一致
+- 生产 ETL smoke：`scripts.build_training_csv_sc --train-years 2025 --allow-no-lag --strict` 退出码 0，CSV + quality report 已落盘
+- 服务器磁盘：34G/40G（90%）；本轮新增数据极少（CSV 4KB + 报告 2KB + SC ETL 脚本 25KB）
+
+### 仍待 6 月下旬 2026 官方数据
+
+- 按 `docs/ops/sichuan_ml_baseline_runbook.md` Phase B2 全套命令操作即可激活 SC 专属 ML
+- 当前 SC 用户走 `ProfessionalGroupVolunteerService` 启发式打分（无 ML 风险）
+- 数据补齐：vision 模型凭据是关键瓶颈，建议先打通 vision（OpenAI / 国内厂商均可）再启动新一轮 OCR / 视觉抽取
+
+## 上一轮变更（v7.45 综合分，2026-05-17 16:00）
+
+### 四川艺术 / 体育综合分实时计算
+
+承接同一会话的 v7.44 SC 主流程接通，本轮把艺体综合分公式落地，让前端在用户填文化分 + 统考分时实时显示估算综合分。
+
+- **新增 `SichuanCompositeScoreCalculator`**（185 行）：严格按四川教育考试院 2026 公告口径
+  - 类别 1（文化 50% + 统考 50%）：美术与设计 / 戏剧编导 / 表演 / 导演 / 服装表演 / 播音与主持
+  - 类别 2（文化 30% + 统考 70%）：音乐表演 / 音乐教育 / 舞蹈 / 书法 / 航空服务艺术
+  - 体育（文化 30% + 体育统考 70%）
+  - 公式：`综合 = 文化 × 比例 + 统考 × (750/统考满分) × 比例`
+  - 9 个单测覆盖（美术 5050 / 音乐 3070 / 体育 / 类别识别 / 边界 / 公式可读性 等）
+- **新增 `GET /api/volunteer/sc/composite-score`** endpoint：
+  - 入参：`candidateType` + `artCategory` + `cultureScore` + `professionalScore`
+  - 返回：`score` + `formula` + `cultureRatio/professionalRatio/professionalScale/cultureWeighted/professionalWeighted` + `supportedArtCategories` (11 类下拉)
+- **前端 `VolunteerForm.vue`**：
+  - SC + 艺术类时新增"艺术统考类别"下拉（11 个选项与后端对齐）
+  - 多字段 watch（candidateType / artCategory / artScore / sportsScore / cultureScore）600ms debounce 调用 SC 综合分 API
+  - 实时渲染综合分卡片 + 完整公式文案 + 显式标注"仅前端预览，正式以你手填综合分为准"
+- **前端 `api/volunteer.ts`** 新增 `getScCompositeScore` + `ScCompositeScoreResponse` 类型
+
+### 验证基线（v7.45 综合分）
+
+- 后端 `./mvnw test` 289/0/0 全绿
+- 前端 `npm run build` 通过
+- 生产 smoke：`/api/volunteer/sc/composite-score?candidateType=艺术类&artCategory=美术与设计类&cultureScore=480&professionalScore=280`
+  - 返回 `code=0, score=590.00, formula="综合 = 文化 480 × 50% + 统考 280 × (750/300) × 50% = 240 + 350 = 590.00"` ✅
+- 部署：deploy_backend_safe.sh + dist + nginx reload 全过，旧 JAR 备份 `backup/app.jar.20260517160929.bak`
+
+## 上一轮变更（v7.44 四川主流程，2026-05-17 16:00）
+
+### 四川板块主流程接通 + 18 批次支持矩阵
+
+本轮把四川从"骨架已搭但被 GZ-only 政策层 400 拒绝"升级到"用户能完成完整闭环：选省份 → 选批次 → 填条件 → 拿到志愿草稿 → AI 解读 → 导出"。
+
+- **政策层多省化** `PolicyRuleService.requirePolicy/validateProvinceBatch/normalizeBatchCode`：
+  - 原硬编码 `if (!ProvincePolicyService.GZ.equals(province)) throw 400`，本轮按 province 路由到 `BatchRuleRegistry`（GZ）或 `SichuanBatchRuleRegistry`（SC/HB/AH）
+  - 新增 `normalizeBatchCode(provinceCode, batchCode)` overload，原单参方法保留向后兼容
+  - `syntheticConfigFor` 找不到 `policy_rule_config` 时按 province 选 registry 合成
+  - `pendingConfirmWarningFor` 按 province 返回对应考试院文案
+- **新增 `SichuanBatchSupportService`**（共 450+ 行）：
+  - 与 `BatchSupportService` 复用 `BatchSupportResponse/BatchSupportItem/DataReadiness/DataStatus` 数据结构
+  - 数据源切到 `data_admission_group_line/plan + data_major_requirement`
+  - 内部按 `SichuanBatchRuleRegistry.allRules()` 构 18 batchSupportItem
+  - `resolveSupportLevel`：主流程批次（ORDINARY + PARALLEL_GROUP + mainRankEngine）按数据可用度 + readiness 阶段分级 → TRIAL_RECOMMEND / FULL_RECOMMEND
+  - 其它批次（艺术 / 体育 / 专项 / 顺序志愿）走 QUERY_ONLY 兜底
+  - Caffeine L1 缓存 5 min TTL / 128 容量（与 GZ 对齐）
+  - 新增 `GET /api/volunteer/sc/batch-support` 暴露给前端
+- **`VolunteerRecommendController.recommend`** SC 分支：
+  - `recommendForProfessionalGroupProvince` 跳过 GZ 专用 `RecommendEngineRouter`
+  - 主流程批次直接调 `ProfessionalGroupVolunteerService.generate`
+  - 非主流程批次走 `QueryOnlyRecommendEngine.generate` + 装饰 SC supportLevel / supportReason / engineName
+  - `applyPolicyToRequest(...)` overload 接 provinceCode，正确设置 `volunteerUnitType`（PROFESSIONAL_GROUP_45 vs MAJOR_96）
+  - `normalizePublicRequest` 按 province 路由 normalizeBatchCode + normalizeCandidateType
+- **`ProfessionalGroupVolunteerService` partial data 放开**：候选 < 45 时不再硬抛 BizException
+  - 改为返回 N≤45 条 TRIAL_RECOMMEND 草稿 + 显式 `dataQualityWarning`
+  - 业务约束：只有 `items.isEmpty()` 时仍抛错（彻底无可用数据）
+  - 解决 SC 当前 27/45 数据无法生成主流程的核心阻碍
+- **数据 `db/20260517_sichuan_policy_rule_config.sql`**：SC × 18 批次 × (2024/2025/2026) = 54 行 policy_rule_config 入库
+  - 2026 行 status=pending_confirm，2025/2024 行 status=confirmed
+  - 与 `SichuanBatchRuleRegistry` 严格对齐：volunteer_mode / max_volunteer_count / majors_per_group / has_adjustment 全字段就位
+- **前端 SC 解锁**：
+  - `provinces.ts` SC `status: open`，文案对齐贵州（"已开放" / "考试院官方数据 + 历史回退"）
+  - `VolunteerForm.vue` 去掉所有 `provinceCode === 'GZ'` 硬限制：
+    - 新增 `fallbackBatchSupportItemsSichuan` 18 批次清单
+    - `getBatchSupportByProvince(code)` 自动分发 GZ / SC API
+    - `defaultBatchCodeForProvince` SC 默认锁 `SC_BENKE_B`
+    - `onMounted` 自动选"普通类"（SC 用户进来不需要额外点击）
+  - `VolunteerResult.vue` 艺术 / 体育 / 专项 / 顺序志愿说明按省分支
+    - 新增 SC_* 批次代码到 ART_BATCHES / SPORTS_BATCHES / SPECIAL_PROGRAM_BATCHES / SEQUENTIAL_BATCHES
+    - 文案动态用 `planProvinceName + planOfficialSourceName`
+  - `api/volunteer.ts` 新增 `getScBatchSupport` + `getBatchSupportByProvince`
+
+### 验证基线（v7.44 主流程）
+
+- 后端 `./mvnw test` 280/0/0 全绿（修了 2 个测试类的新 mock 依赖）
+- 前端 `npm run build` 通过
+- 生产 `/api/volunteer/sc/batch-support` 返回 18 批次，`summary: {FULL:0, TRIAL:1, QUERY_ONLY:17, UNSUPPORTED:0}` ✅
+- 生产端到端 `/api/volunteer/recommend`（SC + SC_BENKE_B + 580/35000 物理化生）：
+  ```
+  code: 0
+  items: 12（27 组数据 → 580/35000 命中 12 个院校专业组）
+  supportLevel: TRIAL_RECOMMEND
+  engineName: ProfessionalGroupVolunteerEngine
+  recommendationPhase: PRE_OFFICIAL_DATA
+  targetCount: 45（官方批次数）
+  dataQualityWarning: "当前仅找到 12 个公开可核验院校专业组，未达到 45 个..."
+  first item: 成都信息工程大学 103 冲
+  ```
+- 部署：deploy_backend_safe.sh + dist + nginx reload 全过，旧 JAR 备份 `backup/app.jar.20260517155947.bak`
+
+### 服务器运维
+
+- 部署前清磁盘：35G → 34G（90%）腾出 800M（清 /tmp gzly_* 临时包 + 旧 JAR backup + dnf cache + migration kit）
+- 4G 可用空间够本轮 deploy + SQL 导入 + ETL 跑通
+
+### 仍待人工
+
+- SC 2025 院校专业组数据补齐 27→90（需 vision 模型凭据 + 人工复核 410 个高置信学校 review queue）
+- SC 2025 选科要求 OCR / CSV（影响组内 6 专业匹配精度，不影响主流程能跑）
+- ICP 备案在阿里云控制台重新提交（代码层不可修复，与贵州同根因）
+
+## 上一轮变更（v7.37，2026-04-30 21:27）
 
 ### 贵州推荐算法按研究报告优化并部署
 

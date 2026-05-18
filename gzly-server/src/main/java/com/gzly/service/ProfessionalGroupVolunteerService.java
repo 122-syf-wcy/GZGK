@@ -71,14 +71,20 @@ public class ProfessionalGroupVolunteerService {
             String subjectType = mapSubjectType(req.getFirstSubject());
             RankResolution rankResolution = resolveRankResolution(policy, req, subjectType);
             req.setProvinceRank(rankResolution.effectiveRank());
+            // v7.48 (2026-05-18)：放宽 score_rank 强校验。
+            // - 原硬校验「rankYear < 2025 抛错」对 AH 等尚未导入一分一段的省份过严，
+            //   阻断了用户「自填位次 + 院校专业组线已就位」的正常生成路径。
+            // - resolveRankResolution 已内置「用户未填位次且 score_rank 缺失」的明确报错，
+            //   本处不再重复硬校验；score_rank 仅作为「未填位次时回退估算」的来源。
             Integer rankYear = dataScoreRankMapper.selectLatestYear(provinceCode, subjectType);
-            if (rankYear == null || rankYear < 2025) {
-                throw new BizException(String.format("%s官方一分一段表尚未导入或未通过核验：请先导入2025年%s物理类/历史类官方一分一段后再开放生成。",
+            if ((rankYear == null || rankYear < 2025) && req.getProvinceRank() <= 0) {
+                throw new BizException(String.format(
+                        "%s官方一分一段表尚未导入或未通过核验：请先手动填写考试院确认的全省位次，或导入2025年%s物理类/历史类官方一分一段后再开放估算。",
                         policy.getProvinceName(), policy.getProvinceName()));
             }
             Integer year = groupLineMapper.selectLatestYear(provinceCode, subjectType);
             if (year == null) {
-                throw new BizException(String.format("%s%s数据尚未导入：请先导入2025年%s一分一段、院校专业组计划与调档线后再开放生成。",
+                throw new BizException(String.format("%s%s数据尚未导入：请先导入2025年%s院校专业组计划与调档线后再开放生成。",
                         policy.getProvinceName(), policy.getTargetBatch(), policy.getProvinceName()));
             }
 
@@ -93,11 +99,21 @@ public class ProfessionalGroupVolunteerService {
                 range.setActualCount(picked.items().size());
             }
 
-            if (items.size() < TARGET_TOTAL) {
+            boolean partialData = items.size() < TARGET_TOTAL;
+            // v7.44 (2026-05-17)：候选数据不足 45 时，不再硬抛错。
+            // PRE_OFFICIAL_DATA 阶段 / 数据补齐期间允许返回 27~44 条 TRIAL_RECOMMEND 草稿，
+            // 同时在 dataQualityWarning / advisorAdvice 中显式标注"数据缺口"。
+            // 业务约束：仅当 items.isEmpty() 时仍抛错（彻底无可用数据）；其它情况返回部分草稿 + 警告。
+            if (items.isEmpty()) {
                 metricsRecorder.incr(VolunteerMetricsRecorder.GENERATE_INCOMPLETE);
                 throw new BizException(String.format(
-                        "%s%s公开可核验院校专业组数据不足：当前只命中%d个，未达到45个。系统不会用低可信或无来源数据补满，请先补齐%s2025院校专业组计划和调档线。",
-                        policy.getProvinceName(), policy.getTargetBatch(), items.size(), policy.getProvinceName()));
+                        "%s%s公开可核验院校专业组数据未检索到任何条目。请先按 docs/2026_sc_pre_launch_audit.md 流程补齐 2025 院校专业组计划和调档线后再生成。",
+                        policy.getProvinceName(), policy.getTargetBatch()));
+            }
+            if (partialData) {
+                metricsRecorder.incr(VolunteerMetricsRecorder.GENERATE_INCOMPLETE);
+                log.warn("[ProfessionalGroupVolunteer] 部分数据生成：province={}, batch={}, items={}/{}",
+                        policy.getProvinceCode(), policy.getTargetBatch(), items.size(), TARGET_TOTAL);
             }
 
             items.sort(Comparator
@@ -479,6 +495,11 @@ public class ProfessionalGroupVolunteerService {
 
     private String buildDataQualityWarning(List<VolunteerService.VolunteerItem> items, int specialExcluded) {
         List<String> warnings = new ArrayList<>();
+        if (items.size() < TARGET_TOTAL) {
+            warnings.add(String.format(
+                    "当前仅找到 %d 个公开可核验院校专业组，未达到 %d 个；系统不会用低可信数据补满，差额请按数据补齐流程继续导入官方 / 学校官网公开来源。",
+                    items.size(), TARGET_TOTAL));
+        }
         if (specialExcluded > 0) {
             warnings.add(String.format("已默认排除%d条提前批、专项、军警公安、定向、预科、艺术体育等普通批不适用记录。", specialExcluded));
         }

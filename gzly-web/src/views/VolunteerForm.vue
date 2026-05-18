@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getCurrentSafetyCode, setCurrentSafetyCode, useVolunteerStore } from '@/stores/volunteer'
-import { generateVolunteerPlan, getGzBatchSupport, rankCheck } from '@/api/volunteer'
+import { generateVolunteerPlan, getBatchSupportByProvince, getScCompositeScore, rankCheck } from '@/api/volunteer'
 import { getHotMajors, type HotMajor } from '@/api/scoreLine'
 import DisclaimerDialog from '@/components/DisclaimerDialog.vue'
 import type { BatchSupportItem, CandidateType, GradientRangeKey, GradientRanges } from '@/types'
@@ -74,6 +74,16 @@ const qualificationTags = ref<string[]>([...(volunteerStore.formData.qualificati
 const artProfessionalScore = ref<number | undefined>(volunteerStore.formData.artProfessionalScore)
 const sportsProfessionalScore = ref<number | undefined>(volunteerStore.formData.sportsProfessionalScore)
 const comprehensiveScore = ref<number | undefined>(volunteerStore.formData.comprehensiveScore)
+// 四川艺术统考类别（11 个），用于按"美术 50/50"或"音乐 30/70"路由综合分公式
+const scArtCategory = ref<string>('美术与设计类')
+const scArtCategories = ref<string[]>([
+  '美术与设计类', '戏剧影视编导类', '戏剧影视表演类', '戏剧影视导演类',
+  '服装表演类', '播音与主持类', '音乐表演类', '音乐教育类',
+  '舞蹈类', '书法类', '航空服务艺术类',
+])
+const scCompositeFormula = ref<string>('')
+const scCompositeScore = ref<number | null>(null)
+let compositeTimer: ReturnType<typeof setTimeout> | null = null
 const currentSafetyCode = ref(getCurrentSafetyCode())
 
 const hotMajors = ref<HotMajor[]>([])
@@ -285,17 +295,108 @@ const fallbackBatchSupportItems: BatchSupportItem[] = [
   supportReason: supportNote as string,
   warnings: [supportNote as string],
 }))
+const fallbackBatchSupportItemsSichuan: BatchSupportItem[] = [
+  ['SC_TIQIAN_BEFORE_A_NATIONAL', '本科提前批 A 段前国家专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 6, '院校专业组（平行志愿）', 'SichuanSpecialPlanEligibilityEngine', '提前批 A 段前国家专项 2026 起 6 个平行院校专业组，需国家专项资格审查；当前仅展示规则与缺口。'],
+  ['SC_TIQIAN_A', '本科提前批 A 段', '普通类', 'EARLY', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 3, '院校顺序志愿（1 第一 + 2 平行第二）', 'SichuanSequentialCollegeEngine', '提前批 A 段含军事、公安、空军等院校，1 + 2 顺序志愿，当前仅展示规则。'],
+  ['SC_GAOXIAO_SPECIAL_PRE_B', '本科提前批高校专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿（待 6 月细则确认）', 'SichuanSpecialPlanEligibilityEngine', '高校专项 2026 官方表述存在 1 顺序 vs 20 平行两种口径，暂按 1 顺序兜底。'],
+  ['SC_TIQIAN_B', '本科提前批 B 段', '普通类', 'EARLY', 'QUERY_ONLY', 'PARALLEL_GROUP', 30, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '提前批 B 段含国家公费师范、优师、免费医学定向等，30 个平行院校专业组；履约风险需考生核对。'],
+  ['SC_BENKE_A_NATIONAL', '本科批 A 段国家专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'SichuanSpecialPlanEligibilityEngine', '本科批 A 段国家专项 20 平行，需贫困地区户籍 + 高中学籍资格。'],
+  ['SC_BENKE_A_LOCAL', '本科批 A 段地方专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'SichuanSpecialPlanEligibilityEngine', '本科批 A 段地方专项 20 平行，需四川民族自治地方 / 边远地区资格。'],
+  ['SC_BENKE_GAOXIAO_SPECIAL', '本科批 A 段后高校专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'SichuanSpecialPlanEligibilityEngine', '本科批 A 段后高校专项 2026 由 2 顺序升级 20 平行；需教育部高校专项审核结果。'],
+  ['SC_BENKE_SPORTS_TEAM', '本科批高水平运动队', '普通类', 'OTHER', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿（1 个）', 'SichuanSequentialCollegeEngine', '本科批高水平运动队 1 个院校顺序志愿，需教育部高水平运动队认定 + 体育专项测试。'],
+  ['SC_BENKE_B', '本科批 B 段', '普通类', 'ORDINARY', 'TRIAL_RECOMMEND', 'PARALLEL_GROUP', 45, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '四川主流程：本科批 B 段 45 个平行院校专业组志愿，每组 6 专业 + 是否服从专业调剂。'],
+  ['SC_BENKE_REGION_BALANCE', '本科批 B 段后区域教育均衡发展专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'SichuanSpecialPlanEligibilityEngine', '本科批后区域教育均衡专项 20 平行，面向四川教育薄弱区县考生。'],
+  ['SC_BENKE_MINORITY_PRE', '本科批省属高校少数民族预科', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'SichuanSpecialPlanEligibilityEngine', '省属高校少数民族预科 20 平行，需少数民族身份与户籍资格。'],
+  ['SC_ZHUANKE_B', '高职（专科）批', '普通类', 'ORDINARY', 'QUERY_ONLY', 'PARALLEL_GROUP', 45, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '高职（专科）批 45 个平行院校专业组（数量以 2026 实施细则为准）。'],
+  ['SC_ZHUANKE_EARLY', '高职（专科）提前批', '普通类', 'EARLY', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 3, '院校顺序志愿（1 第一 + 2 平行第二）', 'SichuanSequentialCollegeEngine', '高职专科提前批含定向培养军士、公安专科等，1 + 2 顺序志愿。'],
+  ['SC_ART_TIQIAN', '艺术类本科提前批', '艺术类', 'ART', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'SichuanArtCompositeEngine', '艺术类本科提前批含独立设置艺术院校等，按顺序志愿投档；需校考或专项审核。'],
+  ['SC_ART_BENKE', '艺术类本科批', '艺术类', 'ART', 'QUERY_ONLY', 'PARALLEL_GROUP', 45, '院校专业组（综合分平行志愿）', 'SichuanArtCompositeEngine', '艺术类本科批 45 个平行院校专业组，按综合成绩（文化 + 省级专业统考）位次投档；公式按统考类别分两档。'],
+  ['SC_ART_ZHUANKE', '艺术类高职（专科）批', '艺术类', 'ART', 'QUERY_ONLY', 'PARALLEL_GROUP', 45, '院校专业组（综合分平行志愿）', 'SichuanArtCompositeEngine', '艺术类高职（专科）批 45 个平行院校专业组，按综合成绩位次投档。'],
+  ['SC_SPORTS_BENKE', '体育类本科批', '体育类', 'SPORTS', 'QUERY_ONLY', 'PARALLEL_GROUP', 45, '院校专业组（综合分平行志愿）', 'SichuanSportsCompositeEngine', '体育类本科批 45 个平行院校专业组，按体育统考成绩位次投档（双线达标后按统考分排序）。'],
+  ['SC_SPORTS_ZHUANKE', '体育类高职（专科）批', '体育类', 'SPORTS', 'QUERY_ONLY', 'PARALLEL_GROUP', 45, '院校专业组（综合分平行志愿）', 'SichuanSportsCompositeEngine', '体育类高职（专科）批 45 个平行院校专业组，按体育统考成绩位次投档。'],
+].map(([batchCode, batchName, type, category, supportLevel, recommendMode, targetCount, volunteerMode, engine, supportNote]) => ({
+  batchCode: batchCode as string,
+  batchName: batchName as string,
+  candidateType: type as CandidateType,
+  category: category as string,
+  supportLevel: supportLevel as BatchSupportItem['supportLevel'],
+  recommendMode: recommendMode as string,
+  engine: engine as string,
+  engineName: engine as string,
+  targetCount: targetCount as number,
+  maxVolunteerCount: targetCount as number,
+  majorPerSchoolCount: 6,
+  hasAdjustment: (category as string) === 'ORDINARY' || (category as string) === 'EARLY' || (category as string) === 'SPECIAL_PROGRAM',
+  volunteerMode: volunteerMode as string,
+  policyConfigured: false,
+  policyStatus: 'registry_only',
+  scoreLineCount: 0,
+  majorScoreCount: 0,
+  planCount: 0,
+  requirementCount: 0,
+  dataStatus: fallbackDataStatus(),
+  missingData: ['batch-support接口未返回'],
+  supportNote: supportNote as string,
+  supportReason: supportNote as string,
+  warnings: [supportNote as string],
+}))
+const fallbackBatchSupportItemsAnhui: BatchSupportItem[] = [
+  ['AH_TIQIAN_BENKE_PARALLEL', '普通本科提前批（军事/公安/公费师范/优师/免费医学/农技推广）', '普通类', 'EARLY', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '安徽本科提前批军事/公安/公费师范/优师/免费医学/农技推广 6 个子类合并 20 个平行院校专业组，每组 6 专业 + 专业服从（免费医学定向 / 农技推广人才定向不设专业服从）。'],
+  ['AH_TIQIAN_BENKE_SEQUENTIAL', '普通本科提前批（司法应急消防/其他类）', '普通类', 'EARLY', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'QueryOnlyRecommendEngine', '安徽本科提前批司法（含司法国家专项）、应急消防、综合评价、定向培养乡村教师按 1 个院校专业组顺序志愿，从高分到低分按比例投档。'],
+  ['AH_NATIONAL_SPECIAL', '国家专项计划', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '安徽国家专项计划 20 个平行院校专业组，需户籍/学籍/综合素质/农村脱贫地区资格审查。'],
+  ['AH_LOCAL_SPECIAL', '地方专项计划', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '安徽地方专项计划 20 个平行院校专业组，面向安徽省内农村及脱贫地区考生。'],
+  ['AH_UNIVERSITY_SPECIAL', '高校专项计划', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'QueryOnlyRecommendEngine', '安徽高校专项计划 1 个院校专业组顺序志愿，需通过高校自主审核与省考试院公示。'],
+  ['AH_BENKE', '普通本科批', '普通类', 'ORDINARY', 'TRIAL_RECOMMEND', 'PARALLEL_GROUP', 45, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '安徽主流程：普通本科批 45 个平行院校专业组志愿，每组 6 专业 + 是否服从专业调剂；高水平运动队填第 1 志愿位置。'],
+  ['AH_TIQIAN_ZHUANKE_PARALLEL', '普通高职（专科）提前批（定向军士/免费医学/农技推广）', '普通类', 'EARLY', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '安徽高职（专科）提前批定向培养军士 / 免费医学定向 / 农技推广人才定向 20 个平行院校专业组。'],
+  ['AH_TIQIAN_ZHUANKE_SEQUENTIAL', '普通高职（专科）提前批（司法/其他）', '普通类', 'EARLY', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'QueryOnlyRecommendEngine', '安徽高职（专科）提前批司法 / 其他类 1 个院校专业组顺序志愿。'],
+  ['AH_ZHUANKE', '普通高职（专科）批', '普通类', 'ORDINARY', 'QUERY_ONLY', 'PARALLEL_GROUP', 45, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '安徽普通高职（专科）批 45 个平行院校专业组志愿，每组 6 专业 + 专业服从。'],
+  ['AH_ART_XIAOKAO_BENKE', '艺术类校考本科批', '艺术类', 'ART', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'QueryOnlyRecommendEngine', '安徽艺术类校考本科批 1 个院校专业组顺序志愿，含校考艺术类与戏曲省际联考。'],
+  ['AH_ART_TONGKAO_BENKE', '艺术类统考本科批', '艺术类', 'ART', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（综合分平行志愿）', 'QueryOnlyRecommendEngine', '安徽艺术类统考本科批 20 个平行院校专业组，按综合分优先、遵循志愿投档（A/B 段细分 + 音乐特殊单投）。'],
+  ['AH_ART_TONGKAO_ZHUANKE', '艺术类统考高职（专科）批', '艺术类', 'ART', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（综合分平行志愿）', 'QueryOnlyRecommendEngine', '安徽艺术类统考高职（专科）批 20 个平行院校专业组，按综合分优先、遵循志愿投档。'],
+  ['AH_SPORTS_BENKE', '体育类本科批', '体育类', 'SPORTS', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（综合分平行志愿）', 'QueryOnlyRecommendEngine', '安徽体育类本科批 20 个平行院校专业组，文化课按普通类本科控线 65% 划定，综合分优先。'],
+  ['AH_SPORTS_ZHUANKE', '体育类高职（专科）批', '体育类', 'SPORTS', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（综合分平行志愿）', 'QueryOnlyRecommendEngine', '安徽体育类高职（专科）批 20 个平行院校专业组，按综合分优先、遵循志愿投档。'],
+].map(([batchCode, batchName, type, category, supportLevel, recommendMode, targetCount, volunteerMode, engine, supportNote]) => ({
+  batchCode: batchCode as string,
+  batchName: batchName as string,
+  candidateType: type as CandidateType,
+  category: category as string,
+  supportLevel: supportLevel as BatchSupportItem['supportLevel'],
+  recommendMode: recommendMode as string,
+  engine: engine as string,
+  engineName: engine as string,
+  targetCount: targetCount as number,
+  maxVolunteerCount: targetCount as number,
+  majorPerSchoolCount: 6,
+  hasAdjustment: (category as string) === 'ORDINARY' || (category as string) === 'EARLY' || (category as string) === 'SPECIAL_PROGRAM',
+  volunteerMode: volunteerMode as string,
+  policyConfigured: false,
+  policyStatus: 'registry_only',
+  scoreLineCount: 0,
+  majorScoreCount: 0,
+  planCount: 0,
+  requirementCount: 0,
+  dataStatus: fallbackDataStatus(),
+  missingData: ['batch-support接口未返回'],
+  supportNote: supportNote as string,
+  supportReason: supportNote as string,
+  warnings: [supportNote as string],
+}))
+function fallbackBatchSupportItemsForProvince(code: ProvinceCode): BatchSupportItem[] {
+  if (code === 'GZ') return fallbackBatchSupportItems
+  if (code === 'AH') return fallbackBatchSupportItemsAnhui
+  return fallbackBatchSupportItemsSichuan
+}
 const batchOptions = computed(() => {
   if (!candidateType.value) return []
-  const items = provinceCode.value === 'GZ' && batchSupportItems.value.length ? batchSupportItems.value : fallbackBatchSupportItems
+  const fallback = fallbackBatchSupportItemsForProvince(provinceCode.value)
+  const items = batchSupportItems.value.length ? batchSupportItems.value : fallback
   const filtered = items.filter((item: BatchSupportItem) => item.candidateType === candidateType.value)
-  return filtered.length ? filtered : fallbackBatchSupportItems.filter(item => item.candidateType === candidateType.value)
+  return filtered.length ? filtered : fallback.filter(item => item.candidateType === candidateType.value)
 })
 const selectedBatchSupport = computed(() => batchOptions.value.find((item: BatchSupportItem) => item.batchCode === batchCode.value))
 const targetBatchLabel = computed(() => selectedBatchSupport.value?.batchName || '待选择批次')
 const canGenerateForSelectedBatch = computed(() => (
-  provinceCode.value !== 'GZ'
-  || isPreOfficialData.value
+  isPreOfficialData.value
   || selectedBatchSupport.value?.supportLevel === 'FULL_RECOMMEND'
   || selectedBatchSupport.value?.supportLevel === 'TRIAL_RECOMMEND'
 ))
@@ -308,7 +409,6 @@ const submitButtonText = computed(() => {
     : `生成 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}`
 })
 const batchSupportGateText = computed(() => {
-  if (provinceCode.value !== 'GZ') return ''
   if (!candidateType.value) return '请选择考生类别'
   if (!batchCode.value || !selectedBatchSupport.value) return '请选择目标批次'
   if (canGenerateForSelectedBatch.value) return ''
@@ -359,8 +459,8 @@ const canSubmit = computed(() => formReady.value && !isGenerateLocked.value)
 
 const missingItems = computed(() => {
   const items: string[] = []
-  if (provinceCode.value === 'GZ' && !candidateType.value) items.push('考生类别')
-  if (provinceCode.value === 'GZ' && (!batchCode.value || !selectedBatchSupport.value)) items.push('目标批次')
+  if (!candidateType.value) items.push('考生类别')
+  if (!batchCode.value || !selectedBatchSupport.value) items.push('目标批次')
   if (totalScore.value === undefined || totalScore.value <= 0) items.push('高考总分')
   if ((provinceRank.value === undefined || provinceRank.value <= 0) && !hasRankEstimate.value) {
     items.push('全省位次或官方估算位次')
@@ -502,13 +602,9 @@ async function loadHotMajors() {
 }
 
 async function loadBatchSupport() {
-  if (provinceCode.value !== 'GZ') {
-    batchSupportItems.value = []
-    return
-  }
   batchSupportLoading.value = true
   try {
-    const res = await getGzBatchSupport()
+    const res = await getBatchSupportByProvince(provinceCode.value)
     if (res.data.code === 0) {
       activeAdmissionYear.value = res.data.data.activeAdmissionYear || res.data.data.year
       latestOfficialDataYear.value = res.data.data.latestOfficialDataYear
@@ -526,9 +622,18 @@ async function loadBatchSupport() {
   }
 }
 
+function defaultBatchCodeForProvince(code: ProvinceCode): string {
+  if (code === 'GZ') return 'NORMAL_UNDERGRADUATE'
+  if (code === 'AH') return 'AH_BENKE'
+  return 'SC_BENKE_B'
+}
+
 function syncSelectedBatch() {
   if (!batchOptions.value.some((item: BatchSupportItem) => item.batchCode === batchCode.value)) {
-    batchCode.value = ''
+    // 四川 / 湖北 / 安徽进入时，如果用户没有选过批次，自动选默认主流程批次
+    const fallbackCode = defaultBatchCodeForProvince(provinceCode.value)
+    const hasFallback = batchOptions.value.some((item: BatchSupportItem) => item.batchCode === fallbackCode)
+    batchCode.value = hasFallback ? fallbackCode : ''
   }
 }
 
@@ -553,6 +658,10 @@ function toggleQualification(tag: string) {
 watch([firstSubject, provinceCode], loadHotMajors)
 watch([candidateType, batchSupportItems], syncSelectedBatch)
 onMounted(() => {
+  // 院校专业组省（SC/HB/AH）默认走普通类主流程批次，免去用户额外点击
+  if (currentProvince.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45' && !candidateType.value) {
+    candidateType.value = '普通类'
+  }
   loadHotMajors()
   loadBatchSupport()
 })
@@ -568,6 +677,49 @@ watch(() => route.query.provinceCode, (value: unknown) => {
 watch(provinceCode, (code: ProvinceCode) => {
   void loadBatchSupport()
   volunteerStore.setFormData({ provinceCode: code })
+  // 院校专业组省（SC/HB/AH）默认走普通类主流程批次（SC_BENKE_B 等），免去用户额外点击
+  if (getProvinceConfig(code).volunteerUnitType === 'PROFESSIONAL_GROUP_45' && !candidateType.value) {
+    candidateType.value = '普通类'
+  }
+})
+
+/**
+ * 四川艺术 / 体育综合分实时预览：当 candidateType=艺术类/体育类 + 文化分 + 统考分齐备时，
+ * 600ms debounce 调用 /api/volunteer/sc/composite-score，展示按四川 2026 公式估算的综合分。
+ * 不进数据库、不影响生成请求；用户最终填的综合分仍以表单中的 comprehensiveScore 字段为准。
+ */
+watch([provinceCode, candidateType, scArtCategory, artProfessionalScore, sportsProfessionalScore, totalScore], () => {
+  if (compositeTimer) clearTimeout(compositeTimer)
+  scCompositeFormula.value = ''
+  scCompositeScore.value = null
+  const isSichuanLike = currentProvince.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45'
+  if (!isSichuanLike) return
+  if (candidateType.value !== '艺术类' && candidateType.value !== '体育类') return
+  const culture = totalScore.value
+  const professional = candidateType.value === '艺术类'
+    ? artProfessionalScore.value
+    : sportsProfessionalScore.value
+  if (!culture || culture <= 0) return
+  if (!professional || professional <= 0) return
+  compositeTimer = setTimeout(async () => {
+    try {
+      const res = await getScCompositeScore({
+        candidateType: candidateType.value as '艺术类' | '体育类',
+        artCategory: candidateType.value === '艺术类' ? scArtCategory.value : undefined,
+        cultureScore: culture as number,
+        professionalScore: professional as number,
+      })
+      const data = res.data?.data
+      if (data?.success) {
+        scCompositeScore.value = data.score
+        scCompositeFormula.value = data.formula
+      } else {
+        scCompositeFormula.value = data?.formula || '考生类别 + 统考类别无法识别'
+      }
+    } catch {
+      scCompositeFormula.value = ''
+    }
+  }, 600)
 })
 
 watch([candidateType, batchCode], ([type, batch]: [CandidateType | '', string]) => {
@@ -904,7 +1056,7 @@ async function submitPlan() {
             <span class="gz-shell-chip is-soft-active">{{ careerGoal }}</span>
             <span class="gz-shell-chip is-soft-active">{{ phaseBadgeText }}</span>
           </div>
-          <div v-if="provinceCode === 'GZ'" class="volunteer-note volunteer-note--warning">
+          <div class="volunteer-note volunteer-note--warning">
             {{ phaseNoticeText }}
           </div>
         </div>
@@ -966,7 +1118,7 @@ async function submitPlan() {
               </div>
             </div>
 
-            <div v-if="provinceCode === 'GZ'" class="option-group">
+            <div class="option-group">
               <div class="volunteer-block__label">考生类别</div>
               <div class="option-grid option-grid--triple">
                 <button
@@ -983,7 +1135,7 @@ async function submitPlan() {
               </div>
             </div>
 
-            <div v-if="provinceCode === 'GZ'" class="option-group">
+            <div class="option-group">
               <div class="volunteer-block__label">目标批次</div>
               <div class="option-grid option-grid--double">
                 <button
@@ -1034,25 +1186,45 @@ async function submitPlan() {
             </div>
 
             <div v-if="candidateType !== '普通类'" class="volunteer-form-grid">
-              <div v-if="candidateType === '艺术类'" class="field-card">
-                <label class="field-card__label">艺术专业成绩</label>
+              <div v-if="candidateType === '艺术类' && currentProvince.volunteerUnitType === 'PROFESSIONAL_GROUP_45'" class="field-card field-card--full">
+                <label class="field-card__label">艺术统考类别</label>
                 <div class="field-card__input-wrap">
-                  <van-field v-model.number="artProfessionalScore" type="digit" placeholder="可选填" class="custom-field" />
+                  <select v-model="scArtCategory" class="custom-field" style="width:100%;height:40px;padding:0 12px;border:1px solid #e5e7eb;border-radius:8px;">
+                    <option v-for="cat in scArtCategories" :key="cat" :value="cat">{{ cat }}</option>
+                  </select>
+                </div>
+              </div>
+              <div v-if="candidateType === '艺术类'" class="field-card">
+                <label class="field-card__label">艺术专业成绩（统考）</label>
+                <div class="field-card__input-wrap">
+                  <van-field v-model.number="artProfessionalScore" type="digit" placeholder="0-300" class="custom-field" />
                   <span class="field-card__unit">分</span>
                 </div>
               </div>
               <div v-if="candidateType === '体育类'" class="field-card">
-                <label class="field-card__label">体育专业成绩</label>
+                <label class="field-card__label">体育专业成绩（统考）</label>
                 <div class="field-card__input-wrap">
-                  <van-field v-model.number="sportsProfessionalScore" type="digit" placeholder="可选填" class="custom-field" />
+                  <van-field v-model.number="sportsProfessionalScore" type="digit" placeholder="0-100" class="custom-field" />
                   <span class="field-card__unit">分</span>
                 </div>
               </div>
               <div class="field-card">
-                <label class="field-card__label">综合分</label>
+                <label class="field-card__label">综合分（可选，留空走实时估算）</label>
                 <div class="field-card__input-wrap">
-                  <van-field v-model.number="comprehensiveScore" type="number" placeholder="可选填" class="custom-field" />
+                  <van-field v-model.number="comprehensiveScore" type="number" placeholder="留空使用实时估算" class="custom-field" />
                   <span class="field-card__unit">分</span>
+                </div>
+              </div>
+              <div v-if="(scCompositeScore || scCompositeFormula) && currentProvince.volunteerUnitType === 'PROFESSIONAL_GROUP_45'" class="field-card field-card--full volunteer-note">
+                <label class="field-card__label">{{ provinceName }} {{ candidateType }} 综合分实时估算</label>
+                <div v-if="scCompositeScore" style="font-size:18px;font-weight:600;color:#0f172a;margin-top:4px;">
+                  约 {{ scCompositeScore.toFixed(2) }} 分
+                </div>
+                <div style="font-size:12px;color:#64748b;margin-top:4px;line-height:1.5;">
+                  {{ scCompositeFormula }}
+                </div>
+                <div style="font-size:11px;color:#94a3b8;margin-top:4px;">
+                  此值仅作为前端预览，最终以你手填的"综合分"为准；公式按四川省教育考试院 2026 公告。
                 </div>
               </div>
             </div>

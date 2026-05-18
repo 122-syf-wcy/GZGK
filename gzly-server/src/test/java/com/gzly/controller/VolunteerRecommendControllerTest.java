@@ -4,6 +4,8 @@ import com.gzly.entity.PolicyRuleConfig;
 import com.gzly.common.Result;
 import com.gzly.common.exception.BizException;
 import com.gzly.service.AdmissionYearService;
+import com.gzly.service.AnhuiBatchListingService;
+import com.gzly.service.AnhuiBatchSupportService;
 import com.gzly.service.BatchSupportService;
 import com.gzly.service.MlPredictionService;
 import com.gzly.service.PolicyRuleService;
@@ -12,6 +14,9 @@ import com.gzly.service.ProvincePolicyService;
 import com.gzly.service.SafetyCodeIdentityService;
 import com.gzly.service.SafetyCodeRequestResolver;
 import com.gzly.service.SafetyCodeService;
+import com.gzly.service.SichuanBatchListingService;
+import com.gzly.service.SichuanBatchSupportService;
+import com.gzly.service.SichuanCompositeScoreCalculator;
 import com.gzly.service.VolunteerService;
 import com.gzly.service.recommend.QueryOnlyRecommendEngine;
 import com.gzly.service.recommend.RecommendEngineDecision;
@@ -46,6 +51,11 @@ class VolunteerRecommendControllerTest {
     @Mock private PolicyRuleService policyRuleService;
     @Mock private MlPredictionService mlPredictionService;
     @Mock private BatchSupportService batchSupportService;
+    @Mock private SichuanBatchSupportService sichuanBatchSupportService;
+    @Mock private SichuanBatchListingService sichuanBatchListingService;
+    @Mock private SichuanCompositeScoreCalculator sichuanCompositeScoreCalculator;
+    @Mock private AnhuiBatchSupportService anhuiBatchSupportService;
+    @Mock private AnhuiBatchListingService anhuiBatchListingService;
     @Mock private RecommendEngineRouter recommendEngineRouter;
     @Mock private QueryOnlyRecommendEngine queryOnlyRecommendEngine;
     @Mock private SafetyCodeRequestResolver safetyCodeRequestResolver;
@@ -67,6 +77,11 @@ class VolunteerRecommendControllerTest {
                 policyRuleService,
                 mlPredictionService,
                 batchSupportService,
+                sichuanBatchSupportService,
+                sichuanBatchListingService,
+                sichuanCompositeScoreCalculator,
+                anhuiBatchSupportService,
+                anhuiBatchListingService,
                 recommendEngineRouter,
                 queryOnlyRecommendEngine,
                 safetyCodeRequestResolver,
@@ -230,13 +245,56 @@ class VolunteerRecommendControllerTest {
     }
 
     @Test
+    void decorateAnhuiPlan_shouldUseTrialRecommendForMainPipeline() {
+        VolunteerService.GenerateRequest req = new VolunteerService.GenerateRequest();
+        req.setProvinceCode("AH");
+        req.setBatchCode("AH_BENKE");
+        req.setCandidateType("普通类");
+        req.setYear(2026);
+        VolunteerService.PlanResult plan = new VolunteerService.PlanResult();
+        PolicyRuleConfig config = new PolicyRuleConfig();
+        config.setProvince("AH");
+        config.setYear(2026);
+        config.setCandidateType("普通类");
+        config.setBatchCode("AH_BENKE");
+        config.setBatchName("普通本科批");
+        config.setVolunteerMode("院校专业组（平行志愿）");
+        config.setMaxVolunteerCount(45);
+        PolicyRuleService.PolicyContext policy = new PolicyRuleService.PolicyContext();
+        policy.setConfig(config);
+        Map<String, Object> publicPolicy = new LinkedHashMap<>();
+        when(policyRuleService.toPublicPolicy(config)).thenReturn(publicPolicy);
+
+        BatchSupportService.BatchSupportItem item = supportItem("AH_BENKE", "普通类", "TRIAL_RECOMMEND", "AH 主流程历史数据兜底");
+        BatchSupportService.BatchSupportResponse response = new BatchSupportService.BatchSupportResponse();
+        response.setRecommendationPhase(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+        response.setEstimateMode(true);
+        response.setDataReadiness(dataReadiness(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA, false));
+        response.setItems(List.of(item));
+
+        com.gzly.service.AnhuiBatchRuleRegistry.BatchRule rule =
+                com.gzly.service.AnhuiBatchRuleRegistry.require("AH_BENKE");
+        ReflectionTestUtils.invokeMethod(controller, "decorateAnhuiPlan",
+                req, plan, policy, rule, response, item, true);
+
+        assertThat(plan.getSupportLevel()).isEqualTo("TRIAL_RECOMMEND");
+        assertThat(plan.getRecommendMode()).isEqualTo("PARALLEL_GROUP");
+        assertThat(plan.getEngineName()).isEqualTo("ProfessionalGroupVolunteerEngine");
+        assertThat(plan.getSupportReason()).isEqualTo("AH 主流程历史数据兜底");
+        assertThat(plan.getPolicy()).containsEntry("supportLevel", "TRIAL_RECOMMEND");
+        assertThat(plan.getPolicy()).containsEntry("batchCode", "AH_BENKE");
+        assertThat(plan.getPolicy()).containsEntry("batchName", "普通本科批");
+        assertThat(plan.getPolicy()).containsEntry("volunteerUnitType", ProvincePolicyService.UNIT_PROFESSIONAL_GROUP_45);
+    }
+
+    @Test
     void recommend_shouldRejectHistoricalYearForPublicEntry() {
         VolunteerService.GenerateRequest req = request("NORMAL_UNDERGRADUATE");
         req.setYear(2025);
         when(safetyCodeRequestResolver.resolve(any(HttpServletRequest.class), any(VolunteerService.GenerateRequest.class))).thenReturn("SAFE1234");
         when(safetyCodeService.normalizeSafetyCode("SAFE1234")).thenReturn("SAFE1234");
         when(provincePolicyService.normalizeProvinceCode("GZ")).thenReturn("GZ");
-        when(policyRuleService.normalizeBatchCode(req.getBatchCode())).thenReturn(req.getBatchCode());
+        when(policyRuleService.normalizeBatchCode(eq("GZ"), eq(req.getBatchCode()))).thenReturn(req.getBatchCode());
 
         assertThatThrownBy(() -> controller.recommend(req, new MockHttpServletRequest()))
                 .isInstanceOf(BizException.class)
@@ -325,7 +383,7 @@ class VolunteerRecommendControllerTest {
         when(safetyCodeRequestResolver.resolve(any(HttpServletRequest.class), any(VolunteerService.GenerateRequest.class))).thenReturn("SAFE1234");
         when(safetyCodeService.normalizeSafetyCode("SAFE1234")).thenReturn("SAFE1234");
         when(provincePolicyService.normalizeProvinceCode("GZ")).thenReturn("GZ");
-        when(policyRuleService.normalizeBatchCode(req.getBatchCode())).thenReturn(req.getBatchCode());
+        when(policyRuleService.normalizeBatchCode(eq("GZ"), eq(req.getBatchCode()))).thenReturn(req.getBatchCode());
         when(policyRuleService.requirePolicy(eq("GZ"), eq(2026), eq(req.getCandidateType()), eq(req.getBatchCode()))).thenReturn(context);
         when(recommendEngineRouter.resolve(any(VolunteerService.GenerateRequest.class), eq(context.getConfig()))).thenReturn(decision);
         when(queryOnlyRecommendEngine.generate(any(VolunteerService.GenerateRequest.class), eq(context.getConfig()), eq(decision))).thenReturn(plan);

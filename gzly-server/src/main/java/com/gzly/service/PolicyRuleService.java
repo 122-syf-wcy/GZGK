@@ -29,8 +29,9 @@ public class PolicyRuleService {
     public PolicyContext requirePolicy(String provinceCode, Integer year, String candidateType, String batchCode) {
         String province = provincePolicyService.normalizeProvinceCode(provinceCode);
         int resolvedYear = year == null || year <= 0 ? admissionYearService.getActiveAdmissionYear() : year;
-        String resolvedCandidateType = BatchRuleRegistry.normalizeCandidateType(blankToDefault(candidateType, DEFAULT_CANDIDATE_TYPE));
-        String resolvedBatchCode = normalizeBatchCode(batchCode);
+        String resolvedCandidateType = normalizeCandidateTypeFor(province,
+                blankToDefault(candidateType, DEFAULT_CANDIDATE_TYPE));
+        String resolvedBatchCode = normalizeBatchCodeFor(province, batchCode);
         validateProvinceBatch(province, resolvedCandidateType, resolvedBatchCode);
 
         PolicyRuleConfig config;
@@ -45,8 +46,8 @@ public class PolicyRuleService {
         } catch (Exception e) {
             throw new BizException("当前年份政策未配置，请管理员维护政策规则");
         }
-        if (config == null && BatchRuleRegistry.find(resolvedBatchCode).isPresent()) {
-            config = syntheticConfig(province, resolvedYear, resolvedCandidateType, BatchRuleRegistry.require(resolvedBatchCode));
+        if (config == null) {
+            config = syntheticConfigFor(province, resolvedYear, resolvedCandidateType, resolvedBatchCode);
         }
         if (config == null) {
             throw new BizException("当前年份政策未配置，请管理员维护政策规则");
@@ -57,7 +58,7 @@ public class PolicyRuleService {
         context.setPendingConfirm("pending_confirm".equalsIgnoreCase(config.getPolicyStatus())
                 || "draft".equalsIgnoreCase(config.getPolicyStatus()));
         if (context.isPendingConfirm()) {
-            context.setWarning("当前年度政策待确认，请以贵州省招生考试院最新文件为准");
+            context.setWarning(pendingConfirmWarningFor(province));
         }
         return context;
     }
@@ -97,20 +98,101 @@ public class PolicyRuleService {
     }
 
     public String normalizeBatchCode(String batchCode) {
-        return BatchRuleRegistry.normalizeBatchCode(blankToDefault(batchCode, DEFAULT_BATCH_CODE));
+        return normalizeBatchCodeFor(ProvincePolicyService.GZ, batchCode);
+    }
+
+    /**
+     * 多省版批次代码归一化：贵州走 BatchRuleRegistry，安徽走 AnhuiBatchRuleRegistry，
+     * 四川 / 湖北（院校专业组 45）走 SichuanBatchRuleRegistry。
+     */
+    public String normalizeBatchCode(String provinceCode, String batchCode) {
+        String province = provincePolicyService.normalizeProvinceCode(provinceCode);
+        return normalizeBatchCodeFor(province, batchCode);
+    }
+
+    private String normalizeBatchCodeFor(String province, String batchCode) {
+        if (ProvincePolicyService.GZ.equals(province)) {
+            return BatchRuleRegistry.normalizeBatchCode(blankToDefault(batchCode, BatchRuleRegistry.DEFAULT_BATCH_CODE));
+        }
+        if (ProvincePolicyService.AH.equals(province)) {
+            return AnhuiBatchRuleRegistry.normalizeBatchCode(
+                    blankToDefault(batchCode, AnhuiBatchRuleRegistry.DEFAULT_BATCH_CODE));
+        }
+        return SichuanBatchRuleRegistry.normalizeBatchCode(
+                blankToDefault(batchCode, SichuanBatchRuleRegistry.DEFAULT_BATCH_CODE));
+    }
+
+    private String normalizeCandidateTypeFor(String province, String candidateType) {
+        if (ProvincePolicyService.GZ.equals(province)) {
+            return BatchRuleRegistry.normalizeCandidateType(candidateType);
+        }
+        if (ProvincePolicyService.AH.equals(province)) {
+            return AnhuiBatchRuleRegistry.normalizeCandidateType(candidateType);
+        }
+        return SichuanBatchRuleRegistry.normalizeCandidateType(candidateType);
     }
 
     private void validateProvinceBatch(String province, String candidateType, String batchCode) {
-        BatchRuleRegistry.BatchRule rule = BatchRuleRegistry.find(batchCode).orElse(null);
+        if (ProvincePolicyService.GZ.equals(province)) {
+            BatchRuleRegistry.BatchRule rule = BatchRuleRegistry.find(batchCode).orElse(null);
+            if (rule == null) {
+                throw new BizException(400, "当前省份不支持该批次，请重新选择目标批次");
+            }
+            if (!BatchRuleRegistry.candidateTypeMatches(rule.candidateType(), candidateType)) {
+                throw new BizException(400, "考生类别与目标批次不匹配，请重新选择");
+            }
+            return;
+        }
+        if (ProvincePolicyService.AH.equals(province)) {
+            AnhuiBatchRuleRegistry.BatchRule rule = AnhuiBatchRuleRegistry.find(batchCode).orElse(null);
+            if (rule == null) {
+                throw new BizException(400, "当前省份不支持该批次，请重新选择目标批次");
+            }
+            if (!AnhuiBatchRuleRegistry.candidateTypeMatches(rule.candidateType(), candidateType)) {
+                throw new BizException(400, "考生类别与目标批次不匹配，请重新选择");
+            }
+            return;
+        }
+        // 四川 / 湖北 → SichuanBatchRuleRegistry
+        SichuanBatchRuleRegistry.BatchRule rule = SichuanBatchRuleRegistry.find(batchCode).orElse(null);
         if (rule == null) {
             throw new BizException(400, "当前省份不支持该批次，请重新选择目标批次");
         }
-        if (!ProvincePolicyService.GZ.equals(province)) {
-            throw new BizException(400, "当前省份不支持该批次，请重新选择目标批次");
-        }
-        if (!BatchRuleRegistry.candidateTypeMatches(rule.candidateType(), candidateType)) {
+        if (!SichuanBatchRuleRegistry.candidateTypeMatches(rule.candidateType(), candidateType)) {
             throw new BizException(400, "考生类别与目标批次不匹配，请重新选择");
         }
+    }
+
+    private PolicyRuleConfig syntheticConfigFor(String province, int year, String candidateType, String batchCode) {
+        if (ProvincePolicyService.GZ.equals(province)) {
+            return BatchRuleRegistry.find(batchCode)
+                    .map(rule -> syntheticConfig(province, year, candidateType, rule))
+                    .orElse(null);
+        }
+        if (ProvincePolicyService.AH.equals(province)) {
+            return AnhuiBatchRuleRegistry.find(batchCode)
+                    .map(rule -> syntheticAnhuiConfig(province, year, candidateType, rule))
+                    .orElse(null);
+        }
+        return SichuanBatchRuleRegistry.find(batchCode)
+                .map(rule -> syntheticSichuanConfig(province, year, candidateType, rule))
+                .orElse(null);
+    }
+
+    private String pendingConfirmWarningFor(String province) {
+        if (ProvincePolicyService.GZ.equals(province)) {
+            return "当前年度政策待确认，请以贵州省招生考试院最新文件为准";
+        }
+        if (ProvincePolicyService.SC.equals(province)) {
+            return "当前年度政策待确认，请以四川省教育考试院最新实施规定为准";
+        }
+        if (ProvincePolicyService.HB.equals(province)) {
+            return "当前年度政策待确认，请以湖北省教育考试院最新文件为准";
+        }
+        if (ProvincePolicyService.AH.equals(province)) {
+            return "当前年度政策待确认，请以安徽省教育招生考试院最新文件为准";
+        }
+        return "当前年度政策待确认，请以省级招生考试院最新文件为准";
     }
 
     private PolicyRuleConfig syntheticConfig(String province, int year, String candidateType,
@@ -131,6 +213,54 @@ public class PolicyRuleService {
         config.setOfficialSourceTitle(BatchRuleRegistry.officialSourceTitle());
         config.setOfficialSourceUrl(BatchRuleRegistry.officialSourceUrl());
         config.setOfficialSourceText(BatchRuleRegistry.officialSourceText());
+        config.setEnabled(1);
+        config.setCreatedAt(LocalDateTime.now());
+        config.setUpdatedAt(LocalDateTime.now());
+        return config;
+    }
+
+    private PolicyRuleConfig syntheticSichuanConfig(String province, int year, String candidateType,
+                                                    SichuanBatchRuleRegistry.BatchRule rule) {
+        PolicyRuleConfig config = new PolicyRuleConfig();
+        config.setProvince(province);
+        config.setYear(year);
+        config.setCandidateType(candidateType);
+        config.setBatchCode(rule.batchCode());
+        config.setBatchName(rule.batchName());
+        config.setVolunteerMode(rule.volunteerMode());
+        config.setMaxVolunteerCount(rule.targetCount());
+        config.setMajorPerSchoolCount(rule.majorsPerGroup());
+        config.setHasAdjustment(rule.hasAdjustment() ? 1 : 0);
+        config.setFilingPrinciple(rule.recommendMode().name());
+        config.setAdmissionOrder(rule.category().name());
+        config.setPolicyStatus("registry_only");
+        config.setOfficialSourceTitle(SichuanBatchRuleRegistry.OFFICIAL_SOURCE_TITLE);
+        config.setOfficialSourceUrl(SichuanBatchRuleRegistry.OFFICIAL_SOURCE_URL);
+        config.setOfficialSourceText(SichuanBatchRuleRegistry.OFFICIAL_SOURCE_TEXT);
+        config.setEnabled(1);
+        config.setCreatedAt(LocalDateTime.now());
+        config.setUpdatedAt(LocalDateTime.now());
+        return config;
+    }
+
+    private PolicyRuleConfig syntheticAnhuiConfig(String province, int year, String candidateType,
+                                                  AnhuiBatchRuleRegistry.BatchRule rule) {
+        PolicyRuleConfig config = new PolicyRuleConfig();
+        config.setProvince(province);
+        config.setYear(year);
+        config.setCandidateType(candidateType);
+        config.setBatchCode(rule.batchCode());
+        config.setBatchName(rule.batchName());
+        config.setVolunteerMode(rule.volunteerMode());
+        config.setMaxVolunteerCount(rule.targetCount());
+        config.setMajorPerSchoolCount(rule.majorsPerGroup());
+        config.setHasAdjustment(rule.hasAdjustment() ? 1 : 0);
+        config.setFilingPrinciple(rule.recommendMode().name());
+        config.setAdmissionOrder(rule.category().name());
+        config.setPolicyStatus("registry_only");
+        config.setOfficialSourceTitle(AnhuiBatchRuleRegistry.OFFICIAL_SOURCE_TITLE);
+        config.setOfficialSourceUrl(AnhuiBatchRuleRegistry.OFFICIAL_SOURCE_URL);
+        config.setOfficialSourceText(AnhuiBatchRuleRegistry.OFFICIAL_SOURCE_TEXT);
         config.setEnabled(1);
         config.setCreatedAt(LocalDateTime.now());
         config.setUpdatedAt(LocalDateTime.now());

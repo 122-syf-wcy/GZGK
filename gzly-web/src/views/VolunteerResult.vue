@@ -290,25 +290,59 @@ const trainingYearText = computed(() => (
 const planBatchCode = computed(() => (
   String(volunteerStore.policy?.batchCode || volunteerStore.formData.batchCode || '')
 ))
-const ART_BATCHES = ['ART_UNDERGRADUATE_A', 'ART_UNDERGRADUATE_B', 'ART_SPECIALTY']
-const SPORTS_BATCHES = ['SPORTS_UNDERGRADUATE', 'SPORTS_SPECIALTY']
+const ART_BATCHES = [
+  // 贵州
+  'ART_UNDERGRADUATE_A', 'ART_UNDERGRADUATE_B', 'ART_SPECIALTY',
+  // 四川
+  'SC_ART_TIQIAN', 'SC_ART_BENKE', 'SC_ART_ZHUANKE',
+  // 安徽
+  'AH_ART_XIAOKAO_BENKE', 'AH_ART_TONGKAO_BENKE', 'AH_ART_TONGKAO_ZHUANKE',
+]
+const SPORTS_BATCHES = [
+  // 贵州
+  'SPORTS_UNDERGRADUATE', 'SPORTS_SPECIALTY',
+  // 四川
+  'SC_SPORTS_BENKE', 'SC_SPORTS_ZHUANKE',
+  // 安徽
+  'AH_SPORTS_BENKE', 'AH_SPORTS_ZHUANKE',
+]
 const SPECIAL_PROGRAM_BATCHES = [
+  // 贵州
   'NATIONAL_SPECIAL', 'LOCAL_SPECIAL', 'UNIVERSITY_SPECIAL',
   'ETHNIC_CLASS', 'PREPARATORY', 'ORIENTED',
   'FREE_MEDICAL', 'TEACHER_EXCELLENCE',
+  // 四川
+  'SC_TIQIAN_BEFORE_A_NATIONAL', 'SC_GAOXIAO_SPECIAL_PRE_B', 'SC_BENKE_A_NATIONAL',
+  'SC_BENKE_A_LOCAL', 'SC_BENKE_GAOXIAO_SPECIAL', 'SC_BENKE_REGION_BALANCE',
+  'SC_BENKE_MINORITY_PRE',
+  // 安徽
+  'AH_NATIONAL_SPECIAL', 'AH_LOCAL_SPECIAL', 'AH_UNIVERSITY_SPECIAL',
+]
+const SEQUENTIAL_BATCHES = [
+  // 贵州
+  'EARLY_A_B', 'SPECIALTY_EARLY',
+  // 四川
+  'SC_TIQIAN_A', 'SC_ZHUANKE_EARLY', 'SC_BENKE_SPORTS_TEAM',
+  // 安徽（含本科提前批顺序、高职提前批顺序、高校专项顺序）
+  'AH_TIQIAN_BENKE_SEQUENTIAL', 'AH_TIQIAN_ZHUANKE_SEQUENTIAL', 'AH_UNIVERSITY_SPECIAL',
 ]
 const isArtBatch = computed(() => ART_BATCHES.includes(planBatchCode.value))
 const isSportsBatch = computed(() => SPORTS_BATCHES.includes(planBatchCode.value))
 const isSpecialProgramBatch = computed(() => SPECIAL_PROGRAM_BATCHES.includes(planBatchCode.value))
+const isSequentialBatch = computed(() => SEQUENTIAL_BATCHES.includes(planBatchCode.value))
+const planOfficialSourceName = computed(() => planProvinceConfig.value.officialSource || '省级招生考试院')
 const yearPhaseNotice = computed(() => {
   if (isArtBatch.value) {
-    return `艺术类批次以"高考文化分 + 校考/统考专业成绩"按贵州综合分公式独立投档，本系统不替代专业课校考成绩计算；2025 年贵州艺术类官方录取数据尚未公开，当前页面仅做政策说明与历史候选展示，正式志愿需以贵州省招生考试院文件和高校招生章程为准。`
+    return `艺术类批次以"高考文化分 + 校考/统考专业成绩"按${planProvinceName.value}综合分公式独立投档，本系统不替代专业课校考成绩计算；当前页面仅做政策说明与历史候选展示，正式志愿需以${planOfficialSourceName.value}文件和高校招生章程为准。`
   }
   if (isSportsBatch.value) {
-    return `体育类批次以"高考文化分 + 体育统考成绩"按贵州综合分公式独立投档，本系统不替代体育统考成绩计算；2025 年贵州体育类官方录取数据尚未公开，当前页面仅做政策说明与历史候选展示，正式志愿需以贵州省招生考试院文件和高校招生章程为准。`
+    return `体育类批次以"高考文化分 + 体育统考成绩"按${planProvinceName.value}综合分公式独立投档，本系统不替代体育统考成绩计算；当前页面仅做政策说明与历史候选展示，正式志愿需以${planOfficialSourceName.value}文件和高校招生章程为准。`
   }
   if (isSpecialProgramBatch.value) {
-    return `国家专项 / 地方专项 / 高校专项 / 民族班 / 预科 / 定向 / 免费医学定向 / 优师等专项类批次需先按贵州省招生考试院公布的户籍 / 学籍 / 综合素质 / 履约协议等条件做资格审核；本系统不替代资格审核与单独投档程序，请到对应高校招生章程和贵州省招生考试院专项公告核验。`
+    return `国家专项 / 地方专项 / 高校专项 / 区域均衡 / 民族 / 预科 / 定向 / 免费医学定向 / 优师 等专项类批次需先按${planOfficialSourceName.value}公布的户籍 / 学籍 / 综合素质 / 履约协议等条件做资格审核；本系统不替代资格审核与单独投档程序，请到对应高校招生章程和${planOfficialSourceName.value}专项公告核验。`
+  }
+  if (isSequentialBatch.value) {
+    return `当前批次走"院校顺序志愿"，按"根据志愿、从高分到低分、按比例投档"规则录取，与平行志愿口径完全不同；本页仅展示批次规则、资格条件与历史候选，最终以${planOfficialSourceName.value}发布的志愿表为准。`
   }
   if (isPreOfficialDataPlan.value) {
     return `${volunteerStore.activeAdmissionYear || 2026} 年官方招生计划和一分一段表尚未发布；本页仅展示基于 ${trainingYearText.value} 年历史数据的预估/缺口说明，不是正式推荐方案。`
