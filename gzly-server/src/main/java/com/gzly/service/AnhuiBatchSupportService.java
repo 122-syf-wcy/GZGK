@@ -76,6 +76,11 @@ public class AnhuiBatchSupportService {
         cache.invalidateAll();
     }
 
+    /** v7.54：暴露 Caffeine 缓存实例给 CaffeineCacheMetricsConfig 注册 Prometheus 指标。 */
+    public com.github.benmanes.caffeine.cache.Cache<String, BatchSupportService.BatchSupportResponse> getCacheForMetrics() {
+        return cache;
+    }
+
     private BatchSupportService.BatchSupportResponse doSupportMatrix(String provinceCode, int resolvedYear,
                                                                      boolean publicYearLocked) {
         BatchSupportService.BatchSupportResponse response = new BatchSupportService.BatchSupportResponse();

@@ -85,6 +85,15 @@ public class BatchSupportService {
         return batchSupportCache.stats();
     }
 
+    /**
+     * v7.54：暴露 Caffeine 缓存实例给 {@code CaffeineCacheMetricsConfig}，
+     * 把 hit/miss/load/eviction 指标注入到 Micrometer + Prometheus，
+     * 之前只有 .recordStats() 但没注册到 MeterRegistry。
+     */
+    public Cache<String, BatchSupportResponse> getCacheForMetrics() {
+        return batchSupportCache;
+    }
+
     private BatchSupportResponse doSupportMatrix(String provinceCode, int resolvedYear, boolean publicYearLocked) {
         BatchSupportResponse response = new BatchSupportResponse();
         response.setProvinceCode(provinceCode);

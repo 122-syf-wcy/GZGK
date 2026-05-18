@@ -292,6 +292,88 @@ class VolunteerRecommendControllerTest {
     }
 
     @Test
+    void decorateSichuanPlan_shouldUseTrialRecommendForMainPipeline() {
+        VolunteerService.GenerateRequest req = new VolunteerService.GenerateRequest();
+        req.setProvinceCode("SC");
+        req.setBatchCode("SC_BENKE_B");
+        req.setCandidateType("普通类");
+        req.setYear(2026);
+        VolunteerService.PlanResult plan = new VolunteerService.PlanResult();
+        PolicyRuleConfig config = new PolicyRuleConfig();
+        config.setProvince("SC");
+        config.setYear(2026);
+        config.setCandidateType("普通类");
+        config.setBatchCode("SC_BENKE_B");
+        config.setBatchName("普通本科批B段");
+        config.setVolunteerMode("院校专业组（平行志愿）");
+        config.setMaxVolunteerCount(45);
+        PolicyRuleService.PolicyContext policy = new PolicyRuleService.PolicyContext();
+        policy.setConfig(config);
+        Map<String, Object> publicPolicy = new LinkedHashMap<>();
+        when(policyRuleService.toPublicPolicy(config)).thenReturn(publicPolicy);
+
+        BatchSupportService.BatchSupportItem item = supportItem("SC_BENKE_B", "普通类", "TRIAL_RECOMMEND", "SC 主流程历史数据兜底");
+        BatchSupportService.BatchSupportResponse response = new BatchSupportService.BatchSupportResponse();
+        response.setRecommendationPhase(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+        response.setEstimateMode(true);
+        response.setDataReadiness(dataReadiness(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA, false));
+        response.setItems(List.of(item));
+
+        com.gzly.service.SichuanBatchRuleRegistry.BatchRule rule =
+                com.gzly.service.SichuanBatchRuleRegistry.require("SC_BENKE_B");
+        ReflectionTestUtils.invokeMethod(controller, "decorateSichuanPlan",
+                req, plan, policy, rule, response, item, true);
+
+        assertThat(plan.getSupportLevel()).isEqualTo("TRIAL_RECOMMEND");
+        assertThat(plan.getRecommendMode()).isEqualTo("PARALLEL_GROUP");
+        // v7.50: SC_BENKE_B 应走专用 SichuanProfessionalGroup45Engine (而非旧的共享标签)
+        assertThat(plan.getEngineName()).isEqualTo("SichuanProfessionalGroup45Engine");
+        assertThat(plan.getSupportReason()).isEqualTo("SC 主流程历史数据兜底");
+        assertThat(plan.getPolicy()).containsEntry("supportLevel", "TRIAL_RECOMMEND");
+        assertThat(plan.getPolicy()).containsEntry("batchCode", "SC_BENKE_B");
+        // batchName 来源于 SichuanBatchRuleRegistry.batchName() 而非 PolicyRuleConfig
+        assertThat(plan.getPolicy()).containsEntry("batchName",
+                com.gzly.service.SichuanBatchRuleRegistry.require("SC_BENKE_B").batchName());
+        assertThat(plan.getPolicy()).containsEntry("volunteerUnitType", ProvincePolicyService.UNIT_PROFESSIONAL_GROUP_45);
+    }
+
+    @Test
+    void decorateSichuanPlan_artBatchShouldUseSichuanArtCompositeEngine() {
+        VolunteerService.GenerateRequest req = new VolunteerService.GenerateRequest();
+        req.setProvinceCode("SC");
+        req.setBatchCode("SC_ART_BENKE");
+        req.setCandidateType("艺术类");
+        req.setYear(2026);
+        VolunteerService.PlanResult plan = new VolunteerService.PlanResult();
+        PolicyRuleConfig config = new PolicyRuleConfig();
+        config.setProvince("SC");
+        config.setYear(2026);
+        config.setCandidateType("艺术类");
+        config.setBatchCode("SC_ART_BENKE");
+        config.setBatchName("艺术类本科批");
+        config.setVolunteerMode("院校专业组（综合分平行志愿）");
+        config.setMaxVolunteerCount(45);
+        PolicyRuleService.PolicyContext policy = new PolicyRuleService.PolicyContext();
+        policy.setConfig(config);
+        when(policyRuleService.toPublicPolicy(config)).thenReturn(new LinkedHashMap<>());
+
+        BatchSupportService.BatchSupportResponse response = new BatchSupportService.BatchSupportResponse();
+        response.setRecommendationPhase(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+        response.setDataReadiness(dataReadiness(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA, false));
+        response.setItems(List.of());
+
+        com.gzly.service.SichuanBatchRuleRegistry.BatchRule rule =
+                com.gzly.service.SichuanBatchRuleRegistry.require("SC_ART_BENKE");
+        ReflectionTestUtils.invokeMethod(controller, "decorateSichuanPlan",
+                req, plan, policy, rule, response, null, false);
+
+        // 艺术批次非主流程，应走 QUERY_ONLY supportLevel 但 engine 是 SichuanArtCompositeEngine
+        assertThat(plan.getSupportLevel()).isEqualTo("QUERY_ONLY");
+        assertThat(plan.getEngineName()).isEqualTo("SichuanArtCompositeEngine");
+        assertThat(plan.getPolicy()).containsEntry("batchCode", "SC_ART_BENKE");
+    }
+
+    @Test
     void recommend_shouldRejectHistoricalYearForPublicEntry() {
         VolunteerService.GenerateRequest req = request("NORMAL_UNDERGRADUATE");
         req.setYear(2025);

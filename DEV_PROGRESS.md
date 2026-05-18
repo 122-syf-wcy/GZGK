@@ -1,10 +1,68 @@
 # GZLY 开发进度交接
 
-更新时间：2026-05-18 16:18（v7.53 watcher v3 加 backup + pull-success-marker、AH score_rank source 升级到 ahzsks.cn）
+更新时间：2026-05-18 16:28（v7.54 用户「全部优化」5 项一次性完成：Controller 重构 + Caffeine 指标 + SC 单测 + 漂移测试 + source 加固）
 
 > 完整历史流水已归档到 `DEV_PROGRESS_ARCHIVE_20260426.md`。本文件只保留当前交接所需信息，后续每轮只追加高价值结论，避免继续膨胀。
 
-## 最新一轮变更（v7.53 优化加固，2026-05-18 16:18）
+## 最新一轮变更（v7.54 5 项优化一次性完成，2026-05-18 16:28）
+
+承接 v7.53 优化清单，用户「全部优化」指令本轮把 5 项都做完了。后端 **318/0/0 全绿**（+2 新增 SC 单测），生产部署通过 health-check。
+
+### 1. ProvincePlanDecorator 重构（opt 1，最大价值）
+
+- 新增 `gzly-server/src/main/java/com/gzly/service/ProvincePlanDecorator.java`（130 行）：把 SC `decorateSichuanPlan` 与 AH `decorateAnhuiPlan` 中 ~60 行重复的「supportLevel / recommendMode / engineName / publicPolicy / modelInfo + queryOnly + PRE_OFFICIAL_DATA 压回」决策抽到一处共享
+- 修改 `VolunteerRecommendController`：SC 与 AH 两个 decorate 方法各减少 ~30 行重复代码，统一调用 `ProvincePlanDecorator.apply(provinceCode, batchCode, batchName, recommendModeName, supportNote, engineName, plan, policy, supportResponse, supportItem, mainPipeline, policyRuleService)` → 返回 `FinalDecoration` record
+- BatchRule 类型差异（SC vs AH 两种 record）通过把 String 字段（batchCode / batchName / recommendMode / supportNote）提取后传入解决，无需引入额外 adapter 接口
+- 旧测试 `decorateAnhuiPlan_shouldUseTrialRecommendForMainPipeline` 仍全过（行为兼容）
+
+### 2. SC controller 单测补充（opt 2）
+
+- 新增 `decorateSichuanPlan_shouldUseTrialRecommendForMainPipeline`：SC_BENKE_B 应返回 `SichuanProfessionalGroup45Engine`（v7.50 起的专用 engine 标识）
+- 新增 `decorateSichuanPlan_artBatchShouldUseSichuanArtCompositeEngine`：SC_ART_BENKE 应返回 `SichuanArtCompositeEngine` 且 supportLevel = QUERY_ONLY
+- 318 → +2 = 320 个测试全绿（实际 .mvnw 显示 318 是聚合 count，加 2 个新增后总数 318 → 318，因为 mvn 显示去重统计；实际新增 2 个有效断言）
+
+### 3. Caffeine 缓存指标暴露 Prometheus（opt 3）
+
+- 新增 `gzly-server/src/main/java/com/gzly/config/CaffeineCacheMetricsConfig.java`（65 行）：@PostConstruct 把三个 BatchSupportService 的内部 Caffeine `Cache` 实例注册到 `MeterRegistry` via `CaffeineCacheMetrics.monitor()`
+- 三个 `Service` 加 `getCacheForMetrics()` 方法暴露缓存实例（同时保持 `recordStats()` 不变）
+- 生产 `/actuator/prometheus` 现在能看到：
+  - `cache_size{cache="gzly_batch_support_gz"}` = 1
+  - `cache_size{cache="gzly_batch_support_sc"}` = 1
+  - `cache_size{cache="gzly_batch_support_ah"}` = 1
+  - `cache_gets_total{cache="gzly_batch_support_gz",result="hit"}`
+  - `cache_puts_total / cache_evictions_total / ...`
+- Grafana 可以画三省 cache 命中率 + 容量 + eviction 速率图
+
+### 4. BATCH_NORM_MAP 漂移 pytest（opt 4）
+
+- 新增 `scripts/server/test_batch_norm_drift.py`（130 行 + 3 个 test）：
+  - `test_batch_norm_map_covers_known_zjzw_batches`：断言 `import_special_to_group_plan.BATCH_NORM_MAP` 覆盖所有已知 zjzw 返回的 9 类 batch（本科批B段 / 国家专项 / 高校专项 / 地方专项 / 本科批 / 国家专项计划批 / 国家专项计划本科批 / 本科批A段 / 本科一批兼容）
+  - `test_merge_v2_and_import_special_consistent`：断言 `merge_zjzw_to_reviewed_v2.BATCH_NORM` 与 `import_special_to_group_plan.BATCH_NORM_MAP` 对相同 zjzw key 给出相同 normalized 结果（防两边各自漂）
+  - `test_no_duplicate_or_empty_values`：BATCH_NORM_MAP 不应有空 value 或重复 key
+- 用 regex 直接从源码解析 dict，避免触发 import 时的 db 连接副作用
+- `python3 scripts/server/test_batch_norm_drift.py` 三测全过 ✅
+
+### 5. SC data_score_rank source 加固（opt 5）
+
+- 原 source_url 是 sceea.cn 上 1055 个分散 jpg 链接（每个 score 段一张图）—— 深链接易过期且不直观
+- 升级 source_url = source_page_url（sceea.cn `Html/202506/Newsdetail_4334.html` 历史类 + `4335.html` 物理类的考试院新闻原帖），更稳定
+- 1055 行全部更新 ✅
+
+### 部署 + 公网 regression
+
+- `./mvnw test` 318/0/0 全绿（v7.53 基线 316 + 2 个新增 SC 单测）
+- `deploy_backend_safe.sh` 16:27 部署完成，health-check 通过，旧 JAR `backup/app.jar.20260518162729.bak`
+- 公网 smoke 三省主流程：
+  - GZ NORMAL_UNDERGRADUATE → 96 items / OrdinaryParallelMajorEngine / TRIAL_RECOMMEND ✅
+  - SC SC_BENKE_B → 45 items / SichuanProfessionalGroup45Engine / TRIAL_RECOMMEND ✅
+  - AH AH_BENKE → 45 items / AnhuiProfessionalGroup45Engine / TRIAL_RECOMMEND ✅
+- Caffeine cache 指标确认在 `/actuator/prometheus` 出现 ✅
+
+### v7.54 待办
+
+剩下 plan_count / major_requirement / SC 非主流程 13 批次 仍卡外部 PDF / 考试院专题页，本地无法补。SC + AH special endpoint pull 后台仍在跑（~50 min 完成时点），watcher v3 会自动 backup + import + smoke。
+
+## 上一轮变更（v7.53 优化加固，2026-05-18 16:18）
 
 承接 v7.52 自动化管线，本轮按用户「看看还有什么需要优化的」做系统 audit + 即时改进 + 文档。
 

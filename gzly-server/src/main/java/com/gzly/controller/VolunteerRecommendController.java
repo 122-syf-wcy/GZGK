@@ -11,6 +11,7 @@ import com.gzly.service.BatchRuleRegistry;
 import com.gzly.service.BatchSupportService;
 import com.gzly.service.PolicyRuleService;
 import com.gzly.service.ProvincePolicyService;
+import com.gzly.service.ProvincePlanDecorator;
 import com.gzly.service.ProfessionalGroupVolunteerService;
 import com.gzly.service.MlPredictionService;
 import com.gzly.service.SafetyCodeIdentityService;
@@ -473,62 +474,15 @@ public class VolunteerRecommendController {
         }
         applySichuanYearContext(plan, supportResponse, warnings);
 
-        Map<String, Object> publicPolicy = policy == null || policy.getConfig() == null
-                ? new LinkedHashMap<>()
-                : new LinkedHashMap<>(policyRuleService.toPublicPolicy(policy.getConfig()));
-        plan.setPolicy(publicPolicy);
-
-        Map<String, Object> modelInfo = new LinkedHashMap<>();
-        if (plan.getModelInfo() != null) {
-            modelInfo.putAll(plan.getModelInfo());
-        }
-
-        String supportLevel = supportItem != null && supportItem.getSupportLevel() != null
-                ? supportItem.getSupportLevel()
-                : (mainPipeline ? BatchRuleRegistry.SupportLevel.TRIAL_RECOMMEND.name()
-                                : BatchRuleRegistry.SupportLevel.QUERY_ONLY.name());
-        String recommendMode = rule.recommendMode().name();
-        // v7.50: 走 (province, batch) 矩阵拿专用 engineName（AH_BENKE → AnhuiProfessionalGroup45Engine 等）
-        String engineName = ProvinceBatchEngineMatrix.resolveEngineName(
-                req.getProvinceCode(), rule.batchCode());
-        String supportReason = supportItem != null && supportItem.getSupportReason() != null
-                ? supportItem.getSupportReason() : rule.supportNote();
-        boolean queryOnly = BatchRuleRegistry.SupportLevel.QUERY_ONLY.name().equals(supportLevel)
-                || BatchRuleRegistry.SupportLevel.UNSUPPORTED.name().equals(supportLevel)
-                || !mainPipeline;
-
-        if (mainPipeline && isPreOfficialDataResponseSichuan(supportResponse)
-                && !BatchRuleRegistry.SupportLevel.TRIAL_RECOMMEND.name().equals(supportLevel)) {
-            supportLevel = BatchRuleRegistry.SupportLevel.QUERY_ONLY.name();
-            recommendMode = BatchRuleRegistry.RecommendMode.QUERY_ONLY.name();
-            engineName = QueryOnlyRecommendEngine.NAME;
-            queryOnly = true;
-            supportReason = AdmissionYearService.PRE_OFFICIAL_DATA_WARNING;
-        }
-
-        plan.setSupportLevel(supportLevel);
-        plan.setRecommendMode(recommendMode);
-        plan.setEngineName(engineName);
-        plan.setSupportReason(supportReason);
-        publicPolicy.put("supportLevel", supportLevel);
-        publicPolicy.put("recommendMode", recommendMode);
-        publicPolicy.put("engineName", engineName);
-        publicPolicy.put("supportReason", supportReason);
-        publicPolicy.put("provinceCode", req.getProvinceCode());
-        publicPolicy.put("volunteerUnitType", ProvincePolicyService.UNIT_PROFESSIONAL_GROUP_45);
-        publicPolicy.put("batchCode", rule.batchCode());
-        publicPolicy.put("batchName", rule.batchName());
-
-        modelInfo.put("supportLevel", supportLevel);
-        modelInfo.put("recommendMode", recommendMode);
-        modelInfo.put("engineName", engineName);
-        modelInfo.put("supportReason", supportReason);
-        modelInfo.put("queryOnly", queryOnly);
-        if (queryOnly) {
-            modelInfo.put("visibleMetric", "query_only");
-        }
-        applySichuanYearContext(publicPolicy, modelInfo, supportResponse);
-        plan.setModelInfo(modelInfo);
+        // v7.54: 复用 ProvincePlanDecorator 同款（与 decorateSichuanPlan 同一份逻辑）。
+        // decorator 内部 new publicPolicy + modelInfo 并 setPolicy/setModelInfo，所以不需要在外层再 new。
+        ProvincePlanDecorator.FinalDecoration decoration = ProvincePlanDecorator.apply(
+                req.getProvinceCode(), rule.batchCode(), rule.batchName(),
+                rule.recommendMode().name(), rule.supportNote(),
+                ProvinceBatchEngineMatrix.resolveEngineName(req.getProvinceCode(), rule.batchCode()),
+                plan, policy, supportResponse, supportItem, mainPipeline, policyRuleService);
+        applySichuanYearContext(decoration.publicPolicy(), decoration.modelInfo(), supportResponse);
+        plan.setModelInfo(decoration.modelInfo());
         plan.setWarnings(warnings);
     }
 
@@ -580,64 +534,17 @@ public class VolunteerRecommendController {
         }
         applySichuanYearContext(plan, supportResponse, warnings);
 
-        Map<String, Object> publicPolicy = policy == null || policy.getConfig() == null
-                ? new LinkedHashMap<>()
-                : new LinkedHashMap<>(policyRuleService.toPublicPolicy(policy.getConfig()));
-        plan.setPolicy(publicPolicy);
-
-        Map<String, Object> modelInfo = new LinkedHashMap<>();
-        if (plan.getModelInfo() != null) {
-            modelInfo.putAll(plan.getModelInfo());
-        }
-
-        String supportLevel = supportItem != null && supportItem.getSupportLevel() != null
-                ? supportItem.getSupportLevel()
-                : (mainPipeline ? BatchRuleRegistry.SupportLevel.TRIAL_RECOMMEND.name()
-                                : BatchRuleRegistry.SupportLevel.QUERY_ONLY.name());
-        String recommendMode = rule.recommendMode().name();
-        // v7.50: 按 (province, batch) 从 ProvinceBatchEngineMatrix 拿专用 engineName，
-        // 不再硬编码 ProfessionalGroupVolunteerEngine / QueryOnlyRecommendEngine 二选一。
-        String engineName = ProvinceBatchEngineMatrix.resolveEngineName(
-                req.getProvinceCode(), rule.batchCode());
-        String supportReason = supportItem != null && supportItem.getSupportReason() != null
-                ? supportItem.getSupportReason() : rule.supportNote();
-        boolean queryOnly = BatchRuleRegistry.SupportLevel.QUERY_ONLY.name().equals(supportLevel)
-                || BatchRuleRegistry.SupportLevel.UNSUPPORTED.name().equals(supportLevel)
-                || !mainPipeline;
-
-        // 进入 PRE_OFFICIAL_DATA 阶段且当前批次没有历史数据兜底时，统一压回 QUERY_ONLY。
-        if (mainPipeline && isPreOfficialDataResponseSichuan(supportResponse)
-                && !BatchRuleRegistry.SupportLevel.TRIAL_RECOMMEND.name().equals(supportLevel)) {
-            supportLevel = BatchRuleRegistry.SupportLevel.QUERY_ONLY.name();
-            recommendMode = BatchRuleRegistry.RecommendMode.QUERY_ONLY.name();
-            engineName = QueryOnlyRecommendEngine.NAME;
-            queryOnly = true;
-            supportReason = AdmissionYearService.PRE_OFFICIAL_DATA_WARNING;
-        }
-
-        plan.setSupportLevel(supportLevel);
-        plan.setRecommendMode(recommendMode);
-        plan.setEngineName(engineName);
-        plan.setSupportReason(supportReason);
-        publicPolicy.put("supportLevel", supportLevel);
-        publicPolicy.put("recommendMode", recommendMode);
-        publicPolicy.put("engineName", engineName);
-        publicPolicy.put("supportReason", supportReason);
-        publicPolicy.put("provinceCode", req.getProvinceCode());
-        publicPolicy.put("volunteerUnitType", ProvincePolicyService.UNIT_PROFESSIONAL_GROUP_45);
-        publicPolicy.put("batchCode", rule.batchCode());
-        publicPolicy.put("batchName", rule.batchName());
-
-        modelInfo.put("supportLevel", supportLevel);
-        modelInfo.put("recommendMode", recommendMode);
-        modelInfo.put("engineName", engineName);
-        modelInfo.put("supportReason", supportReason);
-        modelInfo.put("queryOnly", queryOnly);
-        if (queryOnly) {
-            modelInfo.put("visibleMetric", "query_only");
-        }
-        applySichuanYearContext(publicPolicy, modelInfo, supportResponse);
-        plan.setModelInfo(modelInfo);
+        // v7.54: 用 ProvincePlanDecorator 把 supportLevel / recommendMode / engineName /
+        // publicPolicy / modelInfo 的共享决策抽到一处，SC + AH 复用同一份逻辑。
+        // decorator 内部会 new publicPolicy + modelInfo 并 setPolicy / setModelInfo，
+        // 外层不需要再 new。
+        ProvincePlanDecorator.FinalDecoration decoration = ProvincePlanDecorator.apply(
+                req.getProvinceCode(), rule.batchCode(), rule.batchName(),
+                rule.recommendMode().name(), rule.supportNote(),
+                ProvinceBatchEngineMatrix.resolveEngineName(req.getProvinceCode(), rule.batchCode()),
+                plan, policy, supportResponse, supportItem, mainPipeline, policyRuleService);
+        applySichuanYearContext(decoration.publicPolicy(), decoration.modelInfo(), supportResponse);
+        plan.setModelInfo(decoration.modelInfo());
         plan.setWarnings(warnings);
     }
 
