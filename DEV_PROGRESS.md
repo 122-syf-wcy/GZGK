@@ -1,10 +1,81 @@
 # GZLY 开发进度交接
 
-更新时间：2026-05-18 14:52（v7.50 省 × 批次 引擎矩阵 + 14 个 engine 上线 + 部署）
+更新时间：2026-05-18 15:22（v7.51 SC 8 类专项 181 行 + AH 一分一段 961 行入库，AH 全批次重抓在跑）
 
 > 完整历史流水已归档到 `DEV_PROGRESS_ARCHIVE_20260426.md`。本文件只保留当前交接所需信息，后续每轮只追加高价值结论，避免继续膨胀。
 
-## 最新一轮变更（v7.50 ProvinceBatchEngineMatrix + 50 批次引擎路由，2026-05-18 14:52）
+## 最新一轮变更（v7.51 SC 专项 + AH 一分一段，2026-05-18 15:22）
+
+### 1. SC 8 类专项 batches 数据补齐（+181 行）
+
+承接 v7.50 engine 矩阵上线后发现 SC 现有 SC_BENKE_A_NATIONAL / SC_BENKE_A_LOCAL / SC_BENKE_GAOXIAO_SPECIAL 等专项 batches 拉出 items=0。**根因**：原 merge 脚本硬过滤 `if batch != "本科批B段" continue`，把 zjzw 草稿里已有的 181 行专项数据全部丢掉。
+
+- **新增 `sichuan_2025/merge_zjzw_to_reviewed_v2.py`**（135 行）：扩展 BATCH_NORM 字典支持 5 类批次
+  - `本科批B段` → `普通本科批B段`（主流程）
+  - `本科批A段` → `普通本科批A段`（35 行）
+  - `本科批A段（国家专项）` → `本科批A段国家专项`（98 行）
+  - `本科批A段（地方专项）` → `本科批A段地方专项`（3 行）
+  - `本科批（高校专项）` → `本科批高校专项`（45 行）
+- **修 `import_province_group_lines.py`**：group-by 增加 batch 维度（v1 按 sourcePageUrl 分 payload，导致同校多 batch 被 admin API 当"院校专业组重复"拒绝）。修复后 1203 payload / 176 ins + 4999 upd + 0 rej。
+- DB 实测：SC 2025 现在按 batch 分布如下：
+  - 普通本科批B段：4994
+  - 本科批A段国家专项：98
+  - 本科批高校专项：45
+  - 普通本科批A段：35
+  - 本科批A段地方专项：3
+  - 合计 5175 行
+- 公网 smoke：SC_BENKE_A_NATIONAL = 60 items / SC_BENKE_GAOXIAO_SPECIAL = 36 items / SC_BENKE_A_LOCAL = 3 items（之前都是 0）
+
+### 2. AH 一分一段 961 行入库（物 492 + 史 469）
+
+承接用户「除 26 年外全部补齐」指令，原以为 AH 2025 一分一段只能用 vision OCR 抓（之前 OCR draft 31 行因不单调被退）。本轮通过 web 检索发现 **m.hf.bendibao.com 公开转载了安徽 2025 完整一分一段表**（数据源：安徽教育招生考试院 + 中安在线 2025-06-25 发布），直接 HTML 表格抓取无需 vision。
+
+- **抓取覆盖**：物理 200-691 分（含 691+ 高端区间），历史 200-668 分（含 668+ 高端区间）
+- **数据完整度**：物理 max_rank=320,779、历史 max_rank=141,400（全省考生数级）
+- **新增脚本**：
+  - `scripts/server/data/ah_2025_score_rank_physics.txt`（492 行）
+  - `scripts/server/data/ah_2025_score_rank_history.txt`（469 行）
+  - `scripts/server/import_ah_score_rank.py`（87 行，解析 + 入库 + source 元数据完整）
+- **入库口径**：rank_low = cumulative - segment + 1、rank_high = cumulative；高端区间 691-750 入库为 score=691, label="691分及以上 (691-750)"
+- 同时 `data_year_readiness.score_segment_ready = 1`（AH 2025 行）激活
+
+### 3. AH 580 分（未填位次）自动估算验证
+
+```
+POST /api/volunteer/recommend AH+AH_BENKE 580 物化生 (无 provinceRank)
+→ code=0 items=45/45 supportLevel=TRIAL_RECOMMEND
+  rankEstimate: 41063-41859 official=True
+  first: 首都经济贸易大学 003 minRank=27453
+```
+
+580 分 ↔ 41859 名次区间与 bendibao 表里精确一致。首推荐冲首经贸（27453 名次区间）符合"冲"梯度逻辑。
+
+### 4. AH 全批次重抓后台启动
+
+`zjzw_pull_ah_2025.py` v1 硬过滤 `if "本科批" not in local_batch: continue`，丢失 AH 国家专项 / 地方专项 / 高校专项 / 提前批 / 艺术 / 体育数据。本轮放宽过滤为 `if local_batch.strip() == ""` 后台启动全批次重抓：
+
+- PID 433561, log `/root/gzly_scraper/logs/ah_pull_v2_*.log`
+- 进度（v7.51 写入时）：60/2198 学校 (~3%)、438 行 / ETA ~50 分钟
+- 完成后再用 merge_v2 + import_province_group_lines.py 入库
+
+### 5. 安全：杀掉密码泄漏的临时进程
+
+第一次 nohup 启动时把 `export MYSQL_PWD='...'` 写进了 cmdline，被 `ps -ef` 可见，立刻 kill 老进程 + 清日志 + 用 `env -i MYSQL_PWD=$value` 重启，密码现在只在 `/proc/PID/environ`（root-only）不在 `ps -ef`。`grep password log` 无残留。
+
+### v7.51 验证基线
+
+- SC：5175 行 group_line + 1055 行 score_rank + 54 行 policy + 18 批次 engine 全到位
+- AH：4282 行 group_line + 961 行 score_rank (本轮新增) + 42 行 policy + 14 批次 engine 全到位
+- 公网 SC_BENKE_A_NATIONAL 60 items + AH_BENKE 自动估算位次 45/45 全通过
+
+### v7.51 待办
+
+- ⏳ AH 全批次重抓完成后用 merge_v2 + import 入库 AH 国家专项/地方专项/艺术/体育/提前批数据
+- ⏳ AH 招生计划 plan_count：仍需考试院专业目录 PDF（zjzw API 已确认不返回 plan 字段）
+- ⏳ AH 选科要求：仍需 PDF
+- ⏳ 部署 admin 接口 / DEV_PROGRESS 同步
+
+## 上一轮变更（v7.50 ProvinceBatchEngineMatrix + 50 批次引擎路由，2026-05-18 14:52）
 
 ### 1. ProvinceBatchEngineMatrix 静态映射 + 漂移自检
 
