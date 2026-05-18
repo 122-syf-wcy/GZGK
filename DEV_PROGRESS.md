@@ -1,10 +1,65 @@
 # GZLY 开发进度交接
 
-更新时间：2026-05-18 16:28（v7.54 用户「全部优化」5 项一次性完成：Controller 重构 + Caffeine 指标 + SC 单测 + 漂移测试 + source 加固）
+更新时间：2026-05-18 17:00（v7.55 P1-P8 运维加固：磁盘清理 1.1G + Prometheus alerts 模板 + e2e smoke 脚本 + 前端 vitest 起步）
 
 > 完整历史流水已归档到 `DEV_PROGRESS_ARCHIVE_20260426.md`。本文件只保留当前交接所需信息，后续每轮只追加高价值结论，避免继续膨胀。
 
-## 最新一轮变更（v7.54 5 项优化一次性完成，2026-05-18 16:28）
+## 最新一轮变更（v7.55 P1+P4+P6+P8 运维加固，2026-05-18 17:00）
+
+承接 v7.54 5 项优化完成后用户「看看还有什么需要优化的地方」的二轮深 audit，发现 4 项 P1-P8 可立即做：
+
+### P1 — 服务器磁盘 cleanup（释放 1.1GB，从 91%→88%）
+
+只清 GZLY 自己 + 个人 cache，不动别项目：
+- `/opt/gzly/backend/backup/app.jar.*.bak` 旧 JAR 保留最近 4 个 → 删 4 个老的 (-256MB)
+- `/opt/gzly/frontend/dist.prev.*` / `dist.old.*` / `dist.appledouble.*` 旧 dist → 全删 (-35MB)
+- `/root/.cache/ms-playwright` (Chromium / headless shell / ffmpeg, GZLY 不用 playwright) → 全删 (-631MB)
+- `/root/.cache/pip/http-v2` `dnf clean all` → 部分清 (-300MB+)
+- 实测：91% → 88%，可用空间 3.7G → 4.8G
+
+### P4 — Prometheus 告警规则模板
+
+新增 `scripts/server/prometheus-alerts.yml.example`（170 行）：
+- **生产事故级**：GzlyServiceDown / GzlyHighErrorRate (>5% 5xx) / GzlyRecommendSlow (P95>15s)
+- **资源类**：GzlyDiskHigh (<10%) / GzlyDiskCritical (<5%) / GzlyMemoryHigh (>85%) / GzlyJvmHeapHigh (>90%)
+- **缓存命中率**（v7.54 新指标）：GzlyBatchSupportCacheLowHit (<30% 15min)
+- **MySQL**：GzlyMysqlSlowQueries / GzlyMysqlConnectionsHigh
+
+用法：拷贝到 `/etc/prometheus/rules/gzly-alerts.yml`，prometheus.yml 引用 + 装 Alertmanager 即可生效。当前未自动启用（防止给用户带来意外告警噪声）。
+
+### P6 — 三省 × 50 批次 e2e smoke 脚本
+
+新增 `scripts/smoke_test_all_provinces.sh`（200 行）：
+- 三省 18 个关键 (province, batch) combo 测试
+- 验证 code=0 / items 数量 / engineName / supportLevel
+- batch-support 端点验证 (GZ 18 / SC 18 / AH 14)
+- composite-score 端点验证 (SC 美术 590.0 / AH 美术 590.0)
+- 默认走公网 `http://39.97.232.141`，可 `API_BASE=...` 切换
+- 输出每条结果 + 汇总通过率
+- 替代 Spring Boot TestContainers 集成测试，更轻量贴近生产，加 release 前 smoke
+
+用法：`bash scripts/smoke_test_all_provinces.sh`
+
+### P8 — 前端 vitest 起步 + provinces.ts 全覆盖单测
+
+- `gzly-web/package.json` 加 `vitest@^1.6.0` devDep + `npm test` / `npm run test:watch` scripts
+- 新增 `gzly-web/vitest.config.ts` (15 行) — node env + v8 coverage
+- 新增 `gzly-web/src/__tests__/provinces.test.ts` (130 行) — provinces.ts 关键逻辑回归：
+  - `normalizeProvinceCode` 大小写 / null / 数组 / 未知 → 兜底 GZ
+  - `PROVINCE_CONFIGS` 四省必备字段 / GZ MAJOR_96 / SC+AH PROFESSIONAL_GROUP_45 / HB preparing
+  - `PROVINCE_LIST` 长度 + 字段完整 + open 状态 ≥3 个
+  - `getProvinceConfig` / `provinceQuery` / `DEFAULT_PROVINCE_CODE`
+- 用户 `npm install` 后 `npm test` 即跑（vitest 是 devDep 不影响生产 build）
+
+### v7.55 暂未做（用户决定后再启）
+
+- **P2 AI 多 fallback**（grok-3-mini 单 SPOF）：需用户提供 OpenAI / 豆包 / qwen-vl 备份 key
+- **P3 SC/AH ML 训练**：等 6 月底 2026 数据
+- **P5 nginx 广告头限流**：广义 IP 库 + 5-zone 限流已在 v7.39 部署，新规则需 IP 黑名单源
+- **P7 JDK 17→21 + virtual threads**：需 OkHttp × Lettuce × MyBatis-Plus 兼容性回归
+- **Spring Cloud**：明确决议**不需要**（详见对话记录）—— 单机 9500 RPS 已够，165MB DB，单人开发，公益项目，全部理由都指向"过度设计"
+
+## 上一轮变更（v7.54 5 项优化一次性完成，2026-05-18 16:28）
 
 承接 v7.53 优化清单，用户「全部优化」指令本轮把 5 项都做完了。后端 **318/0/0 全绿**（+2 新增 SC 单测），生产部署通过 health-check。
 

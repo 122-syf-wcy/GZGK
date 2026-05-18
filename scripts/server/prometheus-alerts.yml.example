@@ -1,0 +1,140 @@
+# GZLY 生产告警规则（v7.54）
+# 用法：拷贝到 /etc/prometheus/rules/gzly-alerts.yml 并在 prometheus.yml 中引用：
+#   rule_files:
+#     - /etc/prometheus/rules/gzly-alerts.yml
+# 同时需要 Alertmanager 在 Prometheus config 的 alerting.alertmanagers 中配置，
+# 才能真正接收告警。
+
+groups:
+  - name: gzly_backend_health
+    interval: 30s
+    rules:
+      # ── 生产事故级 ──
+      - alert: GzlyServiceDown
+        expr: up{job=~"gzly.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: gzly
+        annotations:
+          summary: "gzly-server 已宕机超过 1 分钟"
+          description: "实例 {{ $labels.instance }} (job={{ $labels.job }}) 已下线 1+ 分钟，影响所有用户。"
+
+      - alert: GzlyHighErrorRate
+        expr: |
+          sum(rate(http_server_requests_seconds_count{application="gzly-server",status=~"5.."}[5m]))
+          / sum(rate(http_server_requests_seconds_count{application="gzly-server"}[5m])) > 0.05
+        for: 3m
+        labels:
+          severity: critical
+          team: gzly
+        annotations:
+          summary: "gzly 5xx 错误率 5 分钟均值 > 5%"
+          description: "5xx 错误率持续 3 分钟 > 5%，可能 DB 故障 / OOM / 关键代码 bug。请查 /opt/gzly/logs/gzly-error.log。"
+
+      - alert: GzlyRecommendSlow
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, uri) (
+              rate(http_server_requests_seconds_bucket{application="gzly-server",uri=~"/volunteer/recommend.*"}[5m])
+            )
+          ) > 15
+        for: 5m
+        labels:
+          severity: warning
+          team: gzly
+        annotations:
+          summary: "推荐接口 P95 > 15s"
+          description: "{{ $labels.uri }} P95 延迟 {{ $value }}s，可能 DB 慢 / ML 服务慢 / GC 长。"
+
+      # ── 资源类 ──
+      - alert: GzlyDiskHigh
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+        for: 10m
+        labels:
+          severity: warning
+          team: gzly
+        annotations:
+          summary: "服务器根分区可用空间 < 10%"
+          description: "剩余 {{ $value | humanize1024 }}B。考虑清 /opt/gzly/backend/backup 老 JAR 或 binlog。"
+
+      - alert: GzlyDiskCritical
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: gzly
+        annotations:
+          summary: "根分区可用空间 < 5%（MySQL 临时文件即将写失败）"
+          description: "立即清理！否则 MySQL 写入会 panic、生成失败。"
+
+      - alert: GzlyMemoryHigh
+        expr: |
+          (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          team: gzly
+        annotations:
+          summary: "可用内存 < 15%"
+          description: "持续 10 分钟内存使用 > 85%，检查是否 JVM heap 泄漏或 docker 占用。"
+
+      - alert: GzlyJvmHeapHigh
+        expr: |
+          (jvm_memory_used_bytes{application="gzly-server",area="heap"}
+          / jvm_memory_max_bytes{application="gzly-server",area="heap"}) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: gzly
+        annotations:
+          summary: "JVM heap 使用率 > 90% 持续 5 分钟"
+          description: "持续高位可能即将触发 OOMKilled。检查 GC log 和 -Xmx 配置（当前 2G）。"
+
+      # ── 缓存命中率 (v7.54 新增) ──
+      - alert: GzlyBatchSupportCacheLowHit
+        expr: |
+          (sum by (cache) (rate(cache_gets_total{cache=~"gzly_batch_support_.*",result="hit"}[10m]))
+          / sum by (cache) (rate(cache_gets_total{cache=~"gzly_batch_support_.*"}[10m]))) < 0.3
+        for: 15m
+        labels:
+          severity: info
+          team: gzly
+        annotations:
+          summary: "{{ $labels.cache }} 命中率 < 30% 持续 15 分钟"
+          description: "可能批次配置频繁变化导致 TTL 过短，或缓存容量 128/256 偏小。"
+
+      # ── AI SSE ──
+      - alert: GzlyAiSseExecutorFull
+        expr: |
+          executor_pool_size_threads{name="gzly.ai.sse.executor"} >= executor_pool_max_threads{name="gzly.ai.sse.executor"}
+        for: 5m
+        labels:
+          severity: warning
+          team: gzly
+        annotations:
+          summary: "AI SSE 线程池已满"
+          description: "max=32 全占，新 AI 解读请求会触发 CallerRunsPolicy（前端感到慢）。"
+
+  - name: gzly_mysql
+    interval: 30s
+    rules:
+      - alert: GzlyMysqlSlowQueries
+        expr: rate(mysql_global_status_slow_queries[5m]) > 1
+        for: 10m
+        labels:
+          severity: warning
+          team: gzly
+        annotations:
+          summary: "MySQL 慢查询率 > 1/秒（持续 10 分钟）"
+          description: "查 /var/log/mysql/mysql-slow.log，可能漏 index 或全表扫描。"
+
+      - alert: GzlyMysqlConnectionsHigh
+        expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: gzly
+        annotations:
+          summary: "MySQL 连接数 > 80% 上限"
+          description: "Hikari pool 配置 max=40，单实例 max_connections=300，检查是否漏 close 或慢查询堆积。"
