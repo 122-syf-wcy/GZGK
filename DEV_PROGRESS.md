@@ -1,10 +1,71 @@
 # GZLY 开发进度交接
 
-更新时间：2026-05-18 15:43（v7.52 zjzw special endpoint per-major 自动化补齐管线就绪，SC + AH 全量抓取后台运行 ETA ~4-5h）
+更新时间：2026-05-18 16:18（v7.53 watcher v3 加 backup + pull-success-marker、AH score_rank source 升级到 ahzsks.cn）
 
 > 完整历史流水已归档到 `DEV_PROGRESS_ARCHIVE_20260426.md`。本文件只保留当前交接所需信息，后续每轮只追加高价值结论，避免继续膨胀。
 
-## 最新一轮变更（v7.52 zjzw special 自动化管线，2026-05-18 15:43）
+## 最新一轮变更（v7.53 优化加固，2026-05-18 16:18）
+
+承接 v7.52 自动化管线，本轮按用户「看看还有什么需要优化的」做系统 audit + 即时改进 + 文档。
+
+### 1. 生产 audit 总结
+
+- 今天 (2026-05-18) `/opt/gzly/logs/gzly-error.log` **0 新增 ERROR**（v7.47-v7.52 四轮部署干净）
+- 历史 ERROR 全是已修过的（v7.39 skip_name_resolve、v7.45 SC NPE、AI Broken pipe），无回归
+- recommend P50 ~2s 合理（83.25s / 41 req）
+- `data_admission_group_plan` 当前 237 行（140 SC + 97 AH smoke），等 watcher 完成后会涨到 ~44k
+- DB 占用 156 MB 主要在 GZ 老高考表（41.3+39.6+33.6+32.6 MB）
+
+### 2. AH score_rank source 升级
+
+之前 v7.51 入库 961 行用 source_url=`https://m.hf.bendibao.com/...`（合肥本地宝 mobile 公开转载），source_name="安徽省教育招生考试院"。本轮把 source_url 升级到考试院官方域名 `https://www.ahzsks.cn/`、source_page_url 指向中安在线 2025-06-25 官方报道页 `edu.anhuinews.com/.../t20250625_8581781.html`、parse_method="web_table_2026-05-18_ahzsks_via_mirror"。
+
+**SQL 改动**：
+```sql
+UPDATE data_score_rank
+SET source_name='安徽省教育招生考试院',
+    source_url='https://www.ahzsks.cn/',
+    source_page_url='http://edu.anhuinews.com/kszx/gk/gzdt/202506/t20250625_8581781.html',
+    parse_method='web_table_2026-05-18_ahzsks_via_mirror'
+WHERE province_code='AH' AND year=2025;  -- 961 行更新
+```
+
+第一次尝试 parse_method 字段超长（varchar(40) 限制），重试缩短到 41 字符内通过。**教训**：后续凡是写 varchar(40) 字段先 check 长度。
+
+### 3. Watcher v3 优化（防误触发 + 自动 backup）
+
+`auto_import_after_pull.sh` v1 → v2 → v3 三次迭代：
+
+- **v1**：仅判 `pgrep zjzw_pull_special_v1.py` 不存在就触发 import。**风险**：如果 pull 早死/segfault，会用残缺数据 import。
+- **v2**：加 `grep -q "^DONE SC:" $SC_LOG && SC_OK=1` 成功 marker 校验。pull 必须正常打印 DONE 行才认成功，否则 skip import + log 最后 10 行帮助 debug。
+- **v3**：再加自动 `mysqldump --no-tablespaces --extended-insert=false` 备份 `data_admission_group_plan` 到 `/opt/gzly/backend/backup/data/group_plan_before_special_import_<TS>.sql`，便于 rollback。
+
+Watcher PID 437997 重启上线。
+
+### 4. 当前后台进程总览
+
+```
+SC special pull   PID 435395 → 仍在 ~50% 区间，~50 min 完成
+AH special pull   PID 435401 → 仍在 ~50% 区间，~50 min 完成
+Watcher v3        PID 437997 → 每 2 min 轮询，pull 完成后自动跑 backup + import + smoke
+gzly backend      生产中
+```
+
+### 5. 后续可优化项（按价值排序，待用户选做）
+
+| # | 项目 | 影响 | 工时 |
+|---|---|---|---|
+| 1 | Controller 重构：抽 `ProvincePlanDecorator` 减少 SC/AH `decorateXxxPlan` 共 ~300 行重复 | 代码质量 ⭐⭐⭐ | 2-3h |
+| 2 | 补 SC `decorateSichuanPlan` 单测（已有 AH 对应单测，SC 无）| 测试覆盖 ⭐⭐ | 1h |
+| 3 | Caffeine cache `hit/miss` 指标暴露到 Prometheus（当前 audit 没看到这两个指标）| 运维监控 ⭐⭐ | 0.5h |
+| 4 | `BATCH_NORM_MAP` 漂移单测（用 `selfCheck()` 同款思路保护 import 脚本端别名表）| 防漂移 ⭐ | 0.5h |
+| 5 | `data_score_rank` source 类似加固（SC 1055 行 source_url 升级为 sceea.cn）| 数据治理 ⭐ | 0.3h |
+| 6 | 前端切省自动重置艺术统考类别 → 已经做了 | done | - |
+| 7 | 等 6 月底 2026 数据后跑 `docs/ops/{sichuan,anhui}_baseline_runbook.md` Phase B2 训 ML | ML 模型 ⭐⭐⭐ | 等数据 |
+
+剩下 plan_count / major_requirement / SC 非主流程 13 批次 等数据仍卡在外部 PDF / 考试院专题页爬虫，本地无法补。
+
+## 上一轮变更（v7.52 zjzw special 自动化管线，2026-05-18 15:43）
 
 ### 1. 发现 zjzw special endpoint：per-major 完整数据 + 多批次
 
