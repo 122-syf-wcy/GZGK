@@ -1,10 +1,98 @@
 # GZLY 开发进度交接
 
-更新时间：2026-05-18 15:22（v7.51 SC 8 类专项 181 行 + AH 一分一段 961 行入库，AH 全批次重抓在跑）
+更新时间：2026-05-18 15:43（v7.52 zjzw special endpoint per-major 自动化补齐管线就绪，SC + AH 全量抓取后台运行 ETA ~4-5h）
 
 > 完整历史流水已归档到 `DEV_PROGRESS_ARCHIVE_20260426.md`。本文件只保留当前交接所需信息，后续每轮只追加高价值结论，避免继续膨胀。
 
-## 最新一轮变更（v7.51 SC 专项 + AH 一分一段，2026-05-18 15:22）
+## 最新一轮变更（v7.52 zjzw special 自动化管线，2026-05-18 15:43）
+
+### 1. 发现 zjzw special endpoint：per-major 完整数据 + 多批次
+
+承接 v7.51 用户要求"全部补齐 自动化实现"，本轮通过试探 zjzw API 找到关键端点：
+
+```
+GET https://api.zjzw.cn/web/api/?uri=apidata/api/gk/score/special
+    &school_id={sid}&local_province_id={pid}&year={year}
+```
+
+**返回字段（每个学校每年 ~10 条 per-major 数据）**：
+- `school_id` / `name`：院校
+- `sg_name` / `sg_info`：院校专业组（与 score/province 端点同口径）
+- `sp_name` / `spname`：专业名（区分实验班）
+- `sp_scode`：专业代号
+- `min` / `max` / `average` / `min_section`：专业级最低分 / 最高分 / 平均 / 位次
+- `level2_name` / `level3_name`：学科大类（工学/电子信息类 等）
+- `local_batch_name`：批次（已观察包含「本科批」「国家专项计划批」「本科一批」等）
+- `local_type_name`：科类
+- `sg_info`：选科要求（首选 X，再选 Y）
+
+**对比 score/province 端点**：
+- score/province：每校每省每年仅返回院校专业组级 6-10 条数据（min, min_section）
+- score/special：每校每省每年返回 per-major 数据（更精细 + 含多批次）+ level2/level3 学科分类
+
+**仍然缺失（zjzw API 上不存在）**：plan_count、tuition、study_years（这些只在考试院专业目录 PDF 里）
+
+### 2. 工具链（3 个新脚本上线）
+
+- **`scripts/server/sichuan_2025/zjzw_pull_special_v1.py`**（130 行）：通用 special endpoint puller，参数 `--province SC/AH/HB --year 2025 --sleep 1.0 --output csv`，自动按 `local_province_id` (SC=51, AH=34, HB=42) 路由
+- **`scripts/server/import_special_to_group_plan.py`**（150 行）：解析 special csv → upsert 到 `data_admission_group_plan`
+  - 单一去重键 `(school_id, group_code, major_code or major_name, subject_type, batch)`
+  - URL 替换：用 `uni_official_link.admission_brochure_url` 替代 gaokao.cn
+  - BATCH_NORM_MAP 8 类批次别名归一化（含 AH 国家专项计划批 / 老高考"本科一批"兼容）
+  - plan_count 留空（zjzw 不返回，标注 `parse_method=zjzw_special_api_2026-05-18`）
+- **`scripts/server/auto_import_after_pull.sh`**（45 行）：后台 watcher，每 2 分钟轮询 `pgrep zjzw_pull_special_v1.py`，全部完成后自动跑 SC+AH import + DB stats + 后端 smoke recommend
+- AH 100 行 smoke 跑通：97 inserted（86 普通本科批 + 11 国家专项计划），url=0 blocked、batch=2 skip（不在 BATCH_NORM_MAP 的批次）、missing=0
+
+### 3. SC + AH 并行后台 special 端点拉取
+
+- `kill -9` v7.51 的 AH 群级 pull（240/2198, 1517 行）—— special 端点严格更优，覆盖 per-major + 多 batch + level 分类
+- 启 SC + AH special pull 并行（`env -i MYSQL_PWD=...`，密码不进 ps cmdline）
+- 当前进度（v7.52 写入时）：
+  - SC: PID 435395，80/2198 (3.6%)，524 rows / 10 min
+  - AH: PID 435401，80/2198 (3.6%)，757 rows / 10 min
+  - 估算速率 ~80 校 / 10 min = 8 校/分钟 → 2198/8 = 275 min = **4-5 小时**
+- Watcher PID 435804，等 pull 完成后自动 import + smoke
+- 完成后预估：SC ~22,000 行、AH ~22,000 行 per-major 数据入 `data_admission_group_plan`
+
+### 4. 数据补齐路线最终矩阵（v7.52 写入时）
+
+| 数据项 | GZ | SC 现状 | SC 未来 | AH 现状 | AH 未来 |
+|---|---|---|---|---|---|
+| group_line (院校专业组调档线) | ✅ 21929 (老 sys) | ✅ 5175 | + 等抓 | ✅ 4282 | + 等抓 |
+| group_plan (per-major) | ✅ 65729 | ⚠️ 140 | ⏳ 后台 ~5h 后 + ~22000 | ❌ 0 | ⏳ 后台 ~5h 后 + ~22000 |
+| score_rank (一分一段) | ✅ 2435 | ✅ 1055 | done | ✅ 961 (v7.51 补) | done |
+| major_requirement (选科) | ✅ 65879 | ❌ 0 | 需 PDF | ❌ 0 | 需 PDF |
+| plan_count | ✅ 全 | ⚠️ 仅 140 行有 | 需 PDF | ❌ 0 | 需 PDF |
+| ML 模型 | ✅ active | ❌ 未训 | 等 2026 | ❌ 未训 | 等 2026 |
+
+**结论**：本轮把"代码层无需新依赖能补的全补了"，剩下 3 项（plan_count、major_requirement、ML 训练 SC/AH 专属）都属于"硬依赖 PDF/2026 官方数据"，本地无法解决。
+
+### 5. v7.52 自动化机制图
+
+```
+[zjzw special pull SC] (后台, ~4-5h)  ─┐
+                                       ├─→ [auto_import_after_pull.sh watcher]
+[zjzw special pull AH] (后台, ~4-5h)  ─┘    ↓
+                                            轮询 pgrep zjzw_pull_special_v1.py
+                                            两个进程都消失后 →
+                                            1. 找最新 SC csv，跑 import_special_to_group_plan SC
+                                            2. 找最新 AH csv，跑 import_special_to_group_plan AH
+                                            3. 输出 DB stats（by batch）
+                                            4. 后端 smoke AH+AH_BENKE 580 物化生
+                                            5. 写完成日志到 /root/gzly_scraper/logs/auto_import_*.log
+```
+
+用户无需介入。本会话结束后 ~5 小时内可在生产看到 AH 主流程 first item 显示 groupMajors（组内 6 专业）。
+
+### v7.52 待办
+
+- ⏳ 等 SC + AH special pull 完成（后台 ~4-5h）→ watcher 自动 import
+- ❌ plan_count：仍需考试院专业目录 PDF（zjzw 任意端点都不返回）
+- ❌ major_requirement：仍需 PDF
+- ❌ SC/AH ML 训练：等 6 月底 2026 官方数据
+- 部署：本轮无后端改动，仅服务器端脚本，不需要 deploy_backend_safe.sh
+
+## 上一轮变更（v7.51 SC 专项 + AH 一分一段，2026-05-18 15:22）
 
 ### 1. SC 8 类专项 batches 数据补齐（+181 行）
 
