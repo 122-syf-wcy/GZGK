@@ -21,6 +21,7 @@ import com.gzly.service.SichuanBatchRuleRegistry;
 import com.gzly.service.SichuanBatchSupportService;
 import com.gzly.service.SichuanCompositeScoreCalculator;
 import com.gzly.service.VolunteerService;
+import com.gzly.service.recommend.ProvinceBatchEngineMatrix;
 import com.gzly.service.recommend.QueryOnlyRecommendEngine;
 import com.gzly.service.recommend.RecommendEngineDecision;
 import com.gzly.service.recommend.RecommendEngineRouter;
@@ -304,7 +305,8 @@ public class VolunteerRecommendController {
         plan.setManualReviewItems(List.of());
         plan.setRecommendMode(rule.recommendMode().name());
         plan.setSupportLevel(com.gzly.service.BatchRuleRegistry.SupportLevel.QUERY_ONLY.name());
-        plan.setEngineName(QueryOnlyRecommendEngine.NAME);
+        // v7.50: 非主流程 SC 批次也走 matrix（艺术 → SichuanArtCompositeEngine，体育 → ...Sports...，专项 → ...SpecialPlan...）
+        plan.setEngineName(ProvinceBatchEngineMatrix.resolveEngineName(req.getProvinceCode(), rule.batchCode()));
         plan.setSupportReason(rule.supportNote());
         plan.setWarnings(rule.supportNote() == null ? List.of() : new ArrayList<>(List.of(rule.supportNote())));
         plan.setReferenceProbabilityNotice(String.format(
@@ -408,7 +410,9 @@ public class VolunteerRecommendController {
         plan.setManualReviewItems(List.of());
         plan.setRecommendMode(rule.recommendMode().name());
         plan.setSupportLevel(com.gzly.service.BatchRuleRegistry.SupportLevel.QUERY_ONLY.name());
-        plan.setEngineName(QueryOnlyRecommendEngine.NAME);
+        // v7.50: AH 非主流程批次走 matrix（艺术 → AnhuiArtCompositeEngine，体育 → AnhuiSportsCompositeEngine，
+        // 专项 → AnhuiSpecialPlanEligibilityEngine，顺序 → AnhuiSequentialCollegeEngine 等）
+        plan.setEngineName(ProvinceBatchEngineMatrix.resolveEngineName(req.getProvinceCode(), rule.batchCode()));
         plan.setSupportReason(rule.supportNote());
         plan.setWarnings(rule.supportNote() == null ? List.of() : new ArrayList<>(List.of(rule.supportNote())));
         plan.setReferenceProbabilityNotice(String.format(
@@ -484,7 +488,9 @@ public class VolunteerRecommendController {
                 : (mainPipeline ? BatchRuleRegistry.SupportLevel.TRIAL_RECOMMEND.name()
                                 : BatchRuleRegistry.SupportLevel.QUERY_ONLY.name());
         String recommendMode = rule.recommendMode().name();
-        String engineName = mainPipeline ? "ProfessionalGroupVolunteerEngine" : QueryOnlyRecommendEngine.NAME;
+        // v7.50: 走 (province, batch) 矩阵拿专用 engineName（AH_BENKE → AnhuiProfessionalGroup45Engine 等）
+        String engineName = ProvinceBatchEngineMatrix.resolveEngineName(
+                req.getProvinceCode(), rule.batchCode());
         String supportReason = supportItem != null && supportItem.getSupportReason() != null
                 ? supportItem.getSupportReason() : rule.supportNote();
         boolean queryOnly = BatchRuleRegistry.SupportLevel.QUERY_ONLY.name().equals(supportLevel)
@@ -589,7 +595,10 @@ public class VolunteerRecommendController {
                 : (mainPipeline ? BatchRuleRegistry.SupportLevel.TRIAL_RECOMMEND.name()
                                 : BatchRuleRegistry.SupportLevel.QUERY_ONLY.name());
         String recommendMode = rule.recommendMode().name();
-        String engineName = mainPipeline ? "ProfessionalGroupVolunteerEngine" : QueryOnlyRecommendEngine.NAME;
+        // v7.50: 按 (province, batch) 从 ProvinceBatchEngineMatrix 拿专用 engineName，
+        // 不再硬编码 ProfessionalGroupVolunteerEngine / QueryOnlyRecommendEngine 二选一。
+        String engineName = ProvinceBatchEngineMatrix.resolveEngineName(
+                req.getProvinceCode(), rule.batchCode());
         String supportReason = supportItem != null && supportItem.getSupportReason() != null
                 ? supportItem.getSupportReason() : rule.supportNote();
         boolean queryOnly = BatchRuleRegistry.SupportLevel.QUERY_ONLY.name().equals(supportLevel)

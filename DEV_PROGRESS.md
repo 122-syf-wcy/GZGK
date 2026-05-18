@@ -1,10 +1,103 @@
 # GZLY 开发进度交接
 
-更新时间：2026-05-18 14:36（v7.49 AH 艺术 / 体育综合分实时计算上线 + 部署）
+更新时间：2026-05-18 14:52（v7.50 省 × 批次 引擎矩阵 + 14 个 engine 上线 + 部署）
 
 > 完整历史流水已归档到 `DEV_PROGRESS_ARCHIVE_20260426.md`。本文件只保留当前交接所需信息，后续每轮只追加高价值结论，避免继续膨胀。
 
-## 最新一轮变更（v7.49 AH 艺体综合分，2026-05-18 14:36）
+## 最新一轮变更（v7.50 ProvinceBatchEngineMatrix + 50 批次引擎路由，2026-05-18 14:52）
+
+### 1. ProvinceBatchEngineMatrix 静态映射 + 漂移自检
+
+承接 v7.49 AH 综合分上线，本轮把"每个省每个批次对应不同 engine"从硬编码升级为单一来源的静态映射。
+
+- **新增 `ProvinceBatchEngineMatrix`**（230 行）：维护 `(provinceCode, batchCode) → engineName` 全量映射
+  - GZ × 18 批次 = 18 行（覆盖 BatchRuleRegistry 全部规则）
+  - SC × 18 批次 = 18 行（覆盖 SichuanBatchRuleRegistry 全部规则）
+  - AH × 14 批次 = 14 行（覆盖 AnhuiBatchRuleRegistry 全部规则）
+  - 合计 **50 个 (province, batch) → engineName** 显式注册
+- **`selfCheck()`**：双向校验「矩阵注册的批次必须在对应 Registry 中存在」+「Registry 中的每个批次必须在矩阵中注册」，防止后续加批次时漂移。
+- **`entriesForProvince()` / `totalRegistrations()`**：给运维与测试侧用。
+- 未命中 (province, batch) 返回 `QueryOnlyRecommendEngine.NAME` 兜底（永不静默回退到其它批次）。
+
+### 2. 新增 10 个省 × 大类专用 engine 标识类
+
+参考贵州现有 5 个 engine（`OrdinaryParallelMajorEngine` / `SequentialCollegeEngine` / `EarlyCParallelMajorEngine` / `ArtCompositeRecommendEngine` / `SportsCompositeRecommendEngine` / `SpecialPlanEligibilityEngine` / `QueryOnlyRecommendEngine`），为四川 / 安徽各加 5 个 engine 标识类：
+
+- **SC（5 个）**：`SichuanProfessionalGroup45Engine` / `SichuanSequentialCollegeEngine` / `SichuanArtCompositeEngine` / `SichuanSportsCompositeEngine` / `SichuanSpecialPlanEligibilityEngine`
+- **AH（5 个）**：`AnhuiProfessionalGroup45Engine` / `AnhuiSequentialCollegeEngine` / `AnhuiArtCompositeEngine` / `AnhuiSportsCompositeEngine` / `AnhuiSpecialPlanEligibilityEngine`
+
+实现方式与贵州相同：`implements RecommendEngine`，只覆写 `engineName()`，生成逻辑仍走 `ProfessionalGroupVolunteerService.generate` / `VolunteerService.generate` / `Sichuan/AnhuiBatchListingService`。**这是路由层而非算法层的拆分**，让前端 / 运维 / ML / 数据中台能按 engineName 区分行为，下一步要做"每个 engine 内部跑不同打分公式"也只需在对应 engine 类里加方法。
+
+### 3. VolunteerRecommendController 全面接入矩阵
+
+- `decorateSichuanPlan` / `decorateAnhuiPlan` 的 `engineName` 不再硬编码二选一，统一走 `ProvinceBatchEngineMatrix.resolveEngineName(provinceCode, batchCode)`
+- `buildSichuanQueryOnlyPlanSkeleton` / `buildAnhuiQueryOnlyPlanSkeleton` 的 `engineName` 也走矩阵（艺术 → `SichuanArtCompositeEngine`，体育 → `Sichuan/AnhuiSportsCompositeEngine`，专项 → `Sichuan/AnhuiSpecialPlanEligibilityEngine`，顺序 → `Sichuan/AnhuiSequentialCollegeEngine`）
+- 进入 `PRE_OFFICIAL_DATA` 阶段的主流程"压回 QUERY_ONLY"分支仍保留：`engineName = QueryOnlyRecommendEngine.NAME` 兜底
+- GZ 路径不变（已在 `RecommendEngineRouter` 中按 BatchRule 选 engine）
+
+### 4. 新增 14 个矩阵单测（ProvinceBatchEngineMatrixTest）
+
+- 验证 GZ / SC / AH 三省所有主要批次返回正确 engineName
+- 验证未注册的 (province, batch) / null / 大小写 / 空批次 → 兜底 QueryOnly
+- 验证 `entriesForProvince()` 三省返回 18 / 18 / 14 行
+- **关键的 `selfCheck()` 单测**：保证矩阵与 BatchRuleRegistry / SichuanBatchRuleRegistry / AnhuiBatchRuleRegistry 三个 Registry 完全对齐，后续加批次任何一侧落漏立即测试报红
+- 验证 `totalRegistrations` = 三个 Registry size 之和（防止偷偷塞重复 key）
+
+`VolunteerRecommendControllerTest.decorateAnhuiPlan_shouldUseTrialRecommendForMainPipeline` 同步更新断言：AH_BENKE 应返回 `AnhuiProfessionalGroup45Engine`（v7.49 之前返回 `ProfessionalGroupVolunteerEngine` 共享标签）。
+
+### 5. 生产部署 + 14 批次 engineName 公网 smoke
+
+- 后端 `./mvnw test` **316/0/0 全绿**（v7.49 基线 302 + 14 ProvinceBatchEngineMatrixTest）
+- `deploy_backend_safe.sh` 14:48 部署，health-check 通过；旧 JAR `backup/app.jar.20260518144857.bak`
+- 公网 smoke（`http://39.97.232.141`）覆盖 14 个 (province, batch) 组合：
+
+| 批次 | engineName | items | supportLevel |
+|---|---|---:|---|
+| GZ NORMAL_UNDERGRADUATE | OrdinaryParallelMajorEngine | 96 | TRIAL_RECOMMEND |
+| GZ EARLY_C | EarlyCParallelMajorEngine | 16 | TRIAL_RECOMMEND |
+| GZ NATIONAL_SPECIAL | SpecialPlanEligibilityEngine | 60 | QUERY_ONLY |
+| SC SC_BENKE_B | **SichuanProfessionalGroup45Engine** | 45 | TRIAL_RECOMMEND |
+| SC SC_ART_BENKE | **SichuanArtCompositeEngine** | 0 | QUERY_ONLY |
+| SC SC_SPORTS_BENKE | **SichuanSportsCompositeEngine** | 0 | QUERY_ONLY |
+| SC SC_TIQIAN_A | **SichuanSequentialCollegeEngine** | 0 | QUERY_ONLY |
+| SC SC_BENKE_A_NATIONAL | **SichuanSpecialPlanEligibilityEngine** | 0 | QUERY_ONLY |
+| AH AH_BENKE | **AnhuiProfessionalGroup45Engine** | 45 | TRIAL_RECOMMEND |
+| AH AH_ART_TONGKAO_BENKE | **AnhuiArtCompositeEngine** | 0 | QUERY_ONLY |
+| AH AH_SPORTS_BENKE | **AnhuiSportsCompositeEngine** | 0 | QUERY_ONLY |
+| AH AH_TIQIAN_BENKE_PARALLEL | **AnhuiSpecialPlanEligibilityEngine** | 0 | QUERY_ONLY |
+| AH AH_NATIONAL_SPECIAL | **AnhuiSpecialPlanEligibilityEngine** | 0 | QUERY_ONLY |
+| AH AH_UNIVERSITY_SPECIAL | **AnhuiSequentialCollegeEngine** | 0 | QUERY_ONLY |
+
+每个 (province, batch) 都映射到唯一专用 engine，**没有任何共享 fallback**。
+
+### 6. 数据齐全度审计（实打 SQL）+ 缺口补齐路线
+
+| 数据项 | SC 2025 | AH 2025 | 2024 | 缺口阻塞主流程？ | 补齐方法（含外部依赖） |
+|---|---|---|---|---|---|
+| data_admission_group_line 调档线 | 4994 / 1085 校 ✅ | 4282 / 1048 校 ✅ | **结构不存在**（SC/AH 2024 仍是老高考文/理科，没有「院校专业组」概念） | 否 | 主流程已可生成 |
+| data_admission_group_plan 招生计划/专业级线 | 140 行 ⚠️偏少 | 0 行 | - | 否（plan_count=null 体现在 dataQualityWarning） | zjzw 实测 planCount 字段 100% 空，需抓考试院专业目录 PDF / 高校招生章程 |
+| data_score_rank 一分一段 | 物 541 + 史 514 ⚠️史可能偏少 | 0 行 | - | 否（v7.48 已放宽：用户自填位次即可） | **需 vision OCR 凭据**（OpenAI/国内厂商皆可；AH 已尝试 OCR draft 31 行因不单调被退回） |
+| data_major_requirement 选科要求 | 0 行 | 0 行 | - | 否（影响组内 6 专业的精算匹配） | **需考试院专业目录 PDF**（GZ 走 `build_major_requirement_from_manual_csv.py` 同思路） |
+| policy_rule_config 政策 | 54 行 ✅ | 42 行 ✅ | 2024 行已铺（仅老高考兜底） | 否 | 已齐 |
+| AH 非主流程 13 批次 group_line | - | 0 行（zjzw 仅返回"普通本科批"4282 行） | - | 否（按设计走 QUERY_ONLY + 公式/规则文案兜底） | 需专门抓考试院艺术/体育/专项/提前批专题页 |
+| ml_model_registry ML 模型 | 仅 baseline，未激活（SC runbook 明确不激活，27 行训练集会过拟合） | 0 行 | - | 否（启发式 + 6 月底 2026 数据） | 等 2026 官方数据发布后按 `docs/ops/sichuan_ml_baseline_runbook.md` Phase B2 一键激活 |
+
+**结论**：「除 26 年外全部补齐」在物理上不可达：
+- **2024 年（SC/AH）本身不存在「院校专业组」结构**（老高考），不是抓不到而是不存在
+- **2025 年缺失项 100% 卡在外部源**（vision OCR 凭据 / 招生章程 PDF / 考试院专题页爬虫策略）
+
+本轮已把"代码层面省 × 批次专用 engine"完整落地，**任何后续真实数据到位后立即生效，不再需要改 controller 代码**。
+
+### v7.50 待办
+
+- AH 一分一段 OCR 重试（需 vision API key 到位；建议 OpenAI gpt-4o / 国内豆包 / qwen-vl 任一）
+- AH 招生计划 PDF 抓取（安徽考试院专业目录是 Excel 还是 PDF？需先调研）
+- AH 选科要求 PDF 抓取（同上）
+- AH 非主流程 13 批次专题页爬虫（如果数据足够再考虑）
+- AH ML 基地 runbook（`docs/ops/anhui_baseline_runbook.md` 待建，模仿 SC 路线图）
+- 后端 ProvinceBatchEngineRouter 强化（当前矩阵是静态表 + selfCheck，下一步可接 Spring Application Context 把 engine 实例注入 + 暴露 `RecommendEngine resolveEngine(province, batch)` API）
+
+## 上一轮变更（v7.49 AH 艺体综合分，2026-05-18 14:36）
 
 ### 1. AnhuiCompositeScoreCalculator + 12 单测
 

@@ -282,7 +282,8 @@ class VolunteerRecommendControllerTest {
 
         assertThat(plan.getSupportLevel()).isEqualTo("TRIAL_RECOMMEND");
         assertThat(plan.getRecommendMode()).isEqualTo("PARALLEL_GROUP");
-        assertThat(plan.getEngineName()).isEqualTo("ProfessionalGroupVolunteerEngine");
+        // v7.50: 经 ProvinceBatchEngineMatrix 路由后，AH_BENKE 应走专用 AnhuiProfessionalGroup45Engine
+        assertThat(plan.getEngineName()).isEqualTo("AnhuiProfessionalGroup45Engine");
         assertThat(plan.getSupportReason()).isEqualTo("AH 主流程历史数据兜底");
         assertThat(plan.getPolicy()).containsEntry("supportLevel", "TRIAL_RECOMMEND");
         assertThat(plan.getPolicy()).containsEntry("batchCode", "AH_BENKE");
