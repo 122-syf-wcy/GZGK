@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   Table2,
 } from 'lucide-vue-next'
+import { getProvinceBatchSupport, type ProvinceBatchSupportResponse } from '@/api/volunteer'
 import {
   getProvinceConfig,
   normalizeProvinceCode,
@@ -23,11 +24,37 @@ defineOptions({ name: 'RegionHome' })
 
 const route = useRoute()
 const router = useRouter()
+const supportLoading = ref(false)
+const batchSupport = ref<ProvinceBatchSupportResponse | null>(null)
+const supportError = ref('')
 
 const provinceCode = computed(() => normalizeProvinceCode(route.params.provinceCode))
 const province = computed(() => getProvinceConfig(provinceCode.value))
 const isPreparing = computed(() => province.value.status !== 'open')
+const isPreEstimateOpen = computed(() => province.value.status === 'open')
 const isProfessionalGroupProvince = computed(() => province.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45')
+const readablePhase = computed(() => phaseText(batchSupport.value?.recommendationPhase || 'PRE_OFFICIAL_DATA'))
+const estimateCount = computed(() => batchSupport.value?.summary?.ESTIMATE_RECOMMEND || 0)
+const queryOnlyCount = computed(() => batchSupport.value?.summary?.QUERY_ONLY || 0)
+const representativeGaps = computed(() => {
+  const seen = new Set<string>()
+  const gaps: string[] = []
+  for (const item of batchSupport.value?.items || []) {
+    for (const key of item.missingData || []) {
+      const label = missingDataText(key)
+      if (!seen.has(label)) {
+        seen.add(label)
+        gaps.push(label)
+      }
+      if (gaps.length >= 5) return gaps
+    }
+  }
+  return gaps
+})
+const supportReasons = computed(() => (batchSupport.value?.items || [])
+  .map(item => publicFacingText(item.supportReason || ''))
+  .filter(Boolean)
+  .slice(0, 3))
 
 const featureCards = computed(() => [
   {
@@ -41,28 +68,37 @@ const featureCards = computed(() => [
   },
   {
     key: 'score-line',
-    title: '历年分数线',
+    title: '分数线查询',
     desc: province.value.scoreLineDescription,
-    status: isPreparing.value ? '核验中' : '已开放',
+    status: province.value.scorelineStatusLabel,
     icon: Table2,
     path: '/score-line',
     tone: 'green',
   },
   {
     key: 'volunteer',
-    title: '智能填报',
-    desc: isPreparing.value
-      ? province.value.volunteerLockDescription
-      : `生成 ${province.value.targetCount} 个${province.value.volunteerUnit}草稿。`,
-    status: isPreparing.value ? '锁定' : '已开放',
-    icon: isPreparing.value ? LockKeyhole : GraduationCap,
+    title: 'AI 志愿',
+    desc: isPreEstimateOpen.value
+      ? `${province.value.volunteerCta}，普通主批生成历史估算草稿，非普通批展示数据缺口。`
+      : province.value.volunteerLockDescription,
+    status: isPreEstimateOpen.value ? '历史估算' : '锁定',
+    icon: isPreEstimateOpen.value ? GraduationCap : LockKeyhole,
     path: '/volunteer',
-    tone: isPreparing.value ? 'amber' : 'dark',
+    tone: isPreEstimateOpen.value ? 'dark' : 'amber',
     locked: isPreparing.value,
   },
   {
+    key: 'data-status',
+    title: '政策/数据状态',
+    desc: `${readablePhase.value}；普通主批历史估算，非普通批只查策略并展示缺口。`,
+    status: supportLoading.value ? '读取中' : readablePhase.value,
+    icon: ShieldAlert,
+    path: '',
+    tone: 'slate',
+  },
+  {
     key: 'special',
-    title: '特殊类型招生',
+    title: '特长生专区',
     desc: province.value.specialAdmissionsHint,
     status: isPreparing.value ? '需复核' : '政策线索',
     icon: BookOpenCheck,
@@ -74,8 +110,8 @@ const featureCards = computed(() => [
 const metrics = computed(() => [
   { label: '志愿单位', value: province.value.volunteerUnit, note: province.value.targetBatch },
   { label: '目标数量', value: `${province.value.targetCount}`, note: isProfessionalGroupProvince.value ? '院校专业组' : '平行志愿' },
-  { label: '官方来源', value: province.value.shortName, note: province.value.officialSource },
-  { label: '入口状态', value: province.value.statusLabel, note: isPreparing.value ? '先展示专区' : '主流程可用' },
+  { label: '分数线', value: province.value.scorelineStatusLabel, note: province.value.scorelineAvailableTypes.length ? province.value.scorelineAvailableTypes.join(' / ') : '展示缺口说明' },
+  { label: '入口状态', value: '工作台开放', note: isPreEstimateOpen.value ? 'AI 志愿可进入' : '先展示专区' },
 ])
 
 watch(provinceCode, (code) => {
@@ -84,7 +120,19 @@ watch(provinceCode, (code) => {
   }
 }, { immediate: true })
 
+watch(provinceCode, () => {
+  void loadBatchSupport()
+})
+
+onMounted(() => {
+  void loadBatchSupport()
+})
+
 function goFeature(path: string): void {
+  if (!path) {
+    document.getElementById('region-data-status')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    return
+  }
   router.push({ path, query: province.value.routeQuery })
 }
 
@@ -93,7 +141,65 @@ function goHome(): void {
 }
 
 function statusText(item: ProvinceConfig): string {
-  return item.status === 'open' ? '已开放' : '数据准备中'
+  return item.status === 'open' ? item.statusLabel : '官方数据待发布'
+}
+
+async function loadBatchSupport(): Promise<void> {
+  supportLoading.value = true
+  supportError.value = ''
+  try {
+    const res = await getProvinceBatchSupport(provinceCode.value)
+    if (res.data.code === 0) {
+      batchSupport.value = res.data.data
+      return
+    }
+    batchSupport.value = null
+    supportError.value = '数据状态暂时读取失败'
+  } catch {
+    batchSupport.value = null
+    supportError.value = '数据状态暂时读取失败'
+  } finally {
+    supportLoading.value = false
+  }
+}
+
+function phaseText(phase?: string): string {
+  if (phase === 'PRE_OFFICIAL_DATA') return '官方数据待发布'
+  if (phase === 'OFFICIAL_DATA_PARTIAL') return '官方数据部分导入'
+  if (phase === 'OFFICIAL_DATA_IMPORTED') return '官方数据已导入待复核'
+  if (phase === 'MODEL_RETRAINED') return '模型已重训待验收'
+  if (phase === 'FULL_RECOMMEND_READY') return '完整数据生成待确认'
+  return phase || '官方数据待发布'
+}
+
+function publicFacingText(text?: string): string {
+  return String(text || '')
+    .replace(/PRE_OFFICIAL_DATA/g, '官方数据待发布')
+    .replace(/ESTIMATE_RECOMMEND/g, '历史估算')
+    .replace(/QUERY_ONLY/g, '只查策略')
+    .replace(/FULL_RECOMMEND/g, '完整数据生成')
+    .replace(/QERY_ONLY/g, '只查策略')
+}
+
+function missingDataText(key: string): string {
+  const labels: Record<string, string> = {
+    official_2026_admission_plan: '2026官方招生计划未发布/未导入',
+    official_2026_score_or_rank: '2026官方分数位次未发布/未导入',
+    official_2026_composite_score_rule: '综合分折算规则待核验',
+    official_2026_special_qualification: '艺术/体育资格条件待核验',
+    official_2026_skill_exam_rule: '技能高考规则待核验',
+    official_2026_skill_qualification: '技能高考资格条件待核验',
+    official_2026_qualification_rule: '资格/提前批条件待核验',
+    data_score_rank: '一分一段/位次表门禁未全绿',
+    data_admission_group_plan: '院校专业组计划门禁未全绿',
+    data_admission_plan_gz: '招生计划门禁未全绿',
+    data_major_requirement: '选科/资格要求门禁未全绿',
+    data_major_meta: '专业元数据门禁未全绿',
+    ml_training: '模型训练门禁未激活',
+    HB_A00306_manual_rank_review: '湖北清华A00306位次需人工确认',
+    formal_import_strategy_confirmation: '生产已有同年数据，导入策略待确认',
+  }
+  return labels[key] || key
 }
 </script>
 
@@ -125,6 +231,9 @@ function statusText(item: ProvinceConfig): string {
             <span class="gz-shell-chip is-soft-active">{{ province.targetCount }} 个{{ province.volunteerUnit }}</span>
             <span class="gz-shell-chip is-soft-active">{{ province.officialSource }}</span>
           </div>
+          <div class="region-identity-row">
+            <span v-for="identity in province.supportedIdentities" :key="identity">{{ identity }}</span>
+          </div>
         </div>
 
         <div class="gz-shell-metrics">
@@ -136,7 +245,7 @@ function statusText(item: ProvinceConfig): string {
         </div>
       </section>
 
-      <section class="gz-shell-panel region-status-card" :class="{ 'is-preparing': isPreparing }">
+      <section id="region-data-status" class="gz-shell-panel region-status-card" :class="{ 'is-preparing': isPreparing }">
         <div class="region-status-card__icon">
           <LockKeyhole v-if="isPreparing" :size="22" />
           <CheckCircle2 v-else :size="22" />
@@ -144,7 +253,32 @@ function statusText(item: ProvinceConfig): string {
         <div>
           <h2>{{ province.dataStatusTitle }}</h2>
           <p>{{ province.dataStatusDescription }}</p>
+          <div class="region-status-card__facts">
+            <span>{{ supportLoading ? '数据状态读取中' : readablePhase }}</span>
+            <span>历史估算 {{ estimateCount }} 个批次</span>
+            <span>只查策略 {{ queryOnlyCount }} 个批次</span>
+            <span>{{ province.scorelineStatusLabel }}</span>
+          </div>
+          <div class="region-scoreline-summary">
+            <strong>分数线能力</strong>
+            <span v-if="province.scorelineAvailableTypes.length">可查：{{ province.scorelineAvailableTypes.join('、') }}</span>
+            <span>缺口：{{ province.scorelineGapTypes.join('、') }}</span>
+          </div>
+          <div v-if="supportError" class="region-status-card__warning">{{ supportError }}</div>
+          <div v-if="representativeGaps.length" class="region-status-card__gaps">
+            <strong>主要缺口</strong>
+            <span v-for="gap in representativeGaps" :key="gap">{{ gap }}</span>
+          </div>
+          <ul v-if="supportReasons.length" class="region-status-card__reasons">
+            <li v-for="reason in supportReasons" :key="reason">{{ reason }}</li>
+          </ul>
         </div>
+      </section>
+
+      <section class="gz-shell-panel region-policy-card">
+        <h2>身份批次策略</h2>
+        <p>{{ province.identityStrategySummary }}</p>
+        <small>{{ province.batchSupportNote }}</small>
       </section>
 
       <section class="region-feature-grid" aria-label="地区功能入口">
@@ -220,6 +354,44 @@ function statusText(item: ProvinceConfig): string {
   margin-top: 18px;
 }
 
+.region-identity-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.region-identity-row span {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #ecfeff;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.region-policy-card {
+  padding: 18px 20px;
+}
+
+.region-policy-card h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.region-policy-card p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.65;
+}
+
+.region-policy-card small {
+  display: block;
+  margin-top: 8px;
+  color: #64748b;
+  line-height: 1.55;
+}
+
 .region-status-card {
   display: flex;
   gap: 14px;
@@ -265,9 +437,82 @@ function statusText(item: ProvinceConfig): string {
   color: #64748b;
 }
 
+.region-status-card__facts,
+.region-status-card__gaps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.region-status-card__facts span,
+.region-status-card__gaps span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.region-status-card__facts span {
+  background: #ecfeff;
+  color: #0f766e;
+}
+
+.region-status-card__gaps strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.region-status-card__gaps span {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.region-status-card__warning {
+  margin-top: 10px;
+  color: #b45309;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.region-status-card__reasons {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
 .region-feature-grid {
   display: grid;
   gap: 12px;
+}
+
+.region-scoreline-summary {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.region-scoreline-summary strong {
+  color: #0f172a;
 }
 
 .region-feature-card {
@@ -385,6 +630,25 @@ function statusText(item: ProvinceConfig): string {
 @media (min-width: 768px) {
   .region-feature-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1180px) {
+  .region-main {
+    max-width: 1320px;
+  }
+
+  .region-hero,
+  .region-status-card,
+  .region-policy-card,
+  .region-source-card,
+  .region-feature-card {
+    border-radius: 8px;
+    box-shadow: none;
+  }
+
+  .region-feature-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

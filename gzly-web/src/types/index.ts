@@ -108,98 +108,6 @@ export interface AdminOfficialLinkListData extends PageResult<AdminOfficialLinkI
   stats: AdminOfficialLinkStats
 }
 
-export type AdminImportDataType =
-  | 'SCORE_SEGMENT'
-  | 'ADMISSION_PLAN'
-  | 'POLICY_RULE'
-  | 'MAJOR_REQUIREMENT'
-  | 'MAJOR_META'
-  | 'SCORE_LINE'
-  | 'ART_SPORTS_RULE'
-  | 'SPECIAL_ELIGIBILITY'
-
-export type AdminImportJobStatus =
-  | 'CREATED'
-  | 'FILE_REGISTERED'
-  | 'STAGING_READY'
-  | 'QUALITY_CHECKED'
-  | 'FORMAL_SQL_GENERATED'
-  | 'WAITING_CONFIRMATION'
-  | 'PROMOTED'
-  | 'ROLLBACK_READY'
-  | 'FAILED'
-  | string
-
-export interface AdminImportJob {
-  jobId: string
-  provinceCode: string
-  year: number
-  dataType: AdminImportDataType | string
-  importBatchId: string
-  sourceFile?: string
-  sourceUrl?: string
-  sourceManifest?: string
-  status: AdminImportJobStatus
-  currentStep: string
-  totalRows: number
-  cleanRows: number
-  reviewRows: number
-  errorRows: number
-  qualityReportPath?: string
-  formalSqlPath?: string
-  rollbackSqlPath?: string
-  message?: string
-  createdAt?: string
-  updatedAt?: string
-  dryRunOnly: boolean
-  formalPromoteExecuted: boolean
-}
-
-export interface AdminImportJobDetail {
-  job: AdminImportJob
-  files: unknown[]
-  qualityReports: unknown[]
-  rollbackPlans: unknown[]
-}
-
-export interface AdminCreateImportJobRequest {
-  provinceCode: string
-  year: number
-  dataType: AdminImportDataType
-  sourceFile?: string
-  sourceUrl?: string
-  sourceManifest?: string
-  fileHash?: string
-  rawText?: string
-}
-
-export interface AdminImportProgress {
-  dataType: AdminImportDataType | string
-  required: boolean
-  latestStatus: string
-  importBatchId?: string
-  qualityReportPath?: string
-  rollbackSqlPath?: string
-  updatedAt?: string
-}
-
-export interface AdminDataYearReadiness {
-  provinceCode: string
-  year: number
-  policyReady: boolean
-  scoreSegmentReady: boolean
-  admissionPlanReady: boolean
-  majorRequirementReady: boolean
-  majorMetaReady: boolean
-  mlTrainingReady: boolean
-  historicalTrainingReady: boolean
-  recommendationPhase: 'PRE_OFFICIAL_DATA' | 'OFFICIAL_DATA_PARTIAL' | 'OFFICIAL_DATA_IMPORTED' | 'MODEL_RETRAINED' | string
-  latestImportBatchId?: string
-  remarks?: string
-  lastCheckedAt?: string
-  importProgress: Record<string, AdminImportProgress>
-}
-
 export interface Announcement {
   id?: number
   title: string
@@ -419,8 +327,8 @@ export interface HistoryRecord {
 
 /** 志愿表单 */
 export interface VolunteerFormData {
-  /** 省份代码：GZ=贵州，SC=四川，HB=湖北，AH=安徽 */
-  provinceCode: 'GZ' | 'SC' | 'HB' | 'AH'
+  /** 省份代码：GZ=贵州，SC=四川，HB=湖北，AH=安徽，GX=广西，HI=海南，YN=云南，HA=河南 */
+  provinceCode: 'GZ' | 'SC' | 'HB' | 'AH' | 'GX' | 'HI' | 'YN' | 'HA'
   totalScore: number
   provinceRank: number
   /** 首选科目：物理 | 历史 */
@@ -616,27 +524,6 @@ export interface PlanMetrics {
   volunteerUnitType?: 'MAJOR_96' | 'PROFESSIONAL_GROUP_45' | string
   generationCostMs?: number
   generatedAtMs?: number
-  // === 算法报告 P1 评估指标（V7.38 新增） ===
-  /** 主列表中被归入非普通招生类型的条数。正常生成应恒为 0，>0 表示规则前置被绕过。 */
-  ruleViolationCount?: number
-  /** ruleViolationCount / totalCount，对应报告中的 Rule Violation Rate。 */
-  ruleViolationRate?: number
-  /** 前 20 志愿中机会指数 < 35 的占比，对应报告中的 Over-Risk Exposure。 */
-  overRiskExposure?: number
-  /** 前 20 志愿中机会指数 ≥ 75 的占比，作为 First-20 Hit Rate 的代理指标。 */
-  firstTwentyHitRate?: number
-  /** 主列表按 recruit_type 归一后的条数分布，键为 RecruitTypeClassifier 常量。 */
-  recruitTypeBreakdown?: Record<string, number>
-  /** 当前策略模式（保守型 / 均衡型 / 冲刺型）。 */
-  strategyMode?: string
-  /** overRiskExposure 的策略自适应基线（含 5% 容忍）。 */
-  overRiskExposureBaseline?: number
-  /** firstTwentyHitRate 的策略自适应基线（含 5% 容忍）。 */
-  firstTwentyHitRateBaseline?: number
-  /** overRiskExposure 是否突破当前策略基线。 */
-  overRiskExposureBreached?: boolean
-  /** firstTwentyHitRate 是否低于当前策略基线。 */
-  firstTwentyHitRateBreached?: boolean
 }
 
 /** 报考顾问建议 */
@@ -703,8 +590,7 @@ export interface VolunteerPlan {
   tuitionBudget?: VolunteerFormData['tuitionBudget']
   acceptPrivate?: boolean
   acceptSinoForeign?: boolean
-  safetyCode?: string
-  accessKey?: string
+  accessKey: string
   items: VolunteerItem[]
   createdAt: string
   dataQualityWarning?: string
@@ -733,6 +619,15 @@ export interface VolunteerPlan {
     visibleMetric?: string
     appliedCount?: number
     fallbackReason?: string
+    policyVersion?: string
+    algorithmFamily?: string
+    generationEngine?: string
+    modelRoute?: string
+    modelRouteStatus?: string
+    mlEligible?: boolean
+    qualityGate?: string
+    skippedCount?: number
+    qualityWarnings?: string[]
   }
   warnings?: string[]
 }
