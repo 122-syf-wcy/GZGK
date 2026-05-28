@@ -3,8 +3,8 @@ package com.gzly.service;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gzly.algorithm.FallbackRulePredictionEngine;
 import com.gzly.entity.PlanHistory;
+import com.gzly.entity.PolicyRuleConfig;
 import com.gzly.mapper.PlanHistoryMapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -27,9 +27,14 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class MlPredictionService {
 
+    private static final int MIN_DATA_CONFIDENCE_TO_APPLY = 35;
+    private static final int MAX_PREDICTED_RANK_FACTOR = 3;
+    private static final int MAX_RANK_SHIFT_ABSOLUTE = 80_000;
+    private static final double MIN_APPLIED_RATIO = 0.60D;
+
     private final ObjectMapper objectMapper;
     private final PlanHistoryMapper planHistoryMapper;
-    private final FallbackRulePredictionEngine fallbackRulePredictionEngine;
+    private final ProvinceAlgorithmPolicyService provinceAlgorithmPolicyService;
 
     @Value("${gzly.ml.enabled:false}")
     private boolean enabled;
@@ -51,21 +56,31 @@ public class MlPredictionService {
         ApplyResult result = new ApplyResult();
         result.setModelVersion("fallback-rule-v1");
         result.setFallbackUsed(true);
-        result.setModelEnabled(enabled);
         result.setVisibleMetric("chanceScore");
 
-        if (!enabled) {
-            // ML 关闭：已由 VolunteerService 主链路用 FallbackRulePredictionEngine 赋值，这里不重复
-            result.setFallbackReason("ml_disabled");
-            persistPlanItems(plan);
-            return result;
-        }
-        if (plan == null || plan.getItems() == null || plan.getItems().isEmpty()) {
-            result.setFallbackReason("empty_plan");
+        ProvinceAlgorithmPolicyService.AlgorithmPolicy algorithmPolicy = provinceAlgorithmPolicyService.resolve(
+                plan == null ? (req == null ? null : req.getProvinceCode()) : plan.getProvinceCode(),
+                policyConfig(req, plan));
+        result.setPolicyVersion(algorithmPolicy.getPolicyVersion());
+        result.setAlgorithmFamily(algorithmPolicy.getAlgorithmFamily());
+        result.setGenerationEngine(algorithmPolicy.getGenerationEngine());
+        result.setModelRoute(algorithmPolicy.getModelRoute());
+        result.setModelRouteStatus(algorithmPolicy.getModelRouteStatus());
+        result.setMlEligible(algorithmPolicy.isMlEligible());
+
+        if (!enabled || plan == null || plan.getItems() == null || plan.getItems().isEmpty()) {
             persistPlanItems(plan);
             return result;
         }
 
+        if (!algorithmPolicy.isMlEligible()) {
+            result.setFallbackReason(algorithmPolicy.getModelRouteStatus() + ": " + algorithmPolicy.getMlModelPolicy());
+            persistPlanItems(plan);
+            return result;
+        }
+
+        int skipped = 0;
+        List<String> qualityWarnings = new ArrayList<>();
         try {
             String payload = objectMapper.writeValueAsString(buildRequest(req, plan));
             HttpRequest request = HttpRequest.newBuilder()
@@ -86,16 +101,37 @@ public class MlPredictionService {
             }
             List<VolunteerService.VolunteerItem> items = plan.getItems();
             int applied = 0;
-            for (int i = 0; i < predictions.size() && i < items.size(); i++) {
-                applyPrediction(items.get(i), predictions.get(i), plan.getProvinceRank());
-                applied++;
+            List<Integer> applyIndexes = new ArrayList<>();
+            for (int i = 0; i < items.size(); i++) {
+                JsonNode prediction = i < predictions.size() ? predictions.get(i) : null;
+                PredictionQuality quality = predictionQuality(items.get(i), prediction, plan.getProvinceRank());
+                if (!quality.isPass()) {
+                    skipped++;
+                    if (qualityWarnings.size() < 6) {
+                        qualityWarnings.add("item#" + (i + 1) + ":" + quality.getReason());
+                    }
+                    continue;
+                }
+                applyIndexes.add(i);
             }
+            applied = applyIndexes.size();
             if (applied == 0) {
                 throw new IllegalStateException("ML 未返回可用预测");
+            }
+            int expected = items.size();
+            if (expected > 1 && applied < Math.ceil(expected * MIN_APPLIED_RATIO)) {
+                throw new IllegalStateException("ML 质量门禁未过: applied=" + applied + ", expected=" + expected
+                        + ", skipped=" + skipped + ", warnings=" + qualityWarnings);
+            }
+            for (Integer i : applyIndexes) {
+                applyPrediction(items.get(i), predictions.get(i), plan.getProvinceRank());
             }
             result.setModelVersion(root.path("modelVersion").asText("chance-score-v1.0.0"));
             result.setFallbackUsed(false);
             result.setAppliedCount(applied);
+            result.setSkippedCount(skipped);
+            result.setQualityGate("PASS");
+            result.setQualityWarnings(qualityWarnings);
             persistPlanItems(plan);
             return result;
         } catch (Exception e) {
@@ -103,44 +139,22 @@ public class MlPredictionService {
             result.setFallbackReason(e.getMessage() == null || e.getMessage().isBlank()
                     ? e.getClass().getSimpleName()
                     : e.getMessage());
-            // ML 调用失败：走 FallbackRulePredictionEngine 兑现购买保证（主链路可能已赋值，这里加一道兑现保证）
-            int rescued = applyRuleFallback(plan);
-            result.setAppliedCount(rescued);
+            result.setQualityGate("FAIL");
+            result.setSkippedCount(skipped);
+            result.setQualityWarnings(qualityWarnings);
             persistPlanItems(plan);
             return result;
         }
     }
 
-    /**
-     * 当 ML 服务在运行期崩溃、主链路未调用过 FallbackRulePredictionEngine 时，
-     * 这里补一道规则预测，避免走择出全部 chanceScore=0 的示警。2026/05 后主链路已不依赖本路径，
-     * 但保留作为运维购买保证。
-     */
-    private int applyRuleFallback(VolunteerService.PlanResult plan) {
-        if (plan == null || plan.getItems() == null || plan.getItems().isEmpty()) return 0;
-        if (fallbackRulePredictionEngine == null) return 0;
-        int candidateRank = Math.max(1, plan.getProvinceRank());
-        int rescued = 0;
-        for (VolunteerService.VolunteerItem item : plan.getItems()) {
-            if (item.getChanceScore() > 0) continue; // 主链路已赋值不重复
-            int referenceRank = item.getPredictedMinRank() > 0 ? item.getPredictedMinRank() : item.getHistoryMinRank();
-            FallbackRulePredictionEngine.Prediction p = fallbackRulePredictionEngine.predict(
-                    candidateRank,
-                    referenceRank,
-                    item.getRankVolatility3y(),
-                    item.getPlanChangeRate(),
-                    item.getDataConfidence(),
-                    item.getHotTrendScore());
-            item.setChanceScore(p.getChanceScore());
-            item.setChanceLevel(p.getChanceLevel());
-            item.setRiskLevel(p.getRiskLevel());
-            item.setConfidenceLevel(p.getConfidenceLevel());
-            item.setDataConfidence(p.getDataConfidence());
-            item.setPredictedMinRank(p.getPredictedMinRank());
-            item.setRankDiff(p.getRankDiff());
-            rescued++;
-        }
-        return rescued;
+    private PolicyRuleConfig policyConfig(VolunteerService.GenerateRequest req, VolunteerService.PlanResult plan) {
+        PolicyRuleConfig config = new PolicyRuleConfig();
+        config.setProvince(plan == null ? (req == null ? ProvincePolicyService.GZ : req.getProvinceCode()) : plan.getProvinceCode());
+        config.setCandidateType(req == null || req.getCandidateType() == null ? "普通类" : req.getCandidateType());
+        config.setBatchCode(req == null || req.getBatchCode() == null ? "NORMAL_UNDERGRADUATE" : req.getBatchCode());
+        config.setBatchName(req == null ? null : req.getPolicyBatchName());
+        config.setVolunteerMode(req == null ? null : req.getPolicyVolunteerUnitLabel());
+        return config;
     }
 
     private void applyPolicyLimit(VolunteerService.PlanResult plan, int maxCount) {
@@ -185,13 +199,8 @@ public class MlPredictionService {
             row.put("historyMinRank", item.getHistoryMinRank());
             row.put("predictedMinRank", item.getPredictedMinRank());
             row.put("rankDiff", item.getRankDiff());
-            // 优先用 FeatureBuildEngine 写回的特征值；早期主链路未触达时回退到 abs(rankGap) / planTrendScore
-            row.put("rankVolatility3y", item.getRankVolatility3y() > 0
-                    ? item.getRankVolatility3y()
-                    : Math.abs(item.getRankGap()) * 0.001D);
-            row.put("planChangeRate", item.getPlanChangeRate() != 0
-                    ? item.getPlanChangeRate()
-                    : planTrendScore(item.getPlanTrend()));
+            row.put("rankVolatility3y", Math.abs(item.getRankGap()));
+            row.put("planChangeRate", planTrendScore(item.getPlanTrend()));
             row.put("schoolHotScore", item.getSchoolEnrollmentIndex());
             row.put("majorHotScore", item.getPlanExpansionIndex());
             row.put("dataMissingCount", "专业级".equals(item.getDataSourceType()) ? 0 : 1);
@@ -232,6 +241,58 @@ public class MlPredictionService {
         else item.setRiskColor("red");
     }
 
+    private PredictionQuality predictionQuality(VolunteerService.VolunteerItem item, JsonNode prediction, int candidateRank) {
+        PredictionQuality quality = new PredictionQuality();
+        if (item == null || prediction == null || prediction.isMissingNode() || !prediction.isObject()) {
+            quality.setReason("missing_prediction");
+            return quality;
+        }
+        int fallbackPredicted = item.getPredictedMinRank() > 0 ? item.getPredictedMinRank() : item.getHistoryMinRank();
+        int predicted = prediction.path("predictedMinRank").asInt(fallbackPredicted);
+        int chance = prediction.path("chanceScore").asInt(item.getChanceScore());
+        double confidence = normalizedConfidence(prediction.path("dataConfidence").asDouble(item.getDataConfidence()));
+        if (predicted <= 0) {
+            quality.setReason("invalid_predicted_rank");
+            return quality;
+        }
+        int maxReasonableRank = Math.max(200_000, Math.max(candidateRank, fallbackPredicted) * MAX_PREDICTED_RANK_FACTOR);
+        if (predicted > maxReasonableRank) {
+            quality.setReason("predicted_rank_outlier");
+            return quality;
+        }
+        int anchor = fallbackPredicted > 0 ? fallbackPredicted : candidateRank;
+        if (anchor > 0 && Math.abs(predicted - anchor) > MAX_RANK_SHIFT_ABSOLUTE) {
+            quality.setReason("rank_shift_outlier");
+            return quality;
+        }
+        if (chance < 0 || chance > 100) {
+            quality.setReason("invalid_chance_score");
+            return quality;
+        }
+        if (confidence < MIN_DATA_CONFIDENCE_TO_APPLY) {
+            quality.setReason("low_data_confidence");
+            return quality;
+        }
+        if (candidateRank > 0) {
+            int rankDiff = predicted - candidateRank;
+            if (rankDiff >= 20_000 && chance < 35) {
+                quality.setReason("chance_rank_inconsistent_safe");
+                return quality;
+            }
+            if (rankDiff <= -20_000 && chance > 75) {
+                quality.setReason("chance_rank_inconsistent_risky");
+                return quality;
+            }
+        }
+        quality.setPass(true);
+        return quality;
+    }
+
+    private double normalizedConfidence(double value) {
+        double confidence = value > 0 && value <= 1.0D ? value * 100D : value;
+        return Math.max(0D, Math.min(100D, confidence));
+    }
+
     private void persistPlanItems(VolunteerService.PlanResult plan) {
         if (plan == null || plan.getId() <= 0 || plan.getItems() == null) return;
         try {
@@ -267,20 +328,41 @@ public class MlPredictionService {
         private String fallbackReason;
         private String visibleMetric;
         private int appliedCount;
-        /** 配置上 ML 是否开启；false 时 fallbackUsed 一定为 true。 */
-        private boolean modelEnabled;
+        private String policyVersion;
+        private String algorithmFamily;
+        private String generationEngine;
+        private String modelRoute;
+        private String modelRouteStatus;
+        private boolean mlEligible;
+        private String qualityGate = "NOT_RUN";
+        private int skippedCount;
+        private List<String> qualityWarnings = List.of();
 
         public Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("modelVersion", modelVersion);
-            map.put("modelEnabled", modelEnabled);
             map.put("fallbackUsed", fallbackUsed);
             map.put("visibleMetric", visibleMetric);
             map.put("appliedCount", appliedCount);
+            map.put("policyVersion", policyVersion);
+            map.put("algorithmFamily", algorithmFamily);
+            map.put("generationEngine", generationEngine);
+            map.put("modelRoute", modelRoute);
+            map.put("modelRouteStatus", modelRouteStatus);
+            map.put("mlEligible", mlEligible);
+            map.put("qualityGate", qualityGate);
+            map.put("skippedCount", skippedCount);
+            map.put("qualityWarnings", qualityWarnings == null ? List.of() : qualityWarnings);
             if (fallbackReason != null && !fallbackReason.isBlank()) {
                 map.put("fallbackReason", fallbackReason);
             }
             return map;
         }
+    }
+
+    @Data
+    private static class PredictionQuality {
+        private boolean pass;
+        private String reason;
     }
 }

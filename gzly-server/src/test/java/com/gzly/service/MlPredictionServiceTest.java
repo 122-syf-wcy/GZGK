@@ -11,6 +11,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -53,6 +54,8 @@ class MlPredictionServiceTest {
 
             assertThat(result.isFallbackUsed()).isFalse();
             assertThat(result.getModelVersion()).isEqualTo("chance-score-v1.0.0");
+            assertThat(result.getQualityGate()).isEqualTo("PASS");
+            assertThat(result.getSkippedCount()).isZero();
             assertThat(plan.getItems().get(0).getPredictedMinRank()).isEqualTo(24000);
             assertThat(plan.getItems().get(0).getRankDiff()).isEqualTo(3000);
             assertThat(plan.getItems().get(0).getChanceScore()).isEqualTo(76);
@@ -91,11 +94,164 @@ class MlPredictionServiceTest {
         assertThat(plan.getItems().get(0).getChanceScore()).isEqualTo(58);
     }
 
+    @Test
+    void shouldSkipInvalidPredictionAndKeepRuleScoreForThatItem() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/ml/predict/batch", exchange -> {
+            byte[] bytes = """
+                    {
+                      "modelVersion": "chance-score-v1.0.1",
+                      "predictions": [
+                        {"predictedMinRank": 24000, "chanceScore": 76, "dataConfidence": 0.86},
+                        {"predictedMinRank": 900000, "chanceScore": 99, "dataConfidence": 0.92},
+                        {"predictedMinRank": 26000, "chanceScore": 72, "dataConfidence": 0.81}
+                      ]
+                    }
+                    """.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(bytes);
+            }
+        });
+        server.start();
+        try {
+            MlPredictionService service = service("http://127.0.0.1:" + server.getAddress().getPort(), true, 1200);
+            VolunteerService.PlanResult plan = oneItemPlan();
+            plan.setItems(new ArrayList<>(List.of(item(1), item(2), item(3))));
+
+            MlPredictionService.ApplyResult result = service.applyPredictions(request(), plan, 96);
+
+            assertThat(result.isFallbackUsed()).isFalse();
+            assertThat(result.getAppliedCount()).isEqualTo(2);
+            assertThat(result.getSkippedCount()).isEqualTo(1);
+            assertThat(result.getQualityWarnings()).anyMatch(v -> v.contains("predicted_rank_outlier"));
+            assertThat(plan.getItems().get(0).getPredictedMinRank()).isEqualTo(24000);
+            assertThat(plan.getItems().get(1).getPredictedMinRank()).isEqualTo(23002);
+            assertThat(plan.getItems().get(1).getChanceScore()).isEqualTo(58);
+            assertThat(plan.getItems().get(2).getPredictedMinRank()).isEqualTo(26000);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldFallbackWholeBatchWhenQualityGateFails() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/ml/predict/batch", exchange -> {
+            byte[] bytes = """
+                    {
+                      "modelVersion": "chance-score-v1.0.2",
+                      "predictions": [
+                        {"predictedMinRank": 24000, "chanceScore": 76, "dataConfidence": 0.86},
+                        {"predictedMinRank": 0, "chanceScore": 88, "dataConfidence": 0.90},
+                        {"predictedMinRank": 910000, "chanceScore": 99, "dataConfidence": 0.92}
+                      ]
+                    }
+                    """.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(bytes);
+            }
+        });
+        server.start();
+        try {
+            MlPredictionService service = service("http://127.0.0.1:" + server.getAddress().getPort(), true, 1200);
+            VolunteerService.PlanResult plan = oneItemPlan();
+            plan.setItems(new ArrayList<>(List.of(item(1), item(2), item(3))));
+
+            MlPredictionService.ApplyResult result = service.applyPredictions(request(), plan, 96);
+
+            assertThat(result.isFallbackUsed()).isTrue();
+            assertThat(result.getFallbackReason()).contains("ML 质量门禁未过");
+            assertThat(plan.getItems().get(0).getPredictedMinRank()).isEqualTo(23001);
+            assertThat(plan.getItems().get(1).getPredictedMinRank()).isEqualTo(23002);
+            assertThat(plan.getItems().get(2).getPredictedMinRank()).isEqualTo(23003);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldCountMissingPredictionsInQualityGate() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/ml/predict/batch", exchange -> {
+            byte[] bytes = """
+                    {
+                      "modelVersion": "chance-score-v1.0.3",
+                      "predictions": [
+                        {"predictedMinRank": 24000, "chanceScore": 76, "dataConfidence": 0.86}
+                      ]
+                    }
+                    """.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(bytes);
+            }
+        });
+        server.start();
+        try {
+            MlPredictionService service = service("http://127.0.0.1:" + server.getAddress().getPort(), true, 1200);
+            VolunteerService.PlanResult plan = oneItemPlan();
+            plan.setItems(new ArrayList<>(List.of(item(1), item(2), item(3))));
+
+            MlPredictionService.ApplyResult result = service.applyPredictions(request(), plan, 96);
+
+            assertThat(result.isFallbackUsed()).isTrue();
+            assertThat(result.getQualityGate()).isEqualTo("FAIL");
+            assertThat(result.getSkippedCount()).isEqualTo(2);
+            assertThat(result.getQualityWarnings()).allMatch(v -> v.contains("missing_prediction"));
+            assertThat(plan.getItems().get(0).getPredictedMinRank()).isEqualTo(23001);
+            assertThat(plan.getItems().get(1).getPredictedMinRank()).isEqualTo(23002);
+            assertThat(plan.getItems().get(2).getPredictedMinRank()).isEqualTo(23003);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldSkipGlobalMlForOtherProvinceBaselineModels() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/ml/predict/batch", exchange -> {
+            calls.incrementAndGet();
+            byte[] bytes = "{\"predictions\":[]}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(bytes);
+            }
+        });
+        server.start();
+        try {
+            MlPredictionService service = service("http://127.0.0.1:" + server.getAddress().getPort(), true, 1200);
+            VolunteerService.GenerateRequest req = request();
+            req.setProvinceCode("HB");
+            req.setBatchCode("HB_BENKE");
+            req.setPolicyBatchName("本科普通批");
+            req.setPolicyVolunteerUnitLabel("院校专业组（平行志愿）");
+            VolunteerService.PlanResult plan = oneItemPlan();
+            plan.setProvinceCode("HB");
+            plan.setTargetCount(45);
+
+            MlPredictionService.ApplyResult result = service.applyPredictions(req, plan, 45);
+
+            assertThat(result.isFallbackUsed()).isTrue();
+            assertThat(result.isMlEligible()).isFalse();
+            assertThat(result.getModelRoute()).isEqualTo("hb_baseline_rank_chance_candidate");
+            assertThat(result.getModelRouteStatus()).isEqualTo("BASELINE_ONLY_NOT_ACTIVATED");
+            assertThat(result.getFallbackReason()).contains("不调用线上 GZ 全局模型");
+            assertThat(calls).hasValue(0);
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private MlPredictionService service(String baseUrl, boolean enabled, int timeoutMs) {
         PlanHistoryMapper planHistoryMapper = mock(PlanHistoryMapper.class);
         when(planHistoryMapper.update(any(), any())).thenReturn(1);
-        MlPredictionService service = new MlPredictionService(new ObjectMapper(), planHistoryMapper,
-                new com.gzly.algorithm.FallbackRulePredictionEngine());
+        MlPredictionService service = new MlPredictionService(new ObjectMapper(), planHistoryMapper, new ProvinceAlgorithmPolicyService());
         ReflectionTestUtils.setField(service, "enabled", enabled);
         ReflectionTestUtils.setField(service, "baseUrl", baseUrl);
         ReflectionTestUtils.setField(service, "timeoutMs", timeoutMs);
@@ -105,7 +261,11 @@ class MlPredictionServiceTest {
     private VolunteerService.GenerateRequest request() {
         VolunteerService.GenerateRequest req = new VolunteerService.GenerateRequest();
         req.setYear(2025);
+        req.setProvinceCode("GZ");
+        req.setCandidateType("普通类");
         req.setBatchCode("NORMAL_UNDERGRADUATE");
+        req.setPolicyBatchName("普通类本科批");
+        req.setPolicyVolunteerUnitLabel("专业类平行志愿");
         req.setProvinceRank(21000);
         req.setTotalScore(602);
         req.setStrategyMode("均衡型");

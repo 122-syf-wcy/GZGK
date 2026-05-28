@@ -3,12 +3,10 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showSuccessToast, showToast } from 'vant'
 import { fetchVolunteerPlan } from '@/api/volunteer'
-import { fetchMyPlanDetail } from '@/api/myPlans'
 import { useVolunteerStore } from '@/stores/volunteer'
-import { useAuthStore } from '@/stores/auth'
 import RecommendSection from '@/components/RecommendSection.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
-import type { GradientRangeDetail, VolunteerPlan } from '@/types'
+import type { GradientRangeDetail, HistoryRecord, VolunteerItem } from '@/types'
 import { buildPlanModeItems, formDataFromPlan, summarizePlan, type PlanMode } from '@/utils/volunteer-plan'
 import { sanitizeHttpUrl } from '@/utils/markdown'
 import { getProvinceConfig, normalizeProvinceCode } from '@/constants/provinces'
@@ -32,10 +30,11 @@ import {
 const router = useRouter()
 const route = useRoute()
 const volunteerStore = useVolunteerStore()
-const authStore = useAuthStore()
 
 const activeTab = ref<'all' | '冲' | '稳' | '保' | '垫'>('all')
 const activeMode = ref<PlanMode>(volunteerStore.formData.strategyMode || '均衡型')
+const schoolSearch = ref('')
+const probabilitySort = ref<'default' | 'desc' | 'asc'>('default')
 const compareIds = ref<string[]>([])
 const restoring = ref(false)
 const showAllReview = ref(false)
@@ -159,53 +158,13 @@ const rangeSummaryRows = computed(() => {
   return (['冲', '稳', '保', '垫'] as const)
     .flatMap(key => ranges[key] ? [ranges[key] as GradientRangeDetail] : [])
 })
-
-/** 招生类型枚举显示文案，与 com.gzly.algorithm.RecruitTypeClassifier 常量一一对应。 */
-const RECRUIT_TYPE_LABELS: Record<string, string> = {
-  NORMAL: '普通批次',
-  ART_SPORTS: '艺术 / 体育类',
-  GENDER_RESTRICTED: '性别限制',
-  FREE_NORMAL: '免费师范生',
-  DIRECTED: '定向 / 委培',
-  SUPPLEMENT: '本科预科 / 补录',
-}
-const recruitTypeRows = computed(() => {
-  const breakdown = volunteerStore.planMetrics?.recruitTypeBreakdown
-  if (!breakdown) return [] as Array<{ key: string; label: string; count: number; percent: string; warn: boolean }>
-  const total = Object.values(breakdown).reduce((sum, v) => sum + (v ?? 0), 0)
-  if (!total) return []
-  return Object.entries(breakdown)
-    .filter(([, count]) => (count ?? 0) > 0)
-    .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
-    .map(([key, count]) => ({
-      key,
-      label: RECRUIT_TYPE_LABELS[key] ?? key,
-      count: count ?? 0,
-      percent: total ? `${(((count ?? 0) / total) * 100).toFixed(1)}%` : '0%',
-      warn: key !== 'NORMAL',
-    }))
-})
-
-/** 监控阈值告警提示：当 overRisk / firstTwentyHit 突破 strategyMode 自适应基线时给出文案。 */
-const metricsBaselineNote = computed(() => {
-  const m = volunteerStore.planMetrics
-  if (!m) return ''
-  const segments: string[] = []
-  if (m.overRiskExposureBreached && typeof m.overRiskExposure === 'number' && typeof m.overRiskExposureBaseline === 'number') {
-    segments.push(`前 20 高风险占比 ${(m.overRiskExposure * 100).toFixed(0)}%（${m.strategyMode || '均衡型'} 基线 ${(m.overRiskExposureBaseline * 100).toFixed(0)}%），建议核对冲档分布是否过多`)
-  }
-  if (m.firstTwentyHitRateBreached && typeof m.firstTwentyHitRate === 'number' && typeof m.firstTwentyHitRateBaseline === 'number') {
-    segments.push(`前 20 高机会指数占比 ${(m.firstTwentyHitRate * 100).toFixed(0)}%（${m.strategyMode || '均衡型'} 基线 ${(m.firstTwentyHitRateBaseline * 100).toFixed(0)}%），可适度增厚稳/保档`)
-  }
-  return segments.join('；')
-})
-const metricsBaselineWarn = computed(() => Boolean(metricsBaselineNote.value))
 const planProvinceCode = computed(() => normalizeProvinceCode(volunteerStore.formData.provinceCode || volunteerStore.planItems[0]?.provinceCode || 'GZ'))
 const planProvinceConfig = computed(() => getProvinceConfig(planProvinceCode.value))
 const isProfessionalGroupPlan = computed(() => planProvinceConfig.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45')
 const planProvinceName = computed(() => planProvinceConfig.value.shortName)
 const planUnitLabel = computed(() => (isProfessionalGroupPlan.value ? '院校专业组' : '志愿'))
-const planTitle = computed(() => `${planProvinceName.value}${planUnitLabel.value}方案`)
+const isStrategyAdvicePlan = computed(() => volunteerStore.planMeta.supportLevel === 'QUERY_ONLY' || volunteerStore.planMeta.recommendMode === 'QUERY_ONLY' || !volunteerStore.planItems.length)
+const planTitle = computed(() => `${planProvinceName.value}${isStrategyAdvicePlan.value ? '策略建议方案' : `${planUnitLabel.value}方案`}`)
 const targetCountText = computed(() => `${volunteerStore.planMetrics?.targetCount || planProvinceConfig.value.targetCount} 个`)
 const rankHeroText = computed(() => {
   const rank = volunteerStore.formData.provinceRank
@@ -226,9 +185,146 @@ const tabs = computed(() => {
   ] as const
 })
 
+function publicFacingText(text?: string) {
+  return String(text || '')
+    .replace(/PRE_OFFICIAL_DATA/g, '官方数据待发布')
+    .replace(/TRIAL_RECOMMEND/g, '历史估算')
+    .replace(/ESTIMATE_RECOMMEND/g, '历史估算')
+    .replace(/QUERY_ONLY/g, '只查策略')
+    .replace(/FULL_RECOMMEND/g, '历史估算')
+    .replace(/QERY_ONLY/g, '只查策略')
+}
+
+function missingDataText(key: string) {
+  const labels: Record<string, string> = {
+    official_2026_admission_plan: '2026 官方招生计划未发布/未导入',
+    official_2026_score_or_rank: '2026 官方分数位次未发布/未导入',
+    formal_recommend_candidate_pool: '正式推荐候选池未达到开放条件',
+    hi_score_rank_3plus3_official_source: '海南 3+3 一分一段官方源仍需补齐',
+    yn_2025_new_gaokao_ocr_reviewed_source: '云南 2025 新高考结构化源仍在 OCR/人工复核',
+    ha_official_core_gaokao_source: '河南普通高考核心官方源仍待补齐',
+  }
+  return labels[key] || key
+}
+
+const strategyMissingItems = computed(() => {
+  const diagnosis = volunteerStore.planMeta.diagnosis || {}
+  const missing = diagnosis.missingData
+  return Array.isArray(missing) ? missing.map(item => missingDataText(String(item))) : []
+})
+
+const strategyReason = computed(() => publicFacingText(
+  volunteerStore.planMeta.supportReason ||
+  (volunteerStore.planMeta.diagnosis?.supportReason as string | undefined) ||
+  volunteerStore.dataQualityWarning ||
+  '当前批次仅开放策略建议和数据缺口说明。',
+))
+
+const strategyCards = computed(() => [
+  {
+    title: '当前批次规则',
+    text: `${planProvinceName.value}当前仍处于官方数据待发布阶段，系统保留批次入口并按省份规则解释，不跨省回退。`,
+  },
+  {
+    title: '数据缺口',
+    text: strategyMissingItems.value.length ? strategyMissingItems.value.join('；') : strategyReason.value,
+  },
+  {
+    title: '当前可做',
+    text: '可先查看院校、分数线、特长生专区和政策状态；待官方源补齐后再升级为更完整的历史估算或正式数据查询。',
+  },
+])
+
+function scoreRankText(record?: Pick<HistoryRecord, 'minScore' | 'minRank'>) {
+  if (!record || (!record.minScore && !record.minRank)) return '--'
+  const score = record.minScore ? `${record.minScore}分` : '--'
+  const rank = record.minRank ? `${record.minRank.toLocaleString()}位` : '--'
+  return `${score} / ${rank}`
+}
+
+function historyByYear(item: VolunteerItem, year: number) {
+  return (item.historyRecords || []).find(record => record.year === year)
+}
+
+function displayValue(value?: string | number | null) {
+  if (value === undefined || value === null || value === '') return '--'
+  if (typeof value === 'number') return value > 0 ? value.toLocaleString() : '--'
+  return value
+}
+
+function probabilityText(item: VolunteerItem) {
+  if (typeof item.chanceScore === 'number' && item.chanceScore > 0) return `${Math.round(item.chanceScore)}%`
+  if (item.referenceFitLevel) return item.referenceFitLevel
+  return '参考不足'
+}
+
+function sourceStatusText(item: VolunteerItem) {
+  return item.sourceStatus || item.confidenceLabel || item.dataSourceType || '待复核'
+}
+
+function majorCodeText(item: VolunteerItem) {
+  if (item.majorCode) return item.majorCode
+  if (item.sourceMajorId) return `源ID ${item.sourceMajorId}`
+  return '--'
+}
+
+function rowMissingReason(item: VolunteerItem) {
+  const reasons = new Set<string>()
+  if (item.missingReason) item.missingReason.split(/[；;]/).forEach(reason => reason && reasons.add(reason.trim()))
+  if (!item.majorCode && !item.sourceMajorId && !isProfessionalGroupPlan.value) reasons.add('缺官方结构化专业代码')
+  if (!item.duration) reasons.add('缺学制')
+  if (!item.tuition) reasons.add('缺学费')
+  if (!item.latestPlanCount && !item.planCount) reasons.add('缺招生人数')
+  return Array.from(reasons).filter(Boolean).join('；') || '字段来源已结构化'
+}
+
+function groupMajorSummary(item: VolunteerItem) {
+  const majors = item.professionalMajors || []
+  if (majors.length) return majors.slice(0, 3).map(major => major.majorName).filter(Boolean).join('、')
+  return (item.groupMajors || []).slice(0, 3).join('、') || item.majorName
+}
+
+function professionalDetailTitle() {
+  return isProfessionalGroupPlan.value ? '院校专业组明细' : '专业明细与来源'
+}
+
 const filteredItems = computed(() => {
-  if (activeTab.value === 'all') return modeItems.value
-  return modeItems.value.filter(item => item.gradient === activeTab.value)
+  const keyword = schoolSearch.value.trim().toLowerCase()
+  let items = activeTab.value === 'all'
+    ? modeItems.value
+    : modeItems.value.filter(item => item.gradient === activeTab.value)
+  if (keyword) {
+    items = items.filter(item => [
+      item.universityName,
+      item.schoolCode,
+      item.schoolId,
+      item.groupCode,
+      item.majorCode,
+      item.sourceMajorId,
+      item.majorName,
+      ...(item.groupMajors || []),
+      ...((item.professionalMajors || []).map(major => `${major.majorCode || ''} ${major.majorName || ''}`)),
+    ].join(' ').toLowerCase().includes(keyword))
+  }
+  if (probabilitySort.value !== 'default') {
+    items = [...items].sort((a, b) => {
+      const diff = (a.chanceScore || 0) - (b.chanceScore || 0)
+      return probabilitySort.value === 'desc' ? -diff : diff
+    })
+  }
+  return items
+})
+
+const professionalGapSummary = computed(() => {
+  const reasons = new Map<string, number>()
+  modeItems.value.forEach(item => {
+    rowMissingReason(item).split(/[；;]/).forEach(reason => {
+      const text = reason.trim()
+      if (!text || text === '字段来源已结构化') return
+      reasons.set(text, (reasons.get(text) || 0) + 1)
+    })
+  })
+  return Array.from(reasons.entries()).map(([label, count]) => ({ label, count })).slice(0, 5)
 })
 
 watch([activeTab, activeMode], () => {
@@ -257,44 +353,26 @@ onMounted(async () => {
   if (!volunteerStore.planItems.length) {
     await restorePlan()
   }
-  if (!volunteerStore.planItems.length) {
+  if (!volunteerStore.planItems.length && !isStrategyAdvicePlan.value) {
     showToast('暂无志愿数据，请重新生成方案')
     router.push('/volunteer')
   }
 })
 
 async function restorePlan() {
-  const saved = volunteerStore.getSavedPlanMeta()
-  const planId = Number(route.query.planId || saved?.planId)
-  if (!planId) return
-  let safetyCode = String(route.query.safetyCode || route.query.accessKey || saved?.safetyCode || saved?.accessKey || '')
-  if (!safetyCode && authStore.isAuthenticated) {
-    try {
-      const detailRes = await fetchMyPlanDetail(planId)
-      const detail = detailRes.data.data as VolunteerPlan
-      if (detail.items?.length) {
-        const formData = formDataFromPlan(detail)
-        volunteerStore.setPlanFromResponse(detail)
-        volunteerStore.setFormData(formData)
-        activeMode.value = formData.strategyMode
-        return
-      }
-      safetyCode = detail.safetyCode || detail.accessKey || ''
-    } catch {
-      safetyCode = ''
-    }
-  }
-  if (!safetyCode) return
+  const planId = Number(route.query.planId || volunteerStore.getSavedPlanMeta()?.planId)
+  const accessKey = String(route.query.accessKey || volunteerStore.getSavedPlanMeta()?.accessKey || '')
+  if (!planId || !accessKey) return
   restoring.value = true
   try {
-    const res = await fetchVolunteerPlan(planId, safetyCode)
+    const res = await fetchVolunteerPlan(planId, accessKey)
     const plan = res.data.data
     const formData = formDataFromPlan(plan)
     volunteerStore.setPlanFromResponse(plan)
     volunteerStore.setFormData(formData)
     activeMode.value = formData.strategyMode
-    if (route.query.safetyCode || route.query.accessKey) {
-      router.replace({ path: route.path, query: { ...route.query, safetyCode: undefined, accessKey: undefined } })
+    if (route.query.accessKey) {
+      router.replace({ path: route.path, query: { ...route.query, accessKey: undefined } })
     }
   } catch {
     volunteerStore.clearPlan()
@@ -438,12 +516,123 @@ function openUniversity(item: { schoolId?: string | null }) {
   if (!item.schoolId) return
   router.push({
     path: `/university/${item.schoolId}`,
-    query: { schoolId: item.schoolId },
+    query: { schoolId: item.schoolId, provinceCode: planProvinceCode.value },
   })
 }
 
 async function loadXlsx() {
   return await import('xlsx')
+}
+
+type ProfessionalExportRow = Record<string, string | number | boolean>
+
+const PROFESSIONAL_EXPORT_HEADERS = [
+  'riskTier',
+  'admissionProbability',
+  'volunteerIndex',
+  'schoolCode',
+  'schoolName',
+  'majorGroupCode',
+  'majorCode',
+  'majorName',
+  'majorDescription',
+  'minScore2025',
+  'minRank2025',
+  'minScore2024',
+  'minRank2024',
+  'minScore2023',
+  'minRank2023',
+  'duration',
+  'tuition',
+  'planCount',
+  'locked',
+  'sourceYear',
+  'sourceStatus',
+  'missingReason',
+  'manualReviewRequired',
+]
+
+function professionalFieldValue(value?: string | number | boolean | null) {
+  if (value === undefined || value === null || value === '') return '--'
+  if (typeof value === 'number') return value > 0 ? value : '--'
+  return value
+}
+
+function firstProfessionalMajor(item: VolunteerItem) {
+  return item.professionalMajors?.find(major => major.majorCode || major.majorName) || null
+}
+
+function professionalMajorName(item: VolunteerItem) {
+  if (isProfessionalGroupPlan.value) return groupMajorSummary(item) || item.majorName
+  return item.majorName
+}
+
+function professionalMajorCode(item: VolunteerItem) {
+  if (item.majorCode) return item.majorCode
+  const major = firstProfessionalMajor(item)
+  if (major?.majorCode) return major.majorCode
+  if (item.sourceMajorId) return `source:${item.sourceMajorId}`
+  return '--'
+}
+
+function professionalMajorDescription(item: VolunteerItem) {
+  const major = firstProfessionalMajor(item)
+  return item.majorDescription || item.resubjectRequirement || major?.majorDescription || major?.resubjectRequirement || rowMissingReason(item)
+}
+
+function professionalDuration(item: VolunteerItem) {
+  return item.duration || firstProfessionalMajor(item)?.duration || '--'
+}
+
+function professionalTuition(item: VolunteerItem) {
+  return item.tuition || firstProfessionalMajor(item)?.tuition || '--'
+}
+
+function professionalPlanCount(item: VolunteerItem) {
+  return item.latestPlanCount || item.planCount || firstProfessionalMajor(item)?.planCount || '--'
+}
+
+function professionalHistoryValue(item: VolunteerItem, year: number, key: 'minScore' | 'minRank') {
+  const record = historyByYear(item, year)
+  return professionalFieldValue(record?.[key])
+}
+
+function professionalExportRows(items = modeItems.value): ProfessionalExportRow[] {
+  return items.map(item => ({
+    riskTier: item.gradient,
+    admissionProbability: probabilityText(item),
+    volunteerIndex: item.index,
+    schoolCode: professionalFieldValue(item.schoolCode || item.schoolId),
+    schoolName: item.universityName,
+    majorGroupCode: professionalFieldValue(item.groupCode),
+    majorCode: professionalMajorCode(item),
+    majorName: professionalMajorName(item),
+    majorDescription: professionalMajorDescription(item),
+    minScore2025: professionalHistoryValue(item, 2025, 'minScore'),
+    minRank2025: professionalHistoryValue(item, 2025, 'minRank'),
+    minScore2024: professionalHistoryValue(item, 2024, 'minScore'),
+    minRank2024: professionalHistoryValue(item, 2024, 'minRank'),
+    minScore2023: professionalHistoryValue(item, 2023, 'minScore'),
+    minRank2023: professionalHistoryValue(item, 2023, 'minRank'),
+    duration: professionalDuration(item),
+    tuition: professionalTuition(item),
+    planCount: professionalPlanCount(item),
+    locked: item.locked ? '是' : '否',
+    sourceYear: professionalFieldValue(item.sourceYear || item.referenceYear),
+    sourceStatus: sourceStatusText(item),
+    missingReason: rowMissingReason(item),
+    manualReviewRequired: item.needsManualReview ? '是' : '否',
+  }))
+}
+
+function professionalExportFileStem() {
+  const form = volunteerStore.formData
+  return `${planProvinceName.value}高考专业志愿表_${activeMode.value}_${form.totalScore}分_${form.provinceRank}位`
+}
+
+function csvEscape(value: string | number | boolean) {
+  const text = String(value ?? '')
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 
 async function exportExcel() {
@@ -454,61 +643,14 @@ async function exportExcel() {
       showToast('暂无志愿数据可导出')
       return
     }
-    const form = volunteerStore.formData
-    const profileLine = [
-      `${form.strategyMode}`,
-      `${form.decisionPriority}`,
-      `${form.careerGoal}`,
-      `${form.tuitionBudget}`,
-      form.acceptPrivate ? '接受民办' : '只看公办',
-      form.acceptSinoForeign ? '接受合作办学' : '排除合作办学',
-    ].join(' | ')
-
-    const rows = [
-      [`${planProvinceName.value}高考${planUnitLabel.value}方案（决策版）`],
-      [`考生信息：总分 ${form.totalScore} 分 | 全省位次 ${form.provinceRank} | 首选 ${form.firstSubject} | 再选 ${form.resubjects.join('、')}`],
-      [`决策偏好：${profileLine}`],
-      [],
-      ['序号', '梯度', '院校', isProfessionalGroupPlan.value ? '院校专业组/组内专业' : '专业', '地区', '参考位次', '位次差', '计划数', '计划趋势', '扩招指数', '招生指数', '精度分', '推荐分', '参考匹配', '数据参考度', '机会指数', '风险等级', '数据层级', '算法解释', '风险提醒'],
-      ...items.map(item => [
-        item.index,
-        item.gradient,
-        item.universityName,
-        isProfessionalGroupPlan.value ? `${displayUnitName(item)}\n${(item.groupMajors || []).join('、') || '-'}` : item.majorName,
-        [item.province, item.city].filter(Boolean).join(' / ') || '-',
-        item.historyMinRank || '-',
-        typeof item.rankGap === 'number' ? item.rankGap : '-',
-        item.latestPlanCount || '-',
-        item.planTrend || '-',
-        item.planExpansionIndex || '-',
-        item.schoolEnrollmentIndex || '-',
-        item.precisionScore || '-',
-        item.recommendationScore || '-',
-        referenceFitText(item),
-        confidenceText(item),
-        item.chanceScore || '-',
-        item.riskLevel || '-',
-        item.dataSourceType || '-',
-        item.algorithmExplanation || item.recommendReason || '-',
-        item.riskReason || '-',
-      ]),
-    ]
+    const rows = [PROFESSIONAL_EXPORT_HEADERS, ...professionalExportRows(items).map(row => PROFESSIONAL_EXPORT_HEADERS.map(key => row[key]))]
 
     const ws = XLSX.utils.aoa_to_sheet(rows)
-    ws['!cols'] = [
-      { wch: 8 }, { wch: 6 }, { wch: 22 }, { wch: 24 }, { wch: 16 },
-      { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-      { wch: 48 }, { wch: 36 },
-    ]
-    ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } },
-      { s: { r: 2, c: 0 }, e: { r: 2, c: 12 } },
-    ]
+    ws['!cols'] = PROFESSIONAL_EXPORT_HEADERS.map(key => ({ wch: ['majorDescription', 'missingReason'].includes(key) ? 42 : 16 }))
 
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, activeMode.value)
-    const fileName = `${planProvinceName.value}高考${planUnitLabel.value}方案_${activeMode.value}_${form.totalScore}分_${form.provinceRank}位.xlsx`
+    XLSX.utils.book_append_sheet(wb, ws, 'professional_table')
+    const fileName = `${professionalExportFileStem()}.xlsx`
     const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
     const file = new File([wbout], fileName, {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -540,6 +682,49 @@ async function exportExcel() {
     console.error(error)
     showToast('导出失败，请稍后重试')
   }
+}
+
+function exportCsv() {
+  const items = modeItems.value
+  if (!items.length) {
+    showToast('暂无志愿数据可导出')
+    return
+  }
+  const lines = [
+    PROFESSIONAL_EXPORT_HEADERS.map(csvEscape).join(','),
+    ...professionalExportRows(items).map(row => PROFESSIONAL_EXPORT_HEADERS.map(key => csvEscape(row[key])).join(',')),
+  ]
+  const file = new File([`\ufeff${lines.join('\n')}`], `${professionalExportFileStem()}.csv`, { type: 'text/csv;charset=utf-8' })
+  fallbackDownload(file, file.name)
+}
+
+async function copyPlanSummary() {
+  const form = volunteerStore.formData
+  const metrics = volunteerStore.planMetrics
+  const sourceYears = volunteerStore.planMeta.dataSourceYears?.length ? volunteerStore.planMeta.dataSourceYears.join('/') : '2024/2025 历史数据'
+  const batchName = volunteerStore.policy?.batchName || volunteerStore.policy?.batchCode || '当前批次'
+  const lines = [
+    `${planProvinceName.value}高考${isStrategyAdvicePlan.value ? '策略建议' : '专业志愿表'}方案`,
+    `省份：${planProvinceName.value}`,
+    `分数：${form.totalScore || '--'} 分`,
+    `位次：${form.provinceRank ? form.provinceRank.toLocaleString() : '--'}`,
+    `批次：${batchName}`,
+    `生成类型：${isStrategyAdvicePlan.value ? '策略建议' : '历史估算'}`,
+    `数据来源年份：${sourceYears}`,
+    `志愿数量：${modeItems.value.length}`,
+    `冲稳保数量：冲 ${metrics?.chongCount ?? tabs.value.find(tab => tab.key === '冲')?.count ?? 0} / 稳 ${metrics?.wenCount ?? tabs.value.find(tab => tab.key === '稳')?.count ?? 0} / 保 ${metrics?.baoCount ?? tabs.value.find(tab => tab.key === '保')?.count ?? 0} / 垫 ${metrics?.dianCount ?? tabs.value.find(tab => tab.key === '垫')?.count ?? 0}`,
+    '提示：当前为官方数据待发布阶段，本方案基于历史数据估算，仅供辅助参考。',
+  ]
+  try {
+    await navigator.clipboard.writeText(lines.join('\n'))
+    showSuccessToast('方案摘要已复制')
+  } catch {
+    showToast('复制失败，请手动复制页面摘要')
+  }
+}
+
+function printAsPdf() {
+  window.print()
 }
 
 async function exportDecisionDraft() {
@@ -641,8 +826,11 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       <div class="header-inner">
         <button class="header-back" @click="router.back()"><ArrowLeft :size="20" /></button>
         <h1 class="header-title">{{ planTitle }}</h1>
-        <button class="header-btn" @click="exportExcel" title="导出 Excel">
+        <button v-if="!isStrategyAdvicePlan" class="header-btn" @click="exportExcel" title="导出 Excel">
           <FileSpreadsheet :size="18" />
+        </button>
+        <button v-if="!isStrategyAdvicePlan" class="header-btn" @click="copyPlanSummary" title="复制方案摘要">
+          <ClipboardCheck :size="18" />
         </button>
       </div>
     </header>
@@ -665,9 +853,6 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
         <ShieldAlert :size="16" />
         <span>{{ volunteerStore.referenceProbabilityNotice }}</span>
       </div>
-      <div v-if="volunteerStore.planSafetyCode" class="result-warning">
-        方案 ID：{{ volunteerStore.planId }}；安全码：{{ volunteerStore.planSafetyCode }}。请立即保存，后续跨设备查看、AI 解读和导出都需要它。
-      </div>
       <div class="hero-main">
         <div class="hero-metrics">
           <span class="hero-tag">{{ volunteerStore.formData.totalScore }}分</span>
@@ -688,7 +873,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
           <span class="profile-chip">{{ volunteerStore.formData.acceptSinoForeign ? '接受合作办学' : '排除合作办学' }}</span>
         </div>
       </div>
-      <div class="hero-side">
+      <div v-if="!isStrategyAdvicePlan" class="hero-side">
         <div class="metric-card">
           <div class="metric-label">较高匹配</div>
           <div class="metric-value">{{ summary.highFit }} 个</div>
@@ -708,7 +893,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </div>
     </section>
 
-    <section class="mode-switch">
+    <section v-if="!isStrategyAdvicePlan" class="mode-switch">
       <button
         v-for="mode in ['保守型', '均衡型', '冲刺型']"
         :key="mode"
@@ -720,7 +905,40 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </button>
     </section>
 
-    <section v-if="rangeSummary" class="algorithm-card">
+    <section v-if="isStrategyAdvicePlan" class="strategy-advice-card">
+      <div class="strategy-advice-card__head">
+        <span class="strategy-advice-card__badge">策略建议</span>
+        <div>
+          <h2>当前不生成院校志愿清单</h2>
+          <p>{{ strategyReason }}</p>
+        </div>
+      </div>
+      <div class="strategy-advice-grid">
+        <article v-for="card in strategyCards" :key="card.title">
+          <strong>{{ card.title }}</strong>
+          <p>{{ card.text }}</p>
+        </article>
+      </div>
+      <div class="strategy-action-row">
+        <button type="button" class="strategy-action" @click="router.push({ path: '/score-line', query: { provinceCode: planProvinceCode } })">查看分数线</button>
+        <button type="button" class="strategy-action" @click="router.push({ path: '/universities', query: { provinceCode: planProvinceCode } })">院校查询</button>
+        <button type="button" class="strategy-action" @click="router.push({ path: '/special-admissions', query: { provinceCode: planProvinceCode } })">特长生专区</button>
+      </div>
+      <details class="strategy-field-spec">
+        <summary>未来专业志愿表字段说明</summary>
+        <div class="strategy-field-grid">
+          <span>院校代码 / 专业组代码</span>
+          <span>专业代码 / 专业名称</span>
+          <span>2025/2024/2023 分数位次</span>
+          <span>学制 / 学费 / 招生人数</span>
+          <span>选科、语种、体检和单科限制</span>
+          <span>官方来源和人工复核状态</span>
+        </div>
+        <p>GX/HI/YN/HA 当前不生成院校清单；官方结构化计划、专业代码、组内专业和历年位次补齐后，才会升级为专业志愿表。</p>
+      </details>
+    </section>
+
+    <section v-if="rangeSummary && !isStrategyAdvicePlan" class="algorithm-card">
       <details class="algorithm-card__details" open>
         <summary>
           <span>本次生成逻辑</span>
@@ -743,27 +961,6 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
         <p v-if="volunteerStore.planMetrics?.portfolioSafetyNote" class="algorithm-card__note">
           {{ volunteerStore.planMetrics.portfolioSafetyLevel }}：{{ volunteerStore.planMetrics.portfolioSafetyNote }}
         </p>
-        <div v-if="recruitTypeRows.length" class="algorithm-recruit-breakdown">
-          <div class="algorithm-recruit-breakdown__title">
-            <strong>主列表招生类型分布</strong>
-            <span v-if="volunteerStore.planMetrics?.ruleViolationCount">
-              规则前置异常 {{ volunteerStore.planMetrics.ruleViolationCount }} 条
-            </span>
-          </div>
-          <ul class="algorithm-recruit-breakdown__list">
-            <li v-for="row in recruitTypeRows" :key="row.key" :class="{ 'is-warn': row.warn }">
-              <span>{{ row.label }}</span>
-              <strong>{{ row.count }}</strong>
-              <small>{{ row.percent }}</small>
-            </li>
-          </ul>
-        </div>
-        <p
-          v-if="metricsBaselineNote"
-          :class="['algorithm-card__note', { 'algorithm-card__note--warn': metricsBaselineWarn }]"
-        >
-          {{ metricsBaselineNote }}
-        </p>
         <div class="algorithm-range-grid">
           <div v-for="range in rangeSummaryRows" :key="range.gradient" class="algorithm-range-item">
             <span>{{ range.gradient }}</span>
@@ -779,7 +976,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </details>
     </section>
 
-    <section v-if="volunteerStore.advisorAdvice" class="advisor-card">
+    <section v-if="volunteerStore.advisorAdvice && !isStrategyAdvicePlan" class="advisor-card">
       <div class="advisor-card__head">
         <div>
           <span class="advisor-card__eyebrow">GitHub 张雪峰.skill · 公开策略参考</span>
@@ -903,7 +1100,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </button>
     </section>
 
-    <section class="digest-grid">
+    <section v-if="!isStrategyAdvicePlan" class="digest-grid">
       <div class="digest-card">
         <div class="digest-head">
           <Sparkles :size="16" />
@@ -936,213 +1133,180 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </div>
     </section>
 
-    <section class="tabs-bar">
-      <button
-        v-for="tab in tabs"
-        :key="tab.key"
-        class="tab-btn"
-        :class="{ active: activeTab === tab.key }"
-        @click="activeTab = tab.key"
-      >
-        {{ tab.label }}
-        <span class="tab-num">{{ tab.count }}</span>
-      </button>
-    </section>
-
-    <section class="compare-bar" :class="{ 'compare-bar--active': compareIds.length > 0 }">
-      <div class="compare-copy">
-        <div class="compare-title">院校对比</div>
-        <div class="compare-desc">已选 {{ compareIds.length }} 所学校，可快速横向比较平台、风险和适配度</div>
-      </div>
-      <button class="compare-btn" :disabled="compareIds.length < 2" @click="openCompare">
-        <SplitSquareVertical :size="16" />
-        去对比
-      </button>
-    </section>
-
-    <section class="plan-list">
-      <article
-        v-for="item in filteredItems"
-        :key="`${activeMode}-${item.index}-${item.schoolId}`"
-        :class="[
-          'plan-row',
-          'gz-card',
-          `plan-row--status-${statusOf(item)}`,
-          { 'plan-row--expanded': isExpanded(item) },
-        ]"
-      >
-        <div class="plan-row__summary" role="button" tabindex="0" @click="toggleDetail(item)" @keydown.enter="toggleDetail(item)" @keydown.space.prevent="toggleDetail(item)">
-          <div class="plan-row__header">
-            <div class="plan-row__rank" :style="{ color: gradientConfig[item.gradient].color, background: gradientConfig[item.gradient].bg }">
-              {{ item.index }}
-            </div>
-
-            <div class="plan-row__main">
-              <div class="plan-row__badges">
-                <span class="grad-badge" :style="{ color: gradientConfig[item.gradient].color, background: gradientConfig[item.gradient].bg }">{{ item.gradient }}</span>
-                <span v-if="item.matchTag" class="match-badge">{{ item.matchTag }}</span>
-                <span v-if="item.dataSourceType" class="source-badge">{{ item.dataSourceType }}</span>
-                <span v-if="item.confidenceLabel" class="confidence-badge" :class="confidenceTone(item.confidenceLabel)">{{ item.confidenceLabel }}</span>
-              </div>
-              <h3 class="plan-row__school">{{ item.universityName }}</h3>
-              <p class="plan-row__major">{{ displayUnitName(item) }}</p>
-              <div class="plan-row__meta">
-                <span><MapPin :size="13" /> {{ [item.province, item.city].filter(Boolean).join(' · ') || '地区待补充' }}</span>
-                <span v-if="item.schoolNature">{{ item.schoolNature }}</span>
-                <span v-for="tag in item.tags" :key="tag" class="meta-tag">{{ tag }}</span>
-              </div>
-            </div>
-
-            <div class="plan-row__aside" @click.stop @keydown.enter.stop>
-              <div>
-                <div class="plan-row__aside-prob plan-row__aside-fit">{{ referenceFitText(item) }}</div>
-                <div class="plan-row__aside-label">参考匹配</div>
-              </div>
-              <button class="compare-toggle" :class="{ active: compareIds.includes(item.schoolId || '') }" @click="toggleCompare(item.schoolId)">
-                {{ compareIds.includes(item.schoolId || '') ? '已加入对比' : '加入对比' }}
-              </button>
-            </div>
-          </div>
-
-          <div class="plan-row__quick">
-            <span><em>年份</em><strong>{{ item.referenceYear }}</strong></span>
-            <span><em>位次</em><strong>{{ item.historyMinRank?.toLocaleString() || '-' }}</strong></span>
-            <span><em>位次差</em><strong>{{ typeof item.rankGap === 'number' ? item.rankGap.toLocaleString() : '-' }}</strong></span>
-            <span><em>计划</em><strong>{{ item.latestPlanCount ? `${item.latestPlanCount}人` : '待核验' }}</strong></span>
-            <span><em>参考匹配</em><strong>{{ referenceFitText(item) }}</strong></span>
-            <span><em>置信度</em><strong>{{ confidenceText(item) }}</strong></span>
-            <span><em>计划趋势</em><strong>{{ item.planTrend || '待观察' }}</strong></span>
-            <span><em>扩招指数</em><strong>{{ indexText(item.planExpansionIndex) }}</strong></span>
-            <span><em>招生指数</em><strong>{{ indexText(item.schoolEnrollmentIndex, '分') }}</strong></span>
-            <span><em>精度</em><strong>{{ item.precisionScore ? `${item.precisionScore}分` : '待核验' }}</strong></span>
-            <span><em>顺位</em><strong>{{ item.index }}</strong></span>
-          </div>
-
-          <div class="plan-row__compact-footer">
-            <span class="fit-text">{{ item.suitableFor || '适合作为梯度中的功能位志愿，建议横向比较后排序。' }}</span>
-            <button class="detail-toggle" type="button" :aria-expanded="isExpanded(item)" @click.stop="toggleDetail(item)">
-              {{ isExpanded(item) ? '收起详情' : '查看详情' }}
-              <ChevronDown :size="15" :class="{ rotated: isExpanded(item) }" />
-            </button>
-          </div>
+    <section v-if="!isStrategyAdvicePlan" class="professional-table-panel">
+      <div class="professional-table-head">
+        <div>
+          <span class="professional-table-kicker">professional volunteer table</span>
+          <h2>志愿专业组方案明细</h2>
+          <p>默认展示全部 {{ filteredItems.length }} 条，字段缺失以“--”标记并在缺口列说明；当前仍为历史估算，不代表 2026 正式数据。</p>
         </div>
+        <div class="professional-table-actions">
+          <button type="button" class="professional-export-btn" @click="exportExcel">
+            <FileSpreadsheet :size="15" /> 导出 Excel
+          </button>
+          <button type="button" class="professional-export-btn" @click="exportCsv">
+            <Download :size="15" /> 导出 CSV
+          </button>
+          <button type="button" class="professional-export-btn" @click="copyPlanSummary">
+            <ClipboardCheck :size="15" /> 复制摘要
+          </button>
+          <button type="button" class="professional-export-btn" @click="printAsPdf">
+            <Download :size="15" /> 打印 / 保存为 PDF
+          </button>
+          <button type="button" class="professional-export-btn" @click="exportDecisionDraft">
+            <ClipboardCheck :size="15" /> 导出核验草稿
+          </button>
+        </div>
+      </div>
 
-        <transition name="detail-fade">
-          <div v-if="isExpanded(item)" class="plan-row__detail">
-            <div class="plan-row__insights">
-              <div class="reason-box">
-                <div class="reason-title"><ShieldCheck :size="14" /> 上榜原因</div>
-                <p>{{ item.recommendReason || '建议结合学校平台、专业方向和官方章程综合判断。' }}</p>
-              </div>
-              <div class="reason-box reason-box--warn">
-                <div class="reason-title"><AlertTriangle :size="14" /> 风险提醒</div>
-                <p>{{ item.riskReason || '当前项暂无明显异常，但仍需核对招生章程、学费和专业限制。' }}</p>
-              </div>
-              <div class="reason-box">
-                <div class="reason-title"><ArrowRight :size="14" /> 排列建议</div>
-                <p>{{ item.alternativeOption || '建议与同梯度院校对比后决定具体排序。' }}</p>
-              </div>
-              <div class="reason-box reason-box--info">
-                <div class="reason-title"><Info :size="14" /> 算法解释</div>
-                <p>
-                  {{ item.algorithmExplanation || `本条按${item.gradient}档区间、历史位次、数据层级、选科要求和偏好匹配排序；参考匹配为${referenceFitText(item)}，数据置信度为${confidenceText(item)}。` }}
-                </p>
-              </div>
-              <div class="reason-box reason-box--precision">
-                <div class="reason-title"><ShieldCheck :size="14" /> 精度信号</div>
-                <p>{{ item.precisionNote || `${item.precisionLabel || '精度待评估'}；扩招指数${indexText(item.planExpansionIndex)}，招生供给${indexText(item.schoolEnrollmentIndex, '分')}。` }}</p>
-              </div>
-            </div>
+      <div class="professional-gap-strip" v-if="professionalGapSummary.length">
+        <span class="professional-gap-title">字段缺口</span>
+        <span v-for="gap in professionalGapSummary" :key="gap.label" class="professional-gap-chip">{{ gap.label }} {{ gap.count }}</span>
+      </div>
 
-            <div class="history-card">
-              <div class="history-card__head">
-                <div>
-                  <h4>近三年录取记录</h4>
-                  <p>{{ item.rangeNote || '按本次梯度区间和历史投档数据筛选，请结合官方信息复核。' }}</p>
-                </div>
-                <span :class="['history-card__badge', item.dataSourceType === '院校级' ? 'history-card__badge--warn' : '']">
-                  {{ item.dataSourceType || '数据待补' }}
-                </span>
-              </div>
-              <div v-if="item.historyRecords && item.historyRecords.length" class="history-record-list">
-                <div v-for="record in item.historyRecords" :key="`${item.index}-${record.year}-${record.dataSourceType}`" class="history-record">
-                  <span class="history-record__year">{{ record.year || '-' }}</span>
-                  <span><em>最低分</em><strong>{{ record.minScore || '-' }}</strong></span>
-                  <span><em>最低位次</em><strong>{{ formatRank(record.minRank) }}</strong></span>
-                  <span><em>计划</em><strong>{{ record.planCount || '-' }}</strong></span>
-                  <span><em>批次</em><strong>{{ record.batch || '-' }}</strong></span>
-                  <span class="history-record__source">{{ record.dataSourceType || '需复核' }}</span>
-                  <span
-                    :class="['history-record__rank-source', rankSourceClass(record.rankSourceType)]"
-                    :title="record.rankSourceNote || rankSourceLabel(record.rankSourceType)"
-                  >
-                    {{ rankSourceLabel(record.rankSourceType) }}
-                  </span>
-                  <p v-if="record.rankSourceNote && record.rankSourceType !== 'original'" class="history-record__note">
-                    {{ record.rankSourceNote }}
-                  </p>
-                </div>
-              </div>
-              <div v-else class="history-empty">{{ historyFallbackText(item) }}</div>
-            </div>
+      <div class="professional-toolbar">
+        <div class="professional-tabs">
+          <button
+            v-for="tab in tabs"
+            :key="tab.key"
+            class="professional-tab"
+            :class="{ active: activeTab === tab.key }"
+            @click="activeTab = tab.key"
+          >
+            {{ tab.label }} <span>{{ tab.count }}</span>
+          </button>
+        </div>
+        <div class="professional-filters">
+          <input v-model="schoolSearch" type="search" placeholder="搜索院校 / 专业 / 代码" class="professional-search" />
+          <select v-model="probabilitySort" class="professional-select" aria-label="按录取参考值排序">
+            <option value="default">默认顺序</option>
+            <option value="desc">参考值从高到低</option>
+            <option value="asc">参考值从低到高</option>
+          </select>
+        </div>
+      </div>
 
-            <div v-if="isProfessionalGroupPlan" class="history-card">
-              <div class="history-card__head">
-                <div>
-                  <h4>组内专业与调剂提示</h4>
-                  <p>{{ planProvinceName }}院校专业组内最多填 6 个专业，并选择是否服从专业调剂；以下专业仅来自已导入公开来源，需按当年专业目录复核。</p>
-                </div>
-                <span class="history-card__badge">{{ item.obeyAdjustment ? '调剂需复核' : '未设置调剂' }}</span>
-              </div>
-              <div v-if="item.groupMajors && item.groupMajors.length" class="group-major-tags">
-                <span v-for="major in item.groupMajors" :key="`${item.index}-${major}`">{{ major }}</span>
-              </div>
-              <div v-else class="history-empty">该专业组的组内专业尚未结构化导入，必须查看官方专业目录。</div>
-            </div>
-
-            <div v-if="hasEvidence(item)" class="evidence-chain">
-              <div class="evidence-chain__head">
-                <ShieldAlert :size="13" />
-                <span>证据链 / 复核入口</span>
-              </div>
-              <div class="evidence-chain__links">
-                <SafeExternalLink v-if="safeUrl(item.admissionBrochureUrl)" :url="item.admissionBrochureUrl">
-                  <ExternalLink :size="12" /> 招生章程
-                </SafeExternalLink>
-                <SafeExternalLink v-if="safeUrl(item.majorCatalogUrl)" :url="item.majorCatalogUrl">
-                  <ExternalLink :size="12" /> 专业目录
-                </SafeExternalLink>
-                <SafeExternalLink v-if="safeUrl(item.tuitionInfoUrl)" :url="item.tuitionInfoUrl">
-                  <ExternalLink :size="12" /> 收费标准
-                </SafeExternalLink>
-                <SafeExternalLink v-if="safeUrl(item.requirementSourceUrl)" :url="item.requirementSourceUrl">
-                  <ExternalLink :size="12" /> 选科要求来源{{ item.requirementSourceYear ? `(${item.requirementSourceYear})` : '' }}
-                </SafeExternalLink>
-                <span v-if="item.needsManualReview" class="evidence-chain__flag">需复核</span>
-              </div>
-            </div>
-
-            <div class="plan-row__footer">
-              <div class="plan-row__footer-actions">
-                <button
-                  class="status-toggle"
-                  :class="`status-toggle--${statusOf(item)}`"
-                  type="button"
-                  @click="cycleStatus(item)"
-                >
-                  {{ STATUS_LABEL[statusOf(item)] }}
-                </button>
-                <button class="detail-link" @click="openUniversity(item)">查看院校详情</button>
-              </div>
-            </div>
-          </div>
-        </transition>
-      </article>
+      <div class="professional-table-scroll">
+        <table class="professional-table">
+          <thead>
+            <tr>
+              <th>冲稳保</th>
+              <th>录取参考值</th>
+              <th>志愿序号</th>
+              <th>院校代码</th>
+              <th class="col-school">院校名称</th>
+              <th>专业组代码</th>
+              <th>专业代码</th>
+              <th class="col-major">专业名称</th>
+              <th class="col-desc">专业简介 / 限制说明</th>
+              <th>2025最低分/排名</th>
+              <th>2024最低分/排名</th>
+              <th>2023最低分/排名</th>
+              <th>学制</th>
+              <th>学费</th>
+              <th>招生人数</th>
+              <th>是否锁定</th>
+              <th>来源状态</th>
+              <th>人工复核</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="item in filteredItems" :key="`${activeMode}-${item.index}-${item.schoolId}-${item.groupCode || item.majorName}`">
+              <tr :class="['professional-row', `professional-row--${item.gradient}`, { 'is-expanded': isExpanded(item) }]">
+                <td><span class="risk-tier" :style="{ color: gradientConfig[item.gradient].color, background: gradientConfig[item.gradient].bg }">{{ item.gradient }}</span></td>
+                <td><strong>{{ probabilityText(item) }}</strong><small>{{ item.chanceLevel || '历史估算' }}</small></td>
+                <td>{{ item.index }}</td>
+                <td>{{ displayValue(item.schoolCode || item.schoolId) }}</td>
+                <td class="col-school"><button type="button" class="table-school-link" @click="openUniversity(item)">{{ item.universityName }}</button><small>{{ [item.province, item.city].filter(Boolean).join(' · ') || '--' }}</small></td>
+                <td>{{ displayValue(item.groupCode) }}</td>
+                <td>{{ majorCodeText(item) }}</td>
+                <td class="col-major"><span>{{ isProfessionalGroupPlan ? groupMajorSummary(item) : item.majorName }}</span></td>
+                <td class="col-desc"><span :title="item.majorDescription || item.resubjectRequirement || rowMissingReason(item)">{{ item.majorDescription || item.resubjectRequirement || rowMissingReason(item) }}</span></td>
+                <td>{{ scoreRankText(historyByYear(item, 2025)) }}</td>
+                <td>{{ scoreRankText(historyByYear(item, 2024)) }}</td>
+                <td>{{ scoreRankText(historyByYear(item, 2023)) }}</td>
+                <td>{{ displayValue(item.duration) }}</td>
+                <td>{{ displayValue(item.tuition) }}</td>
+                <td>{{ displayValue(item.latestPlanCount || item.planCount) }}</td>
+                <td>{{ item.locked ? '是' : '否' }}</td>
+                <td><span class="source-status">{{ sourceStatusText(item) }}</span></td>
+                <td><span :class="['review-status', item.needsManualReview ? 'is-needed' : '']">{{ item.needsManualReview ? '需复核' : '常规复核' }}</span></td>
+                <td>
+                  <button type="button" class="table-detail-btn" @click="toggleDetail(item)">
+                    {{ isExpanded(item) ? '收起' : '展开' }}
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="isExpanded(item)" class="professional-detail-row">
+                <td colspan="19">
+                  <div class="professional-detail-grid">
+                    <section>
+                      <h3>{{ professionalDetailTitle() }}</h3>
+                      <div v-if="isProfessionalGroupPlan && item.professionalMajors?.length" class="major-detail-table-wrap">
+                        <table class="major-detail-table">
+                          <thead>
+                            <tr>
+                              <th>专业代码</th>
+                              <th>专业名称</th>
+                              <th>学制</th>
+                              <th>学费</th>
+                              <th>计划数</th>
+                              <th>限制说明</th>
+                              <th>来源</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr v-for="major in item.professionalMajors" :key="`${item.index}-${major.majorCode || major.majorName}`">
+                              <td>{{ displayValue(major.majorCode) }}</td>
+                              <td>{{ displayValue(major.majorName) }}</td>
+                              <td>{{ displayValue(major.duration) }}</td>
+                              <td>{{ displayValue(major.tuition) }}</td>
+                              <td>{{ displayValue(major.planCount) }}</td>
+                              <td>{{ major.majorDescription || major.resubjectRequirement || major.missingReason || '--' }}</td>
+                              <td>{{ major.sourceStatus || major.sourceName || '--' }}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <div v-else class="professional-detail-empty">{{ rowMissingReason(item) }}</div>
+                    </section>
+                    <section>
+                      <h3>近三年记录</h3>
+                      <div class="history-mini-grid">
+                        <span>2025 <strong>{{ scoreRankText(historyByYear(item, 2025)) }}</strong></span>
+                        <span>2024 <strong>{{ scoreRankText(historyByYear(item, 2024)) }}</strong></span>
+                        <span>2023 <strong>{{ scoreRankText(historyByYear(item, 2023)) }}</strong></span>
+                      </div>
+                      <p>{{ item.rangeNote || '按本次梯度区间和历史投档数据筛选，请结合官方信息复核。' }}</p>
+                    </section>
+                    <section>
+                      <h3>风险与操作</h3>
+                      <p>{{ item.riskReason || item.recommendReason || '请核对招生章程、专业目录、学费、选科、体检、语种和单科限制。' }}</p>
+                      <div class="professional-detail-actions">
+                        <button
+                          class="status-toggle"
+                          :class="`status-toggle--${statusOf(item)}`"
+                          type="button"
+                          @click="cycleStatus(item)"
+                        >
+                          {{ STATUS_LABEL[statusOf(item)] }}
+                        </button>
+                        <button class="detail-link" type="button" @click="openUniversity(item)">查看院校详情</button>
+                      </div>
+                    </section>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <RecommendSection />
 
-    <div class="bottom-actions">
+    <div v-if="!isStrategyAdvicePlan" class="bottom-actions">
       <button class="action-btn action-btn--secondary" @click="goAi">
         AI 深度解读
         <ArrowRight :size="16" />
@@ -1150,6 +1314,14 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       <button class="action-btn action-btn--secondary" @click="exportDecisionDraft">
         <ClipboardCheck :size="16" />
         导出草稿
+      </button>
+      <button class="action-btn action-btn--secondary" @click="exportCsv">
+        <Download :size="16" />
+        导出 CSV
+      </button>
+      <button class="action-btn action-btn--secondary" @click="copyPlanSummary">
+        <ClipboardCheck :size="16" />
+        复制摘要
       </button>
       <button class="action-btn action-btn--primary" @click="exportExcel">
         <Download :size="16" />
@@ -1348,6 +1520,458 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   border-color: #0f172a;
 }
 
+.strategy-advice-card {
+  max-width: 1200px;
+  margin: 14px auto 0;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.05);
+}
+
+.strategy-advice-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.strategy-advice-card__badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.strategy-advice-card h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.25;
+  color: #0f172a;
+}
+
+.strategy-advice-card p {
+  margin-top: 8px;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.strategy-advice-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.strategy-advice-grid article {
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.strategy-advice-grid strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.strategy-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.strategy-action {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.strategy-field-spec {
+  margin-top: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #f8fbff;
+  padding: 12px 14px;
+}
+
+.strategy-field-spec summary {
+  cursor: pointer;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.strategy-field-grid {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.strategy-field-grid span {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.professional-table-panel {
+  max-width: 1360px;
+  margin: 18px auto 0;
+  padding: 0 16px;
+}
+
+.professional-table-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px 14px 0 0;
+  background: #fff;
+}
+
+.professional-table-kicker {
+  display: inline-flex;
+  margin-bottom: 5px;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.professional-table-head h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.professional-table-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.professional-table-actions,
+.professional-filters,
+.professional-tabs,
+.professional-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.professional-export-btn,
+.professional-tab,
+.table-detail-btn {
+  min-height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.professional-export-btn {
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.professional-gap-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-left: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  background: #fff7ed;
+}
+
+.professional-gap-title,
+.professional-gap-chip,
+.source-status,
+.review-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.professional-gap-title {
+  background: #fed7aa;
+  color: #9a3412;
+}
+
+.professional-gap-chip {
+  background: #fff;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+}
+
+.professional-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-left: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.professional-tab {
+  padding: 0 11px;
+}
+
+.professional-tab.active {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #fff;
+}
+
+.professional-tab span {
+  margin-left: 4px;
+  opacity: 0.72;
+}
+
+.professional-search,
+.professional-select {
+  height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.professional-search {
+  width: 220px;
+  padding: 0 10px;
+}
+
+.professional-select {
+  padding: 0 8px;
+}
+
+.professional-table-scroll {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 0 0 14px 14px;
+  background: #fff;
+}
+
+.professional-table {
+  width: 100%;
+  min-width: 1720px;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.professional-table th,
+.professional-table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 9px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.professional-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.professional-row td {
+  background: #fff;
+}
+
+.professional-row:hover td {
+  background: #f8fbff;
+}
+
+.professional-row strong,
+.professional-row small,
+.table-school-link,
+.col-school small {
+  display: block;
+}
+
+.professional-row small,
+.col-school small {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.risk-tier {
+  min-width: 30px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+.col-school { width: 170px; }
+.col-major { width: 220px; }
+.col-desc { width: 240px; }
+
+.col-major span,
+.col-desc span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.45;
+}
+
+.table-school-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.source-status {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.review-status {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.review-status.is-needed {
+  background: #fff7ed;
+  color: #b45309;
+}
+
+.table-detail-btn {
+  padding: 0 10px;
+  color: #2563eb;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.professional-detail-row td {
+  padding: 0;
+  background: #f8fafc;
+}
+
+.professional-detail-grid {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.professional-detail-grid section {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+
+.professional-detail-grid h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.professional-detail-grid p,
+.professional-detail-empty {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.major-detail-table-wrap {
+  overflow-x: auto;
+}
+
+.major-detail-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.major-detail-table th,
+.major-detail-table td {
+  border: 1px solid #e2e8f0;
+  padding: 7px 8px;
+  text-align: left;
+}
+
+.major-detail-table th {
+  background: #f8fafc;
+  color: #475569;
+}
+
+.history-mini-grid {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.history-mini-grid span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.history-mini-grid strong {
+  color: #0f172a;
+}
+
 .algorithm-card {
   padding-top: 12px;
 }
@@ -1395,74 +2019,6 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   border-radius: 12px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-}
-
-.algorithm-card__note--warn {
-  background: #fff7ed;
-  border-color: #fed7aa;
-  color: #c2410c;
-}
-
-.algorithm-recruit-breakdown {
-  margin-top: 10px;
-  padding: 10px;
-  border-radius: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.algorithm-recruit-breakdown__title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: 13px;
-}
-
-.algorithm-recruit-breakdown__title span {
-  color: #c2410c;
-  font-size: 12px;
-}
-
-.algorithm-recruit-breakdown__list {
-  list-style: none;
-  margin: 6px 0 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.algorithm-recruit-breakdown__list li {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  font-size: 12px;
-  color: #475569;
-}
-
-.algorithm-recruit-breakdown__list li.is-warn {
-  background: #fff1f2;
-  border-color: #fecaca;
-  color: #b91c1c;
-}
-
-.algorithm-recruit-breakdown__list li strong {
-  color: #0f172a;
-  font-size: 13px;
-}
-
-.algorithm-recruit-breakdown__list li.is-warn strong {
-  color: #b91c1c;
-}
-
-.algorithm-recruit-breakdown__list li small {
-  color: #94a3b8;
 }
 
 .algorithm-metrics {

@@ -1,72 +1,17 @@
 import request from './request'
 import type {
   AdminAiConfig,
-  AdminCreateImportJobRequest,
-  AdminDataYearReadiness,
   AdminEncouragementMessageListData,
   AdminAiModelListResult,
   AdminAiConfigTestResult,
-  AdminImportJob,
-  AdminImportJobDetail,
   AdminOfficialLinkListData,
   Announcement,
-  PageResult,
   Result,
   SaveAdminAiConfigRequest,
 } from '@/types'
 
 export function fetchAdminStats() {
   return request.get('/admin/stats')
-}
-
-export function createAdminImportJob(data: AdminCreateImportJobRequest) {
-  return request.post<Result<AdminImportJob>>('/admin/import-jobs', data)
-}
-
-export function fetchAdminImportJobs(params: {
-  provinceCode?: string
-  year?: number
-  dataType?: string
-  status?: string
-  page?: number
-  pageSize?: number
-} = {}) {
-  return request.get<Result<PageResult<AdminImportJob>>>('/admin/import-jobs', {
-    params: {
-      provinceCode: params.provinceCode || 'GZ',
-      year: params.year || 2026,
-      dataType: params.dataType || undefined,
-      status: params.status || undefined,
-      page: params.page || 1,
-      pageSize: params.pageSize || 20,
-    },
-  })
-}
-
-export function fetchAdminImportJobDetail(jobId: string) {
-  return request.get<Result<AdminImportJobDetail>>(`/admin/import-jobs/${jobId}`)
-}
-
-export function runAdminImportJobStaging(jobId: string) {
-  return request.post<Result<AdminImportJob>>(`/admin/import-jobs/${jobId}/staging`)
-}
-
-export function runAdminImportJobQualityCheck(jobId: string) {
-  return request.post<Result<AdminImportJob>>(`/admin/import-jobs/${jobId}/quality-check`)
-}
-
-export function generateAdminImportJobFormalSql(jobId: string) {
-  return request.post<Result<AdminImportJob>>(`/admin/import-jobs/${jobId}/generate-formal-sql`)
-}
-
-export function generateAdminImportJobRollbackPlan(jobId: string) {
-  return request.post<Result<AdminImportJob>>(`/admin/import-jobs/${jobId}/rollback-plan`)
-}
-
-export function fetchAdminDataYearReadiness(provinceCode = 'GZ', year = 2026) {
-  return request.get<Result<AdminDataYearReadiness>>('/admin/data-year-readiness', {
-    params: { provinceCode, year },
-  })
 }
 
 export function fetchAdminAiConfig() {
@@ -178,4 +123,48 @@ export function fetchAdminEncouragementMessages(page = 1, size = 20, status?: nu
 
 export function deleteAdminEncouragementMessage(id: number) {
   return request.delete<Result<string>>(`/admin/encouragement-messages/${id}`)
+}
+
+export interface AdminImportJob {
+  id: number
+  provinceCode: string
+  year: number
+  batchCode?: string
+  subjectType?: string
+  importType?: string
+  sourceType?: string
+  status: string
+  sourceDir?: string
+  outputDir?: string
+  createdBy?: string
+  createdAt?: string
+  updatedAt?: string
+  files?: Array<Record<string, unknown>>
+  gates?: Array<Record<string, unknown>>
+  artifacts?: Array<Record<string, unknown>>
+  readiness?: Record<string, unknown>
+  phaseGates?: Array<Record<string, unknown>>
+  formalPromoteAllowed?: boolean
+  fullRecommendSwitchAllowed?: boolean
+  guardrail?: string
+}
+
+export function fetchAdminImportJobs(params: { provinceCode?: string; year?: number; status?: string; limit?: number } = {}) {
+  return request.get<Result<AdminImportJob[]>>('/admin/import-jobs', { params })
+}
+
+export function createAdminImportJob(data: Partial<AdminImportJob>) {
+  return request.post<Result<AdminImportJob>>('/admin/import-jobs', data)
+}
+
+export function fetchAdminImportJob(jobId: number) {
+  return request.get<Result<AdminImportJob>>(`/admin/import-jobs/${jobId}`)
+}
+
+export function registerAdminImportJobFile(jobId: number, data: { filePath: string; fileName?: string; fileType?: string; sourceUrl?: string }) {
+  return request.post<Result<AdminImportJob>>(`/admin/import-jobs/${jobId}/files`, data)
+}
+
+export function runAdminImportJobAction(jobId: number, action: 'staging-dry-run' | 'quality-gate' | 'generate-formal-sql' | 'rollback-plan' | 'post-check') {
+  return request.post<Result<AdminImportJob>>(`/admin/import-jobs/${jobId}/${action}`)
 }

@@ -1,7 +1,5 @@
 package com.gzly.controller;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.gzly.common.Result;
@@ -42,7 +40,6 @@ public class MePlanController {
     private final SkillsQueryLogMapper skillsQueryLogMapper;
     private final VolunteerService volunteerService;
     private final JwtUtil jwtUtil;
-    private final ObjectMapper objectMapper;
 
     @GetMapping
     public Result<Map<String, Object>> list(@RequestParam(defaultValue = "1") int page,
@@ -71,11 +68,8 @@ public class MePlanController {
         PlanHistory row = requirePlan(id, userId);
 
         Map<String, Object> body = new LinkedHashMap<>();
-        VolunteerService.PlanResult plan = volunteerService.getPlanResultForInternal(row.getId());
-        if (plan != null) {
-            body.putAll(objectMapper.convertValue(plan, new TypeReference<Map<String, Object>>() {}));
-        }
         body.put("id", row.getId());
+        body.put("accessRequired", false);
         body.put("provinceCode", row.getProvinceCode());
         body.put("targetBatch", row.getTargetBatch());
         body.put("totalScore", row.getTotalScore());
@@ -120,7 +114,7 @@ public class MePlanController {
                                              HttpServletRequest httpReq) {
         Long userId = requireUserId(httpReq);
         Long planId = req == null ? null : req.getPlanId();
-        String accessKey = req == null ? null : firstNonBlank(req.getSafetyCode(), req.getAccessKey());
+        String accessKey = req == null ? null : req.getAccessKey();
         if (planId == null || planId <= 0) throw new BizException("方案 id 不能为空");
         if (accessKey == null || accessKey.isBlank()) throw new BizException("访问密钥不能为空");
         if (!volunteerService.isValidPlanAccessKey(planId, accessKey.trim())) {
@@ -200,18 +194,7 @@ public class MePlanController {
     @lombok.Data
     public static class ClaimRequest {
         private Long planId;
-        private String safetyCode;
         private String accessKey;
-    }
-
-    private String firstNonBlank(String... values) {
-        if (values == null) return "";
-        for (String value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return "";
     }
 
     private Long requireUserId(HttpServletRequest httpReq) {

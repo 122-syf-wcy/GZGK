@@ -4,14 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gzly.algorithm.CandidateFilterEngine;
-import com.gzly.algorithm.FallbackRulePredictionEngine;
-import com.gzly.algorithm.FeatureBuildEngine;
 import com.gzly.algorithm.PortfolioMonteCarloSimulator;
 import com.gzly.algorithm.ProbabilityCalibration;
 import com.gzly.algorithm.RecruitTypeClassifier;
-import com.gzly.algorithm.VolunteerDiagnosisEngine;
-import com.gzly.algorithm.VolunteerSortEngine;
 import com.gzly.common.ComplianceConstants;
 import com.gzly.common.exception.BizException;
 import com.gzly.entity.BizUser;
@@ -61,16 +56,8 @@ public class VolunteerService {
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate stringRedisTemplate;
     private final VolunteerMetricsRecorder metricsRecorder;
-    private final SafetyCodeService safetyCodeService;
     private final ProvincePolicyService provincePolicyService;
     private final ProvinceRankService provinceRankService;
-    /** ── 主链路接入的算法引擎（按计划接入 generate / pickGradient / enrichWithAlgorithms /
-     *     applyPlanOrdering / generate 末尾产出 diagnosis）。 */
-    private final CandidateFilterEngine candidateFilterEngine;
-    private final FeatureBuildEngine featureBuildEngine;
-    private final FallbackRulePredictionEngine fallbackRulePredictionEngine;
-    private final VolunteerSortEngine volunteerSortEngine;
-    private final VolunteerDiagnosisEngine volunteerDiagnosisEngine;
 
     @Value("${gzly.stability.generate-cache-seconds:120}")
     private long generateCacheSeconds;
@@ -78,6 +65,8 @@ public class VolunteerService {
     private long generateLockSeconds;
     @Value("${gzly.stability.generate-wait-millis:4000}")
     private long generateWaitMillis;
+    @Value("${gzly.jwt.secret}")
+    private String jwtSecret;
 
     // 梯度配置：按报告建议的“冲/稳/保/兜底”比例折算为贵州本科批 96 志愿。
     private static final int TOTAL_COUNT = 96;
@@ -100,11 +89,27 @@ public class VolunteerService {
         private String volunteerUnitLabel;
         private String universityName;
         private String schoolId;
+        /** 用户侧展示的院校代码/院校ID，来自当前数据源中的 school_id。 */
+        private String schoolCode;
         private String groupCode;
         private String groupName;
         private List<String> groupMajors;
+        /** 院校专业组内结构化专业明细，来自 data_admission_group_plan。 */
+        private List<ProfessionalMajorDetail> professionalMajors;
         private Boolean obeyAdjustment;
+        /** 专业代码或历史源专业ID；没有真实来源时保持为空。 */
+        private String majorCode;
+        /** 原始历史录取源专业ID，避免把名称误当作代码。 */
+        private String sourceMajorId;
         private String majorName;
+        private String majorDescription;
+        private String duration;
+        private String tuition;
+        private Integer planCount;
+        private Boolean locked;
+        private String sourceYear;
+        private String sourceStatus;
+        private String missingReason;
         private String province;
         private String city;
         private List<String> tags;
@@ -140,16 +145,6 @@ public class VolunteerService {
         private double dataConfidence;    // 数据参考度 0-100
         private int predictedMinRank;     // 预测参考位次
         private int rankDiff;             // predictedMinRank - candidateRank
-        // ── FallbackRulePredictionEngine 输入特征（10 维位次特征的关键 3 项），WRITE_ONLY 不外露 ──
-        @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-        private double rankVolatility3y;  // 近三年位次波动系数
-        @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-        private double planChangeRate;    // 招生计划同比变化率（负数=缩招）
-        @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-        private double hotTrendScore;     // 专业热度趋势分（暂无数据源时为 0）
-        // ── CandidateFilterEngine 命中拒绝原因，主列表通常为空，仅审计/调试用 ──
-        @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-        private List<String> filterReasons;
         private String riskLevel;         // 低风险/中风险/高风险
         private String riskColor;         // green/yellow/red
         private int predictedRank;        // 预测下一年位次
@@ -213,6 +208,23 @@ public class VolunteerService {
          * 其它取值会在 PlanMetrics.recruitTypeBreakdown 中独立计数，便于报告口径下的回归与审计。</p>
          */
         private String recruitType;
+    }
+
+    @Data
+    public static class ProfessionalMajorDetail {
+        private String majorCode;
+        private String majorName;
+        private String majorDescription;
+        private String duration;
+        private String tuition;
+        private Integer planCount;
+        private String resubjectRequirement;
+        private String sourceYear;
+        private String sourceStatus;
+        private String sourceName;
+        private String sourceUrl;
+        private String sourcePageUrl;
+        private String missingReason;
     }
 
     /**
@@ -345,6 +357,8 @@ public class VolunteerService {
     public static class HistoryRecord {
         private String provinceCode;
         private String groupCode;
+        private String majorCode;
+        private String sourceMajorId;
         private Integer year;
         private Integer minScore;
         private Integer minRank;
@@ -378,7 +392,6 @@ public class VolunteerService {
         private String firstSubject;      // 物理 | 历史
         private List<String> resubjects;  // 再选科目
         private String cardKey;
-        private String safetyCode;
         private List<String> preferredMajors;  // 意向专业关键词，如 ["计算机","电子信息"]
         private List<String> preferredRegions; // 意向地区，如 ["北京","上海","四川"]
         private String strategyMode;           // 保守型 / 均衡型 / 冲刺型
@@ -401,12 +414,6 @@ public class VolunteerService {
         private Boolean acceptChineseForeignCoop;
         private List<String> medicalLimitations;
         private Map<String, Integer> singleSubjectScores;
-        /** 外语语种（英语/日语/俄语...），用于 CandidateFilterEngine 处理"只招英语"等限制 */
-        private String foreignLanguage;
-        /** 性别（男/女），用于 CandidateFilterEngine 处理"只招男生/只招女生"限制 */
-        private String gender;
-        /** 资格类标签（专项/民族班/预科/定向/免费医学/优师计划），用于硬规则放行 */
-        private List<String> qualificationTags;
         private Double majorPriority;
         private Double schoolPriority;
         private Double cityPriority;
@@ -453,6 +460,16 @@ public class VolunteerService {
         private String volunteerUnitType;
         private String volunteerUnitLabel;
         private String targetBatch;
+        private Integer targetYear;
+        private List<Integer> dataSourceYears;
+        private String recommendationPhase;
+        private boolean estimateMode;
+        private String supportLevel;
+        private String recommendMode;
+        private String engineName;
+        private String supportReason;
+        private String responseProvince;
+        private Map<String, Object> diagnosis;
         private int targetCount;
         private int totalScore;
         private int provinceRank;
@@ -466,7 +483,6 @@ public class VolunteerService {
         private String tuitionBudget;
         private Boolean acceptPrivate;
         private Boolean acceptSinoForeign;
-        private String safetyCode;
         private String accessKey;
         private List<VolunteerItem> items;
         private String createdAt;
@@ -489,12 +505,6 @@ public class VolunteerService {
         private Map<String, Object> modelInfo;
         /** 新规范接口返回的警告列表 */
         private List<String> warnings;
-        /**
-         * VolunteerDiagnosisEngine 13 维诊断输出：totalCount / policyMaxCount / gradientCount /
-         * overallRisk / summary / diagnosis / warnings / longestHighRiskRun / eliteCount。
-         * 旧 biz_plan_history.plan_json 没有这个字段时 Jackson 默认会留空，反序列化不报错。
-         */
-        private Map<String, Object> diagnosis;
     }
 
     private record ResolvedGradientRanges(Map<String, GradientRangeDetail> details,
@@ -549,11 +559,6 @@ public class VolunteerService {
         private String tuitionBudget = "均衡预算";
         private boolean acceptPrivate = true;
         private boolean acceptSinoForeign = false;
-        /** 排序权重（VolunteerSortEngine 输入），未传时由 fromStrategyAndProfile 用默认值兜底 */
-        private Double majorPriority;
-        private Double schoolPriority;
-        private Double cityPriority;
-        private Double employmentPriority;
     }
 
     @Data
@@ -625,22 +630,19 @@ public class VolunteerService {
         ResolvedGradientRanges resolvedRanges = resolveGradientRanges(req, R, profile, policyTargetCount);
         GenerationStats generationStats = new GenerationStats();
 
-        // 2. 构建硬规则过滤条件（CandidateFilterEngine 16 维硬规则的承载体）
-        CandidateFilterEngine.FilterCriteria filterCriteria = buildFilterCriteria(req, provinceCode, subjectType);
-
-        // 3. 按梯度查询候选（所有区间均以用户手填官方位次为基准）
+        // 2. 按梯度查询候选（所有区间均以用户手填官方位次为基准）
         List<VolunteerItem> chongItems = pickGradient("冲", subjectType,
                 resolvedRanges.get("冲").getRankLow(), resolvedRanges.get("冲").getRankHigh(),
-                req.getResubjects(), targetCounts.chong(), profile, generationStats, filterCriteria);
+                req.getResubjects(), targetCounts.chong(), profile, generationStats);
         List<VolunteerItem> wenItems = pickGradient("稳", subjectType,
                 resolvedRanges.get("稳").getRankLow(), resolvedRanges.get("稳").getRankHigh(),
-                req.getResubjects(), targetCounts.wen(), profile, generationStats, filterCriteria);
+                req.getResubjects(), targetCounts.wen(), profile, generationStats);
         List<VolunteerItem> baoItems = pickGradient("保", subjectType,
                 resolvedRanges.get("保").getRankLow(), resolvedRanges.get("保").getRankHigh(),
-                req.getResubjects(), targetCounts.bao(), profile, generationStats, filterCriteria);
+                req.getResubjects(), targetCounts.bao(), profile, generationStats);
         List<VolunteerItem> dianItems = pickGradient("垫", subjectType,
                 resolvedRanges.get("垫").getRankLow(), resolvedRanges.get("垫").getRankHigh(),
-                req.getResubjects(), targetCounts.dian(), profile, generationStats, filterCriteria);
+                req.getResubjects(), targetCounts.dian(), profile, generationStats);
         applyRangeContext(chongItems, resolvedRanges.get("冲"));
         applyRangeContext(wenItems, resolvedRanges.get("稳"));
         applyRangeContext(baoItems, resolvedRanges.get("保"));
@@ -710,8 +712,6 @@ public class VolunteerService {
         history.setAcceptPrivate(profile.isAcceptPrivate() ? 1 : 0);
         history.setAcceptSinoForeign(profile.isAcceptSinoForeign() ? 1 : 0);
         history.setDataQualityWarning(dataQualityWarning);
-        SafetyCodeService.SafetyCodeIssue safetyCodeIssue = safetyCodeService.issue(req.getSafetyCode());
-        history.setSafetyCodeHash(safetyCodeIssue.safetyCodeHash());
         try {
             history.setResubjects(objectMapper.writeValueAsString(req.getResubjects()));
             history.setPreferredMajors(objectMapper.writeValueAsString(prefMajors));
@@ -758,8 +758,7 @@ public class VolunteerService {
         result.setTuitionBudget(profile.getTuitionBudget());
         result.setAcceptPrivate(profile.isAcceptPrivate());
         result.setAcceptSinoForeign(profile.isAcceptSinoForeign());
-        result.setSafetyCode(safetyCodeIssue.safetyCode());
-        result.setAccessKey(safetyCodeIssue.safetyCode());
+        result.setAccessKey(buildPlanAccessKey(history.getId()));
         result.setItems(allItems);
         result.setCreatedAt(history.getCreatedAt().toString());
         result.setDataQualityWarning(dataQualityWarning);
@@ -769,22 +768,6 @@ public class VolunteerService {
         result.setGradientRangeSummary(resolvedRanges.summary());
         result.setRankEstimate(rankResolution.summary());
         result.setAdvisorAdvice(buildAdvisorAdvice(result));
-
-        // 13 维方案级诊断（VolunteerDiagnosisEngine）
-        VolunteerDiagnosisEngine.DiagnosisContext diagnosisCtx = new VolunteerDiagnosisEngine.DiagnosisContext();
-        diagnosisCtx.setDislikedMajors(req.getDislikedMajors() == null ? List.of() : req.getDislikedMajors());
-        diagnosisCtx.setRiskPreference(profile.getStrategyMode());
-        try {
-            Map<String, Object> diagnosis = volunteerDiagnosisEngine.diagnose(allItems, policyTargetCount, diagnosisCtx);
-            result.setDiagnosis(diagnosis);
-        } catch (Exception ex) {
-            log.warn("VolunteerDiagnosisEngine 诊断失败 planId={}: {}", history.getId(), ex.getMessage());
-            result.setDiagnosis(Map.of(
-                    "totalCount", allItems.size(),
-                    "policyMaxCount", policyTargetCount,
-                    "summary", "方案诊断暂不可用",
-                    "warnings", List.of()));
-        }
 
         // 监控统计
         metricsRecorder.recordCost(generationCostMs);
@@ -1274,22 +1257,11 @@ public class VolunteerService {
 
     /**
      * 按梯度挑选志愿项 — 优先使用专业分数线，不足时回退院校级数据
-     *
-     * <p>过滤层次：</p>
-     * <ol>
-     *   <li>specialTypeReason：招生类型（专项/军警/艺体/定向）排除</li>
-     *   <li>matchResubject：选科再选过滤</li>
-     *   <li>matchesConstraints：民办/中外/学费 budget 三档</li>
-     *   <li>{@link CandidateFilterEngine#filterCandidates}：完整 16 项硬规则
-     *       （含 dislikedMajors/medicalLimitations/singleSubjectScores/foreignLanguage/gender/qualifications）</li>
-     * </ol>
-     * <p>被任一层拒绝的候选都不会进入 deduped；不允许被「凑数」逻辑回填。</p>
      */
     private List<VolunteerItem> pickGradient(String gradient, String subjectType,
                                               int rankLow, int rankHigh,
                                               List<String> resubjects, int maxCount,
-                                              PreferenceProfile profile, GenerationStats stats,
-                                              CandidateFilterEngine.FilterCriteria criteria) {
+                                              PreferenceProfile profile, GenerationStats stats) {
         Map<String, University> schoolCache = new HashMap<>();
         // ── Step 1: 从专业分数线表查候选 ──
         List<MajorScoreGz> majorCandidates = scoreLineService.findMajorCandidates(subjectType, rankLow, rankHigh, resubjects);
@@ -1310,11 +1282,6 @@ public class VolunteerService {
                 continue;
             }
             if (!matchesConstraints(uni, m.getUniversityName(), m.getMajorName(), profile)) {
-                continue;
-            }
-            // CandidateFilterEngine 16 项硬规则（dislikedMajors/medicalLimitations/foreignLanguage 等）
-            CandidateFilterEngine.CandidatePlan plan = toCandidatePlan(m, uni, requirement, subjectType, criteria);
-            if (criteria != null && hasHardRuleViolation(criteria, plan)) {
                 continue;
             }
             String key = m.getSchoolId() + "|" + m.getMajorName() + "|" + (m.getBatch() != null ? m.getBatch() : "");
@@ -1381,11 +1348,6 @@ public class VolunteerService {
             if (!matchesConstraints(uni, sl.getUniversityName(), sl.getMajorName(), profile)) {
                 continue;
             }
-            // CandidateFilterEngine 16 项硬规则同样作用于院校级回退
-            CandidateFilterEngine.CandidatePlan plan = toCandidatePlan(sl, uni, subjectType, criteria);
-            if (criteria != null && hasHardRuleViolation(criteria, plan)) {
-                continue;
-            }
             String sid = sl.getSchoolId();
             ScoreLineGz existing = bySchool.get(sid);
             if (existing == null) {
@@ -1441,119 +1403,6 @@ public class VolunteerService {
         List<VolunteerItem> result = new ArrayList<>(majorItems);
         result.addAll(fallbackItems);
         return result;
-    }
-
-    /**
-     * 把 GenerateRequest 转成 CandidateFilterEngine 的 16 项硬规则输入条件。
-     *
-     * <p>未传字段使用合理默认（普通类、本科批、acceptPrivateSchool/CoOp 默认 true）；
-     * 用户明确拒绝民办/中外合作时（acceptPrivate=false / acceptSinoForeign=false）会反映到 criteria。</p>
-     */
-    private CandidateFilterEngine.FilterCriteria buildFilterCriteria(GenerateRequest req, String provinceCode, String subjectType) {
-        CandidateFilterEngine.FilterCriteria c = new CandidateFilterEngine.FilterCriteria();
-        if (req == null) return c;
-        c.setYear(req.getYear());
-        c.setProvince(provinceCode);
-        c.setBatchCode(req.getBatchCode() == null || req.getBatchCode().isBlank() ? null : req.getBatchCode());
-        c.setCandidateType(req.getCandidateType() == null || req.getCandidateType().isBlank() ? "普通类" : req.getCandidateType());
-        c.setSubjectType(subjectType);
-        // selectedSubjects 优先用新版字段，回退老版 resubjects
-        List<String> selected = req.getSelectedSubjects() != null && !req.getSelectedSubjects().isEmpty()
-                ? req.getSelectedSubjects() : req.getResubjects();
-        c.setSelectedSubjects(selected == null ? List.of() : new ArrayList<>(selected));
-        c.setMaxTuition(req.getMaxTuition());
-        // 用户接受标志：优先新版字段（acceptPrivateSchool/acceptChineseForeignCoop），回退老版（acceptPrivate/acceptSinoForeign）
-        Boolean acceptPriv = req.getAcceptPrivateSchool() != null
-                ? req.getAcceptPrivateSchool()
-                : (req.getAcceptPrivate() == null ? Boolean.TRUE : req.getAcceptPrivate());
-        Boolean acceptCoop = req.getAcceptChineseForeignCoop() != null
-                ? req.getAcceptChineseForeignCoop()
-                : (req.getAcceptSinoForeign() == null ? Boolean.TRUE : req.getAcceptSinoForeign());
-        c.setAcceptPrivateSchool(acceptPriv);
-        c.setAcceptChineseForeignCoop(acceptCoop);
-        c.setDislikedMajors(req.getDislikedMajors() == null ? List.of() : new ArrayList<>(req.getDislikedMajors()));
-        c.setMedicalLimitations(req.getMedicalLimitations() == null ? List.of() : new ArrayList<>(req.getMedicalLimitations()));
-        c.setSingleSubjectScores(req.getSingleSubjectScores() == null ? Map.of() : new LinkedHashMap<>(req.getSingleSubjectScores()));
-        c.setForeignLanguage(req.getForeignLanguage());
-        c.setGender(req.getGender());
-        c.setQualifications(req.getQualificationTags() == null ? List.of() : new ArrayList<>(req.getQualificationTags()));
-        c.setRejectedConditions(List.of());
-        return c;
-    }
-
-    /** MajorScoreGz → CandidatePlan（专业级，CandidateFilterEngine 的输入）。 */
-    private CandidateFilterEngine.CandidatePlan toCandidatePlan(MajorScoreGz m, University uni,
-                                                                RequirementResolution requirement,
-                                                                String subjectType,
-                                                                CandidateFilterEngine.FilterCriteria criteria) {
-        CandidateFilterEngine.CandidatePlan p = new CandidateFilterEngine.CandidatePlan();
-        p.setYear(m.getYear());
-        p.setProvince(criteria == null ? null : criteria.getProvince());
-        p.setBatchCode(safeText(m.getBatch()));
-        p.setCandidateType(criteria == null ? "普通类" : criteria.getCandidateType());
-        p.setSubjectType(safeText(subjectType));
-        p.setSelectedSubjectRequirement(requirement == null ? "" : safeText(requirement.getRequirement()));
-        p.setMajorName(safeText(m.getMajorName()));
-        p.setTuition(null);
-        p.setPrivateSchool(isPrivateUni(uni));
-        p.setChineseForeignCoop(isCooperativeUni(uni, m.getUniversityName(), m.getMajorName()));
-        p.setRemarks("");
-        p.setSpecialLimit("");
-        return p;
-    }
-
-    /** ScoreLineGz → CandidatePlan（院校级回退，CandidateFilterEngine 的输入）。 */
-    private CandidateFilterEngine.CandidatePlan toCandidatePlan(ScoreLineGz sl, University uni,
-                                                                String subjectType,
-                                                                CandidateFilterEngine.FilterCriteria criteria) {
-        CandidateFilterEngine.CandidatePlan p = new CandidateFilterEngine.CandidatePlan();
-        p.setYear(sl.getYear());
-        p.setProvince(criteria == null ? null : criteria.getProvince());
-        p.setBatchCode(safeText(sl.getBatch()));
-        p.setCandidateType(criteria == null ? "普通类" : criteria.getCandidateType());
-        p.setSubjectType(safeText(subjectType));
-        p.setSelectedSubjectRequirement(safeText(sl.getResubjectRequirement()));
-        p.setMajorName(safeText(sl.getMajorName()));
-        p.setTuition(null);
-        p.setPrivateSchool(isPrivateUni(uni));
-        p.setChineseForeignCoop(isCooperativeUni(uni, sl.getUniversityName(), sl.getMajorName()));
-        p.setRemarks("");
-        p.setSpecialLimit("");
-        return p;
-    }
-
-    /**
-     * 调用 CandidateFilterEngine 单条过滤；命中任一硬规则返回 true，调用方据此跳过该候选。
-     * 该方法不会修改 plan 的 filterReasons（CandidateFilterEngine 已写入 plan 内）；
-     * 主流程不再使用被拒条目，写入 filterReasons 仅作未来审计 hook。
-     */
-    private boolean hasHardRuleViolation(CandidateFilterEngine.FilterCriteria criteria,
-                                         CandidateFilterEngine.CandidatePlan plan) {
-        if (criteria == null || plan == null) return false;
-        CandidateFilterEngine.FilterResult result = candidateFilterEngine.filterCandidates(criteria, List.of(plan));
-        return result != null && !result.getRejected().isEmpty();
-    }
-
-    private boolean isPrivateUni(University uni) {
-        if (uni == null) return false;
-        String nature = uni.getNatureName() == null ? "" : uni.getNatureName();
-        List<String> tags = uni.getTags() == null ? List.of() : uni.getTags();
-        return nature.contains("民办") || tags.contains("民办");
-    }
-
-    private boolean isCooperativeUni(University uni, String schoolName, String majorName) {
-        String name = schoolName == null ? "" : schoolName;
-        String major = majorName == null ? "" : majorName;
-        String nature = uni == null || uni.getNatureName() == null ? "" : uni.getNatureName();
-        List<String> tags = uni == null || uni.getTags() == null ? List.of() : uni.getTags();
-        return tags.contains("中外合作办学")
-                || tags.contains("内地与港澳台合作办学")
-                || nature.contains("中外合作")
-                || name.contains("国际学院")
-                || name.contains("中外合作")
-                || name.contains("港澳台")
-                || major.contains("中外合作")
-                || major.contains("联合培养");
     }
 
     private void sortSelectionCandidates(List<VolunteerItem> items, String gradient,
@@ -1670,7 +1519,16 @@ public class VolunteerService {
         item.setVolunteerUnitType(ProvincePolicyService.UNIT_MAJOR_96);
         item.setVolunteerUnitLabel("专业（类）+ 院校");
         item.setUniversityName(m.getUniversityName());
+        item.setSchoolCode(m.getSchoolId());
+        item.setSourceMajorId(m.getMajorId());
+        item.setMajorCode(null);
         item.setMajorName(m.getMajorName());
+        item.setMajorDescription(buildMajorDescription(m.getMajorName(), requirement, null));
+        item.setPlanCount(m.getPlanCount());
+        item.setLocked(Boolean.FALSE);
+        item.setSourceYear(m.getYear() == null ? null : String.valueOf(m.getYear()));
+        item.setSourceStatus("历史分数线专业级数据");
+        item.setMissingReason(buildProfessionalMissingReason(null, null, null));
         item.setGradient(gradient);
         item.setHistoryMinScore(m.getMinScore() != null ? m.getMinScore() : 0);
         item.setHistoryMinRank(m.getMinRank() != null ? m.getMinRank() : 0);
@@ -1958,49 +1816,36 @@ public class VolunteerService {
         }
     }
 
-    /**
-     * 仅做范围 clamp + 缺失字段兜底；chanceScore 主值由 {@link #applyRulePrediction} 写入，
-     * 这里不再用任何线性映射重新生产，避免主链路出现两套互相冲突的机会指数算法。
-     *
-     * <p>缓存命中分支（{@link #readCachedPlanResult}）和早期 plan_json 反序列化分支
-     * 可能拿到 chanceScore=0 的旧数据，此时本方法保留旧行为：以 dataConfidenceScore /
-     * confidenceLabel 派生 confidenceLevel，但不会重新算 chanceScore。</p>
-     */
     private void applyChanceFields(VolunteerItem item, int studentRank) {
         if (item == null) {
             return;
         }
-        // 1. chanceScore 只做范围 clamp，不再重新生产
-        int chanceScore = Math.max(0, Math.min(100, item.getChanceScore()));
-        item.setChanceScore(chanceScore);
-
-        // 2. 派生 chanceLevel / riskLevel / confidenceLevel：
-        //    若 FallbackRulePredictionEngine 已经写入则保留，否则按 chanceScore 兜底派生
-        if (item.getChanceLevel() == null || item.getChanceLevel().isBlank()) {
-            item.setChanceLevel(chanceLevel(chanceScore));
+        int chanceScore = item.getChanceScore() > 0
+                ? item.getChanceScore()
+                : (int) Math.round(Math.max(0, Math.min(100, item.getAdmissionProb())));
+        if (chanceScore <= 0 && item.getRankGap() != 0) {
+            chanceScore = rankGapToChanceScore(item.getRankGap(), studentRank);
         }
-        if (item.getRiskLevel() == null || item.getRiskLevel().isBlank() || "未知".equals(item.getRiskLevel())) {
-            item.setRiskLevel(riskLevelFromChance(chanceScore, item.getDataConfidenceScore()));
-        }
-        if (item.getConfidenceLevel() == null || item.getConfidenceLevel().isBlank()) {
-            item.setConfidenceLevel(confidenceLevel(item.getDataConfidenceScore(), item.getConfidenceLabel()));
-        }
-        if (item.getDataConfidence() <= 0) {
-            item.setDataConfidence(item.getDataConfidenceScore() > 0
-                    ? item.getDataConfidenceScore()
-                    : confidenceScore(item.getConfidenceLabel()));
-        }
-
-        // 3. predictedMinRank / rankDiff 兜底：FallbackRulePredictionEngine 已经写入时不覆盖
-        if (item.getPredictedMinRank() <= 0) {
-            int predicted = item.getPredictedRank() > 0 ? item.getPredictedRank() : item.getHistoryMinRank();
-            item.setPredictedMinRank(Math.max(0, predicted));
-        }
-        if (item.getRankDiff() == 0 && studentRank > 0 && item.getPredictedMinRank() > 0) {
-            item.setRankDiff(item.getPredictedMinRank() - studentRank);
-        } else if (item.getRankDiff() == 0 && item.getRankGap() != 0) {
+        item.setChanceScore(Math.max(0, Math.min(100, chanceScore)));
+        item.setChanceLevel(chanceLevel(item.getChanceScore()));
+        item.setRiskLevel(riskLevelFromChance(item.getChanceScore(), item.getDataConfidenceScore()));
+        item.setConfidenceLevel(confidenceLevel(item.getDataConfidenceScore(), item.getConfidenceLabel()));
+        item.setDataConfidence(item.getDataConfidenceScore() > 0
+                ? item.getDataConfidenceScore()
+                : confidenceScore(item.getConfidenceLabel()));
+        int predicted = item.getPredictedRank() > 0 ? item.getPredictedRank() : item.getHistoryMinRank();
+        item.setPredictedMinRank(Math.max(0, predicted));
+        if (studentRank > 0 && predicted > 0) {
+            item.setRankDiff(predicted - studentRank);
+        } else if (item.getRankGap() != 0) {
             item.setRankDiff(item.getRankGap());
         }
+    }
+
+    private int rankGapToChanceScore(int rankGap, int studentRank) {
+        int denominator = Math.max(8_000, studentRank <= 0 ? 30_000 : studentRank);
+        double ratio = rankGap * 1.0 / denominator;
+        return (int) Math.round(Math.max(20, Math.min(95, 55 + ratio * 120)));
     }
 
     private String chanceLevel(int chanceScore) {
@@ -2056,6 +1901,10 @@ public class VolunteerService {
 
     private HistoryRecord toHistoryRecord(ScoreLineService.ScoreLineView view) {
         HistoryRecord record = new HistoryRecord();
+        record.setProvinceCode(view.getProvinceCode());
+        record.setGroupCode(view.getGroupCode());
+        record.setMajorCode(view.getMajorCode());
+        record.setSourceMajorId(view.getMajorId());
         record.setYear(view.getYear());
         record.setMinScore(view.getMinScore());
         record.setMinRank(view.getMinRank());
@@ -2205,11 +2054,6 @@ public class VolunteerService {
         if (req.getTuitionBudget() != null && !req.getTuitionBudget().isBlank()) profile.setTuitionBudget(req.getTuitionBudget());
         if (req.getAcceptPrivate() != null) profile.setAcceptPrivate(req.getAcceptPrivate());
         if (req.getAcceptSinoForeign() != null) profile.setAcceptSinoForeign(req.getAcceptSinoForeign());
-        // VolunteerSortEngine 用的 4 个权重字段透传
-        profile.setMajorPriority(req.getMajorPriority());
-        profile.setSchoolPriority(req.getSchoolPriority());
-        profile.setCityPriority(req.getCityPriority());
-        profile.setEmploymentPriority(req.getEmploymentPriority());
         return profile;
     }
 
@@ -2284,27 +2128,31 @@ public class VolunteerService {
         return year >= 2024 ? "中可信" : "需复核";
     }
 
-    /**
-     * 整体志愿顺序固定为 冲→稳→保→垫（任何策略模式都不变），
-     * 梯度内部排序由 {@link VolunteerSortEngine} 按 PreferenceWeights 加权产出。
-     *
-     * <p>保守型 / 均衡型 / 冲刺型仅影响梯度内 chance/confidence/risk 三个系数和
-     * major/school/city/employment 四个权重的微调，不会再翻转整体顺序。</p>
-     */
     private void applyPlanOrdering(List<VolunteerItem> items, PreferenceProfile profile) {
-        if (items == null || items.isEmpty()) return;
-        VolunteerSortEngine.PreferenceWeights weights = VolunteerSortEngine.PreferenceWeights.fromStrategyAndProfile(
-                profile == null ? "均衡型" : profile.getStrategyMode(),
-                profile == null ? null : profile.getDecisionPriority(),
-                profile == null ? null : profile.getCareerGoal(),
-                profile == null ? null : profile.getMajorPriority(),
-                profile == null ? null : profile.getSchoolPriority(),
-                profile == null ? null : profile.getCityPriority(),
-                profile == null ? null : profile.getEmploymentPriority());
-        List<VolunteerItem> sorted = volunteerSortEngine.sort(new ArrayList<>(items), weights);
+        for (VolunteerItem item : items) {
+            item.setRecommendationScore(Math.max(0, Math.min(100,
+                    (int) Math.round(rankingScore(item, profile)))));
+        }
+
+        Map<String, List<VolunteerItem>> byGradient = new LinkedHashMap<>();
+        for (VolunteerItem item : items) {
+            byGradient.computeIfAbsent(item.getGradient(), k -> new ArrayList<>()).add(item);
+        }
+
+        List<String> order = "保守型".equals(profile.getStrategyMode())
+                ? List.of("稳", "保", "垫", "冲")
+                : List.of("冲", "稳", "保", "垫");
+
         items.clear();
-        items.addAll(sorted);
-        // sortEngine 已经写入 recommendationScore + index，本方法不再额外处理
+        for (String gradient : order) {
+            List<VolunteerItem> group = byGradient.getOrDefault(gradient, new ArrayList<>());
+            group.sort((a, b) -> compareByPreference(a, b, profile));
+            items.addAll(group);
+        }
+
+        for (int i = 0; i < items.size(); i++) {
+            items.get(i).setIndex(i + 1);
+        }
     }
 
     private int compareByPreference(VolunteerItem a, VolunteerItem b, PreferenceProfile profile) {
@@ -2401,6 +2249,34 @@ public class VolunteerService {
 
     private String safeText(String value) {
         return value == null ? "" : value;
+    }
+
+    private String buildMajorDescription(String majorName, RequirementResolution requirement, String fallback) {
+        List<String> parts = new ArrayList<>();
+        if (!safeText(majorName).isBlank()) {
+            parts.add(safeText(majorName));
+        }
+        if (requirement != null && !safeText(requirement.getRequirement()).isBlank()) {
+            parts.add("选科要求：" + safeText(requirement.getRequirement()));
+        }
+        if (!safeText(fallback).isBlank()) {
+            parts.add(safeText(fallback));
+        }
+        return parts.isEmpty() ? null : String.join("；", parts);
+    }
+
+    private String buildProfessionalMissingReason(String majorCode, String duration, String tuition) {
+        List<String> missing = new ArrayList<>();
+        if (safeText(majorCode).isBlank()) {
+            missing.add("缺官方结构化专业代码");
+        }
+        if (safeText(duration).isBlank()) {
+            missing.add("缺学制");
+        }
+        if (safeText(tuition).isBlank()) {
+            missing.add("缺学费");
+        }
+        return missing.isEmpty() ? null : String.join("；", missing);
     }
 
     private boolean isCareerPractical(VolunteerItem item) {
@@ -2759,6 +2635,10 @@ public class VolunteerService {
             Map<String, Object> normalized = new LinkedHashMap<>();
             normalized.put("scope", userId != null && userId > 0 ? "u:" + userId : "ip:" + safeTrim(clientIp));
             normalized.put("provinceCode", normalizeProvinceCode(req.getProvinceCode()));
+            normalized.put("year", req.getYear());
+            normalized.put("candidateType", safeTrim(req.getCandidateType()));
+            normalized.put("batchCode", safeTrim(req.getBatchCode()));
+            normalized.put("policyVolunteerUnitType", safeTrim(req.getPolicyVolunteerUnitType()));
             normalized.put("totalScore", req.getTotalScore());
             normalized.put("provinceRank", req.getProvinceRank());
             normalized.put("firstSubject", safeTrim(req.getFirstSubject()));
@@ -2831,12 +2711,19 @@ public class VolunteerService {
     }
 
     public String buildPlanAccessKey(Long planId) {
-        return safetyCodeService.buildLegacyAccessKey(planId);
+        if (planId == null || planId <= 0) {
+            return "";
+        }
+        return sha256Hex("plan:" + planId + ":" + safeTrim(jwtSecret));
     }
 
     public boolean isValidPlanAccessKey(Long planId, String accessKey) {
-        PlanHistory history = planHistoryMapper.selectById(planId);
-        return history != null && safetyCodeService.verify(planId, accessKey, history.getSafetyCodeHash());
+        if (accessKey == null || accessKey.isBlank()) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                buildPlanAccessKey(planId).getBytes(StandardCharsets.UTF_8),
+                accessKey.trim().getBytes(StandardCharsets.UTF_8));
     }
 
     private String sha256Hex(String payload) {
@@ -2871,18 +2758,7 @@ public class VolunteerService {
     }
 
     public PlanResult getPlanResult(Long planId, String accessKey) {
-        if (planId == null) {
-            return null;
-        }
-        PlanHistory history = planHistoryMapper.selectById(planId);
-        if (history == null || !safetyCodeService.verify(planId, accessKey, history.getSafetyCodeHash())) {
-            return null;
-        }
-        return toPlanResult(history);
-    }
-
-    public PlanResult getPlanResultForInternal(Long planId) {
-        if (planId == null) {
+        if (planId == null || !isValidPlanAccessKey(planId, accessKey)) {
             return null;
         }
         PlanHistory history = planHistoryMapper.selectById(planId);
@@ -2892,7 +2768,7 @@ public class VolunteerService {
     private PlanResult toPlanResult(PlanHistory h) {
         PlanResult r = new PlanResult();
         r.setId(h.getId());
-        r.setAccessKey(safeTrim(h.getSafetyCodeHash()).isBlank() ? buildPlanAccessKey(h.getId()) : "");
+        r.setAccessKey(buildPlanAccessKey(h.getId()));
         String provinceCode = safeTrim(h.getProvinceCode()).isBlank()
                 ? ProvincePolicyService.GZ
                 : safeTrim(h.getProvinceCode()).toUpperCase(Locale.ROOT);
@@ -3749,16 +3625,6 @@ public class VolunteerService {
 
     /**
      * 算法增强: 为每个志愿项计算机会指数、风险评估、分数线预测
-     *
-     * <p>chanceScore 链路：</p>
-     * <ol>
-     *   <li>{@link AlgorithmService#calcProbability} 仅保留作为内部 admissionProb 基线（WRITE_ONLY）。</li>
-     *   <li>读 {@link AlgorithmService#getRecentLines} 近 5 年历史 → {@link FeatureBuildEngine#buildRankFeatures}
-     *       提取 rankVolatility3y / planChangeRate / dataConfidence。</li>
-     *   <li>{@link AlgorithmService#predictScore} 得 predictedRank（作为 referenceRank）。</li>
-     *   <li>{@link FallbackRulePredictionEngine#predict} 完整 sigmoid + 4 项 penalty 算 chanceScore。</li>
-     * </ol>
-     * <p>主链路不再使用任何 rankGapToChanceScore 类的简化线性映射。</p>
      */
     private void enrichWithAlgorithms(List<VolunteerItem> items, int studentRank, String subjectType) {
         for (VolunteerItem item : items) {
@@ -3766,25 +3632,23 @@ public class VolunteerService {
                 String algorithmMajorName = "专业级".equals(item.getDataSourceType())
                         ? item.getMajorName()
                         : null;
-                // 内部机会基线（WRITE_ONLY，不外露）
+                // 内部机会基线
                 AlgorithmService.AdmissionProbability prob = algorithmService.calcProbability(
                         studentRank, item.getSchoolId(), algorithmMajorName, subjectType);
                 item.setAdmissionProb(prob.getProbability());
                 item.setProbLevel(prob.getLevel());
 
-                // 风险评估（保留风险颜色和定性标签，但 riskLevel 文本会被 FallbackRulePredictionEngine 覆盖）
+                // 风险评估
                 AlgorithmService.RiskAssessment risk = algorithmService.assessRisk(
                         item.getSchoolId(), algorithmMajorName, subjectType);
+                item.setRiskLevel(risk.getRiskLevel());
                 item.setRiskColor(risk.getRiskColor());
 
-                // 分数线预测：predictedRank 作为 FallbackRulePredictionEngine 的 referenceRank
+                // 分数线预测
                 AlgorithmService.ScorePrediction prediction = algorithmService.predictScore(
                         item.getSchoolId(), algorithmMajorName, subjectType);
                 item.setPredictedRank(prediction.getPredictedRank());
                 item.setTrend(prediction.getTrend());
-
-                // 用 FeatureBuildEngine 抽位次特征 + FallbackRulePredictionEngine 算完整机会指数
-                applyRulePrediction(item, studentRank, subjectType, algorithmMajorName);
                 applyChanceFields(item, studentRank);
             } catch (Exception e) {
                 log.warn("算法增强失败: {} - {}: {}", item.getUniversityName(), item.getMajorName(), e.getMessage());
@@ -3792,79 +3656,8 @@ public class VolunteerService {
                 item.setProbLevel("未知");
                 item.setRiskLevel("未知");
                 item.setRiskColor("gray");
-                // 异常时仍尝试用规则公式兜底（用 historyMinRank 作 referenceRank）
-                try {
-                    applyRulePrediction(item, studentRank, subjectType, null);
-                } catch (Exception ignore) {
-                    // 真正的双重失败：保持 chanceScore=0，前端会显示"未知"
-                }
                 applyChanceFields(item, studentRank);
             }
         }
-    }
-
-    /**
-     * 用 FeatureBuildEngine + FallbackRulePredictionEngine 计算完整机会指数。
-     *
-     * <p>调用方应已设置 item.predictedRank 和 item.historyMinRank；
-     * 该方法会：</p>
-     * <ul>
-     *   <li>读 5 年历史录取数据，构建 RankFeature（rankVolatility3y / planChangeRate / dataConfidence）；</li>
-     *   <li>取 referenceRank = predictedRank > 0 ? predictedRank : historyMinRank；</li>
-     *   <li>调 FallbackRulePredictionEngine.predict 得 chanceScore / chanceLevel / riskLevel / confidenceLevel；</li>
-     *   <li>把所有字段写回 item，并把特征值缓存到 item.rankVolatility3y / planChangeRate / hotTrendScore（WRITE_ONLY）。</li>
-     * </ul>
-     */
-    private void applyRulePrediction(VolunteerItem item, int studentRank, String subjectType, String algorithmMajorName) {
-        // 1. 读历史 ScoreLineGz → 抽 minRank/planCount lag
-        List<ScoreLineGz> history;
-        try {
-            history = algorithmService.getRecentLines(item.getSchoolId(), algorithmMajorName, subjectType, 5);
-        } catch (Exception ex) {
-            history = List.of();
-        }
-        List<Integer> minRanks = new ArrayList<>();
-        List<Integer> planCounts = new ArrayList<>();
-        for (ScoreLineGz sl : history) {
-            if (sl.getMinRank() != null && sl.getMinRank() > 0) {
-                minRanks.add(sl.getMinRank());
-            }
-            if (sl.getPlanCount() != null && sl.getPlanCount() > 0) {
-                planCounts.add(sl.getPlanCount());
-            }
-        }
-
-        // 2. FeatureBuildEngine 构造 10 维位次特征（核心：rankVolatility3y / planChangeRate / dataConfidence）
-        FeatureBuildEngine.RankFeature feature = featureBuildEngine.buildRankFeatures(minRanks, planCounts);
-
-        // 3. referenceRank：优先 predictedRank → historyMinRank → 任意已知
-        int referenceRank = item.getPredictedRank() > 0
-                ? item.getPredictedRank()
-                : (item.getHistoryMinRank() > 0 ? item.getHistoryMinRank() : 0);
-
-        // 4. hotTrendScore 暂无数据源 → 0；未来在专业热度数据落库后接入
-        double hotTrendScore = item.getHotTrendScore();
-
-        // 5. FallbackRulePredictionEngine.predict 完整公式
-        FallbackRulePredictionEngine.Prediction p = fallbackRulePredictionEngine.predict(
-                Math.max(1, studentRank),
-                referenceRank,
-                feature.getRankVolatility3y(),
-                feature.getPlanChangeRate(),
-                feature.getDataConfidence(),
-                hotTrendScore);
-
-        // 6. 写回 item：chanceScore / chanceLevel / riskLevel / confidenceLevel / dataConfidence / predictedMinRank / rankDiff
-        item.setChanceScore(p.getChanceScore());
-        item.setChanceLevel(p.getChanceLevel());
-        item.setRiskLevel(p.getRiskLevel());
-        item.setConfidenceLevel(p.getConfidenceLevel());
-        item.setDataConfidence(p.getDataConfidence());
-        item.setPredictedMinRank(p.getPredictedMinRank());
-        item.setRankDiff(p.getRankDiff());
-
-        // 7. 特征值缓存（WRITE_ONLY，仅用于审计 / 后续训练样本回流）
-        item.setRankVolatility3y(feature.getRankVolatility3y());
-        item.setPlanChangeRate(feature.getPlanChangeRate());
     }
 }

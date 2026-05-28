@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -59,13 +60,7 @@ public class VolunteerController {
 
     @PostMapping("/generate")
     public Result<PlanResult> generate(@RequestBody GenerateRequest req, HttpServletRequest httpReq) {
-        Long userId = tryExtractUserId(httpReq);
-        String clientIp = getClientIp(httpReq);
-        String provinceCode = provincePolicyService.normalizeProvinceCode(req == null ? null : req.getProvinceCode());
-        PlanResult result = provincePolicyService.isProfessionalGroupProvince(provinceCode)
-                ? professionalGroupVolunteerService.generate(req, userId, clientIp)
-                : volunteerService.generate(req, userId, clientIp);
-        return Result.ok(result);
+        return Result.fail(410, "旧版志愿生成入口已关闭，请使用 /api/volunteer/recommend，并通过年度政策与数据门禁。");
     }
 
     @GetMapping("/provinces")
@@ -74,12 +69,8 @@ public class VolunteerController {
     }
 
     @GetMapping("/plan")
-    public Result<PlanResult> plan(@RequestParam Long planId,
-                                   @RequestParam(required = false) String safetyCode,
-                                   @RequestParam(required = false) String accessKey,
-                                   @RequestHeader(value = "X-Plan-Safety-Code", required = false) String headerSafetyCode,
-                                   @RequestHeader(value = "X-Plan-Access-Key", required = false) String headerAccessKey) {
-        return doFetchPlan(planId, firstNonBlank(safetyCode, headerSafetyCode, accessKey, headerAccessKey));
+    public ResponseEntity<Result<PlanResult>> plan(@RequestParam Long planId, @RequestParam String accessKey) {
+        return doFetchPlan(planId, accessKey);
     }
 
     /**
@@ -87,25 +78,25 @@ public class VolunteerController {
      * GET 版本仅保留兼容旧链接，新前端统一走该接口。
      */
     @PostMapping("/plan")
-    public Result<PlanResult> planByBody(@RequestBody PlanAccessRequest req) {
+    public ResponseEntity<Result<PlanResult>> planByBody(@RequestBody PlanAccessRequest req) {
         if (req == null) {
             throw new BizException("方案参数不能为空");
         }
-        return doFetchPlan(req.getPlanId(), firstNonBlank(req.getSafetyCode(), req.getAccessKey()));
+        return doFetchPlan(req.getPlanId(), req.getAccessKey());
     }
 
-    private Result<PlanResult> doFetchPlan(Long planId, String accessKey) {
+    private ResponseEntity<Result<PlanResult>> doFetchPlan(Long planId, String accessKey) {
         PlanResult result = volunteerService.getPlanResult(planId, accessKey);
         if (result == null) {
-            throw new BizException("方案不存在或访问密钥无效");
+            return ResponseEntity.status(403).body(Result.fail(403, "方案不存在或访问密钥无效"));
         }
-        return Result.ok(result);
+        result.setAccessKey(null);
+        return ResponseEntity.ok(Result.ok(result));
     }
 
     @lombok.Data
     public static class PlanAccessRequest {
         private Long planId;
-        private String safetyCode;
         private String accessKey;
     }
 
@@ -199,19 +190,18 @@ public class VolunteerController {
      */
     @PostMapping("/ai-analysis-ticket")
     public Result<AiAnalysisTicketResponse> aiAnalysisTicket(@RequestBody AiAnalysisTicketRequest req) {
-        String credential = req == null ? "" : firstNonBlank(req.getSafetyCode(), req.getAccessKey());
-        if (req == null || req.getPlanId() == null || credential.isBlank()) {
+        if (req == null || req.getPlanId() == null || req.getAccessKey() == null || req.getAccessKey().isBlank()) {
             throw new BizException("方案参数不能为空");
         }
         PlanHistory plan = volunteerService.getPlanById(req.getPlanId());
-        if (plan == null || !volunteerService.isValidPlanAccessKey(req.getPlanId(), credential)) {
+        if (plan == null || !volunteerService.isValidPlanAccessKey(req.getPlanId(), req.getAccessKey())) {
             throw new BizException("方案不存在或访问密钥无效");
         }
         String ticket = UUID.randomUUID().toString().replace("-", "");
         String key = "volunteer:ai-ticket:" + ticket;
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("planId", req.getPlanId());
-        payload.put("safetyCode", credential);
+        payload.put("accessKey", req.getAccessKey());
         payload.put("profile", req.getProfile() == null ? "" : req.getProfile());
         try {
             stringRedisTemplate.opsForValue().set(
@@ -230,7 +220,6 @@ public class VolunteerController {
     @lombok.Data
     public static class AiAnalysisTicketRequest {
         private Long planId;
-        private String safetyCode;
         private String accessKey;
         private String profile;
     }
@@ -244,8 +233,7 @@ public class VolunteerController {
     @PostMapping("/zhangxuefeng-skills-chat")
     public Result<AdvisorSkillChatResponse> zhangxuefengSkillsChat(@RequestBody AdvisorSkillChatRequest req,
                                                                    HttpServletRequest httpReq) {
-        String credential = req == null ? "" : firstNonBlank(req.getSafetyCode(), req.getAccessKey());
-        if (req == null || req.getPlanId() == null || credential.isBlank()) {
+        if (req == null || req.getPlanId() == null || req.getAccessKey() == null || req.getAccessKey().isBlank()) {
             throw new BizException("方案参数不能为空");
         }
         String message = req.getMessage() == null ? "" : req.getMessage().trim();
@@ -257,7 +245,7 @@ public class VolunteerController {
         }
 
         PlanHistory plan = volunteerService.getPlanById(req.getPlanId());
-        if (plan == null || !volunteerService.isValidPlanAccessKey(req.getPlanId(), credential)) {
+        if (plan == null || !volunteerService.isValidPlanAccessKey(req.getPlanId(), req.getAccessKey())) {
             throw new BizException("方案不存在或访问密钥无效");
         }
 
@@ -288,7 +276,6 @@ public class VolunteerController {
     @lombok.Data
     public static class AdvisorSkillChatRequest {
         private Long planId;
-        private String safetyCode;
         private String accessKey;
         private String message;
         private String aiReport;
@@ -308,7 +295,6 @@ public class VolunteerController {
      */
     @GetMapping(value = "/ai-analysis", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter aiAnalysis(@RequestParam(required = false) Long planId,
-                                 @RequestParam(required = false) String safetyCode,
                                  @RequestParam(required = false) String accessKey,
                                  @RequestParam(required = false) String profile,
                                  @RequestParam(required = false) String ticket,
@@ -318,12 +304,11 @@ public class VolunteerController {
         AiTicketPayload ticketPayload = consumeAiTicket(ticket);
         if (ticketPayload != null) {
             planId = ticketPayload.planId();
-            safetyCode = ticketPayload.safetyCode();
+            accessKey = ticketPayload.accessKey();
             profile = ticketPayload.profile();
         }
 
-        String credential = firstNonBlank(safetyCode, accessKey);
-        if (planId == null || credential.isBlank()) {
+        if (planId == null || accessKey == null || accessKey.isBlank()) {
             try {
                 emitter.send(SseEmitter.event().data("[ERROR] 方案访问凭证缺失"));
                 emitter.complete();
@@ -332,7 +317,7 @@ public class VolunteerController {
         }
 
         PlanHistory plan = volunteerService.getPlanById(planId);
-        if (plan == null || !volunteerService.isValidPlanAccessKey(planId, credential)) {
+        if (plan == null || !volunteerService.isValidPlanAccessKey(planId, accessKey)) {
             try {
                 emitter.send(SseEmitter.event().data("[ERROR] 方案不存在"));
                 emitter.complete();
@@ -393,7 +378,7 @@ public class VolunteerController {
             Long planId = rawPlanId instanceof Number number ? number.longValue() : Long.parseLong(String.valueOf(rawPlanId));
             return new AiTicketPayload(
                     planId,
-                    firstNonBlank(safeMapString(map.get("safetyCode")), safeMapString(map.get("accessKey"))),
+                    safeMapString(map.get("accessKey")),
                     safeMapString(map.get("profile")));
         } catch (Exception e) {
             return null;
@@ -404,17 +389,7 @@ public class VolunteerController {
         return value == null ? "" : String.valueOf(value);
     }
 
-    private record AiTicketPayload(Long planId, String safetyCode, String profile) {}
-
-    private String firstNonBlank(String... values) {
-        if (values == null) return "";
-        for (String value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return "";
-    }
+    private record AiTicketPayload(Long planId, String accessKey, String profile) {}
 
     /**
      * 把方案整理为受控 JSON：仅包含 AI 解读必需的事实字段，
@@ -508,7 +483,8 @@ public class VolunteerController {
         Map<String, Object> snapshot = parseMetrics(plan.getRequestSnapshotJson());
         root.put("rankEstimate", snapshot.get("rankEstimate"));
         root.put("gradientRangeSummary", snapshot.get("gradientRangeSummary"));
-        VolunteerService.PlanResult advisorPlan = volunteerService.getPlanResultForInternal(plan.getId());
+        VolunteerService.PlanResult advisorPlan = volunteerService.getPlanResult(
+                plan.getId(), volunteerService.buildPlanAccessKey(plan.getId()));
         root.put("advisorAdvice", advisorPlan == null ? null : advisorPlan.getAdvisorAdvice());
         root.put("aiGeneratedNotice", ComplianceConstants.AI_GENERATED_NOTICE);
         root.put("referenceProbabilityNotice", ComplianceConstants.REFERENCE_PROBABILITY_NOTICE);

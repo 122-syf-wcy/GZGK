@@ -18,6 +18,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -55,7 +57,9 @@ public class ProfessionalGroupVolunteerService {
     private final ProvinceRankService provinceRankService;
     private final ObjectMapper objectMapper;
     private final VolunteerMetricsRecorder metricsRecorder;
-    private final SafetyCodeService safetyCodeService;
+
+    @Value("${gzly.jwt.secret}")
+    private String jwtSecret;
 
     @Transactional(rollbackFor = Exception.class)
     public VolunteerService.PlanResult generate(VolunteerService.GenerateRequest req, Long userId, String clientIp) {
@@ -136,8 +140,6 @@ public class ProfessionalGroupVolunteerService {
             history.setItemCount(items.size());
             history.setCreatedAt(LocalDateTime.now());
             history.setDataQualityWarning(buildDataQualityWarning(items, specialExcluded));
-            SafetyCodeService.SafetyCodeIssue safetyCodeIssue = safetyCodeService.issue(req.getSafetyCode());
-            history.setSafetyCodeHash(safetyCodeIssue.safetyCodeHash());
             try {
                 history.setResubjects(objectMapper.writeValueAsString(req.getResubjects()));
                 history.setPreferredMajors(objectMapper.writeValueAsString(req.getPreferredMajors() == null ? List.of() : req.getPreferredMajors()));
@@ -171,8 +173,7 @@ public class ProfessionalGroupVolunteerService {
             result.setTuitionBudget(history.getTuitionBudget());
             result.setAcceptPrivate(history.getAcceptPrivate() == 1);
             result.setAcceptSinoForeign(history.getAcceptSinoForeign() == 1);
-            result.setSafetyCode(safetyCodeIssue.safetyCode());
-            result.setAccessKey(safetyCodeIssue.safetyCode());
+            result.setAccessKey(buildPlanAccessKey(history.getId()));
             result.setItems(items);
             result.setCreatedAt(history.getCreatedAt().toString());
             result.setDataQualityWarning(history.getDataQualityWarning());
@@ -236,9 +237,17 @@ public class ProfessionalGroupVolunteerService {
         item.setVolunteerUnitLabel("院校专业组");
         item.setUniversityName(line.getUniversityName());
         item.setSchoolId(line.getSchoolId());
+        item.setSchoolCode(line.getSchoolId());
         item.setGroupCode(line.getGroupCode());
         item.setGroupName(defaultText(line.getGroupName(), line.getGroupCode()));
+        item.setMajorCode(line.getGroupCode());
         item.setMajorName(defaultText(line.getGroupName(), defaultText(line.getGroupCode(), "院校专业组")));
+        item.setMajorDescription(String.format("院校专业组%s，组内专业、学费、学制和限制条件需按当年专业目录复核。", defaultText(line.getGroupCode(), "")));
+        item.setPlanCount(line.getPlanCount());
+        item.setLocked(Boolean.FALSE);
+        item.setSourceYear(line.getYear() == null ? null : String.valueOf(line.getYear()));
+        item.setSourceStatus(defaultText(line.getSourceLevel(), "官方/学校公开来源"));
+        item.setMissingReason(buildGroupMissingReason(line));
         item.setObeyAdjustment(Boolean.TRUE);
         item.setGradient(gradient);
         item.setHistoryMinScore(line.getMinScore() == null ? 0 : line.getMinScore());
@@ -276,7 +285,15 @@ public class ProfessionalGroupVolunteerService {
         item.setSpecialTypeFlag(false);
         item.setNeedsManualReview(line.getPlanCount() == null || line.getPlanCount() <= 0);
         item.setReviewFlags(item.isNeedsManualReview() ? List.of("missing_plan_count") : List.of());
-        item.setGroupMajors(loadGroupMajors(policy.getProvinceCode(), line));
+        item.setProfessionalMajors(loadGroupMajorDetails(policy.getProvinceCode(), line));
+        item.setGroupMajors(item.getProfessionalMajors().stream()
+                .map(VolunteerService.ProfessionalMajorDetail::getMajorName)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(v -> !v.isBlank())
+                .distinct()
+                .limit(6)
+                .toList());
         item.setHistoryRecords(loadHistoryRecords(policy.getProvinceCode(), line));
         item.setAlgorithmExplanation(buildExplanation(policy, item, studentRank, line));
 
@@ -350,6 +367,60 @@ public class ProfessionalGroupVolunteerService {
                 .distinct()
                 .limit(6)
                 .toList();
+    }
+
+    private List<VolunteerService.ProfessionalMajorDetail> loadGroupMajorDetails(String provinceCode, DataAdmissionGroupLine line) {
+        if (line.getYear() == null || safeText(line.getSchoolId()).isBlank() || safeText(line.getGroupCode()).isBlank()) {
+            return List.of();
+        }
+        return groupPlanMapper.selectGroupMajors(provinceCode, line.getYear(), line.getSchoolId(),
+                        line.getGroupCode(), line.getSubjectType(), 12)
+                .stream()
+                .map(this::toProfessionalMajorDetail)
+                .toList();
+    }
+
+    private VolunteerService.ProfessionalMajorDetail toProfessionalMajorDetail(DataAdmissionGroupPlan row) {
+        VolunteerService.ProfessionalMajorDetail detail = new VolunteerService.ProfessionalMajorDetail();
+        detail.setMajorCode(blankToNull(row.getMajorCode()));
+        detail.setMajorName(defaultText(row.getMajorName(), "专业待补齐"));
+        detail.setMajorDescription(buildMajorDescription(row));
+        detail.setDuration(blankToNull(row.getStudyYears()));
+        detail.setTuition(blankToNull(row.getTuition()));
+        detail.setPlanCount(row.getPlanCount());
+        detail.setResubjectRequirement(blankToNull(row.getResubjectRequirement()));
+        detail.setSourceYear(row.getYear() == null ? null : String.valueOf(row.getYear()));
+        detail.setSourceStatus(defaultText(row.getSourceLevel(), "需复核"));
+        detail.setSourceName(blankToNull(row.getSourceName()));
+        detail.setSourceUrl(blankToNull(row.getSourceUrl()));
+        detail.setSourcePageUrl(blankToNull(row.getSourcePageUrl()));
+        detail.setMissingReason(buildMajorMissingReason(row));
+        return detail;
+    }
+
+    private String buildMajorDescription(DataAdmissionGroupPlan row) {
+        List<String> parts = new ArrayList<>();
+        if (!safeText(row.getMajorName()).isBlank()) parts.add(row.getMajorName());
+        if (!safeText(row.getResubjectRequirement()).isBlank()) parts.add("选科：" + row.getResubjectRequirement());
+        if (!safeText(row.getBatch()).isBlank()) parts.add(row.getBatch());
+        return parts.isEmpty() ? null : String.join("；", parts);
+    }
+
+    private String buildMajorMissingReason(DataAdmissionGroupPlan row) {
+        List<String> missing = new ArrayList<>();
+        if (safeText(row.getMajorCode()).isBlank()) missing.add("缺官方专业代码");
+        if (safeText(row.getStudyYears()).isBlank()) missing.add("缺学制");
+        if (safeText(row.getTuition()).isBlank()) missing.add("缺学费");
+        if (row.getPlanCount() == null || row.getPlanCount() <= 0) missing.add("缺专业计划数");
+        return missing.isEmpty() ? null : String.join("；", missing);
+    }
+
+    private String buildGroupMissingReason(DataAdmissionGroupLine line) {
+        List<String> missing = new ArrayList<>();
+        if (safeText(line.getGroupCode()).isBlank()) missing.add("缺专业组代码");
+        if (line.getPlanCount() == null || line.getPlanCount() <= 0) missing.add("缺专业组计划数");
+        if (safeText(line.getSourceUrl()).isBlank() && safeText(line.getSourcePageUrl()).isBlank()) missing.add("缺官方来源链接");
+        return missing.isEmpty() ? null : String.join("；", missing);
     }
 
     private List<VolunteerService.HistoryRecord> loadHistoryRecords(String provinceCode, DataAdmissionGroupLine line) {
@@ -786,6 +857,27 @@ public class ProfessionalGroupVolunteerService {
         }
     }
 
+    private String buildPlanAccessKey(Long planId) {
+        if (planId == null || planId <= 0) {
+            return "";
+        }
+        return sha256Hex("plan:" + planId + ":" + safeText(jwtSecret));
+    }
+
+    private String sha256Hex(String payload) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(payload.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hash) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            throw new BizException("访问密钥生成失败");
+        }
+    }
+
     private String firstNonBlank(String... values) {
         for (String value : values) {
             if (!safeText(value).isBlank()) {
@@ -797,6 +889,11 @@ public class ProfessionalGroupVolunteerService {
 
     private String defaultText(String value, String fallback) {
         return safeText(value).isBlank() ? fallback : value;
+    }
+
+    private String blankToNull(String value) {
+        String text = safeText(value);
+        return text.isBlank() ? null : text;
     }
 
     private String safeText(String value) {

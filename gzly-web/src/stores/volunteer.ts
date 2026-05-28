@@ -15,8 +15,7 @@ const PLAN_META_KEY = 'gz_volunteer_plan_meta'
 
 type PlanMeta = {
   planId: number
-  safetyCode?: string
-  accessKey?: string
+  accessKey: string
 }
 
 export const useVolunteerStore = defineStore('volunteer', () => {
@@ -41,8 +40,7 @@ export const useVolunteerStore = defineStore('volunteer', () => {
 
   const planItems = ref<VolunteerItem[]>([])
   const planId = ref<number | null>(null)
-  const planSafetyCode = ref('')
-  const planAccessKey = planSafetyCode
+  const planAccessKey = ref('')
   const dataQualityWarning = ref('')
   const manualReviewItems = ref<ManualReviewItem[]>([])
   const planMetrics = ref<PlanMetrics | null>(null)
@@ -53,6 +51,18 @@ export const useVolunteerStore = defineStore('volunteer', () => {
   const policy = ref<VolunteerPlan['policy'] | null>(null)
   const modelInfo = ref<VolunteerPlan['modelInfo'] | null>(null)
   const warnings = ref<string[]>([])
+  const planMeta = ref<{
+    provinceCode?: string
+    targetYear?: number
+    dataSourceYears?: number[]
+    recommendationPhase?: string
+    estimateMode?: boolean
+    supportLevel?: string
+    recommendMode?: string
+    engineName?: string
+    supportReason?: string
+    diagnosis?: Record<string, unknown>
+  }>({})
   const aiContent = ref('')
   const generating = ref(false)
 
@@ -62,9 +72,12 @@ export const useVolunteerStore = defineStore('volunteer', () => {
 
   /** 把后端返回的方案完整写入 store；兼容老版本只传 items 的调用点。 */
   function setPlanFromResponse(plan: VolunteerPlan) {
+    const savedMeta = getSavedPlanMeta()
+    const existingAccessKey = planId.value === plan.id ? planAccessKey.value : ''
+    const savedAccessKey = savedMeta?.planId === plan.id ? savedMeta.accessKey : ''
+    const nextAccessKey = plan.accessKey || existingAccessKey || savedAccessKey || ''
     planId.value = plan.id
-    const credential = plan.safetyCode || plan.accessKey || ''
-    planSafetyCode.value = credential
+    planAccessKey.value = nextAccessKey
     planItems.value = plan.items || []
     dataQualityWarning.value = plan.dataQualityWarning || ''
     manualReviewItems.value = plan.manualReviewItems || []
@@ -76,14 +89,28 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     policy.value = plan.policy ?? null
     modelInfo.value = plan.modelInfo ?? null
     warnings.value = plan.warnings || []
+    planMeta.value = {
+      provinceCode: plan.provinceCode,
+      targetYear: plan.targetYear,
+      dataSourceYears: plan.dataSourceYears,
+      recommendationPhase: plan.recommendationPhase,
+      estimateMode: plan.estimateMode,
+      supportLevel: plan.supportLevel,
+      recommendMode: plan.recommendMode,
+      engineName: plan.engineName,
+      supportReason: plan.supportReason,
+      diagnosis: plan.diagnosis,
+    }
     aiContent.value = ''
-    localStorage.setItem(PLAN_META_KEY, JSON.stringify({ planId: plan.id, safetyCode: credential, accessKey: plan.accessKey || '' }))
+    if (nextAccessKey) {
+      localStorage.setItem(PLAN_META_KEY, JSON.stringify({ planId: plan.id, accessKey: nextAccessKey }))
+    }
   }
 
   /** 兼容旧调用：仅写入核心字段。新代码请使用 setPlanFromResponse。 */
-  function setPlanResult(id: number, items: VolunteerItem[], safetyCode = '', warning = '') {
+  function setPlanResult(id: number, items: VolunteerItem[], accessKey = '', warning = '') {
     planId.value = id
-    planSafetyCode.value = safetyCode
+    planAccessKey.value = accessKey
     planItems.value = items
     dataQualityWarning.value = warning
     manualReviewItems.value = []
@@ -95,8 +122,9 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     policy.value = null
     modelInfo.value = null
     warnings.value = []
+    planMeta.value = {}
     aiContent.value = ''
-    localStorage.setItem(PLAN_META_KEY, JSON.stringify({ planId: id, safetyCode }))
+    localStorage.setItem(PLAN_META_KEY, JSON.stringify({ planId: id, accessKey }))
   }
 
   function setAiContent(content: string) {
@@ -110,13 +138,14 @@ export const useVolunteerStore = defineStore('volunteer', () => {
   function clearPlan() {
     planItems.value = []
     planId.value = null
-    planSafetyCode.value = ''
+    planAccessKey.value = ''
     dataQualityWarning.value = ''
     manualReviewItems.value = []
     planMetrics.value = null
     policy.value = null
     modelInfo.value = null
     warnings.value = []
+    planMeta.value = {}
     aiContent.value = ''
     gradientRangeSummary.value = null
     rankEstimate.value = null
@@ -129,7 +158,7 @@ export const useVolunteerStore = defineStore('volunteer', () => {
       const raw = localStorage.getItem(PLAN_META_KEY)
       if (!raw) return null
       const parsed = JSON.parse(raw) as PlanMeta
-      if (!parsed.planId || !(parsed.safetyCode || parsed.accessKey)) return null
+      if (!parsed.planId || !parsed.accessKey) return null
       return parsed
     } catch {
       return null
@@ -140,7 +169,6 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     formData,
     planItems,
     planId,
-    planSafetyCode,
     planAccessKey,
     dataQualityWarning,
     manualReviewItems,
@@ -152,6 +180,7 @@ export const useVolunteerStore = defineStore('volunteer', () => {
     policy,
     modelInfo,
     warnings,
+    planMeta,
     aiContent,
     generating,
     setFormData,

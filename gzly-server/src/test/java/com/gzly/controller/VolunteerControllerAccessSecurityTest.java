@@ -93,7 +93,19 @@ class VolunteerControllerAccessSecurityTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.id").value(99))
-                .andExpect(jsonPath("$.data.accessKey").value("secret-access-key"));
+                .andExpect(jsonPath("$.data.accessKey").doesNotExist());
+    }
+
+    @Test
+    void shouldRejectVolunteerPlanByPostBodyWhenAccessKeyInvalid() throws Exception {
+        when(volunteerService.getPlanResult(99L, "bad-key")).thenReturn(null);
+
+        mockMvc.perform(post("/volunteer/plan")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"planId\":99,\"accessKey\":\"bad-key\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403))
+                .andExpect(jsonPath("$.message").value("方案不存在或访问密钥无效"));
     }
 
     @Test
@@ -128,7 +140,7 @@ class VolunteerControllerAccessSecurityTest {
         verify(valueOperations).set(keyCaptor.capture(), payloadCaptor.capture(), eq(Duration.ofSeconds(120)));
         assertThat(keyCaptor.getValue()).startsWith("volunteer:ai-ticket:");
         assertThat(payloadCaptor.getValue()).contains("\"planId\":99");
-        assertThat(payloadCaptor.getValue()).contains("\"safetyCode\":\"secret-access-key\"");
+        assertThat(payloadCaptor.getValue()).contains("\"accessKey\":\"secret-access-key\"");
         assertThat(payloadCaptor.getValue()).contains("\"profile\":\"稳妥优先\"");
     }
 

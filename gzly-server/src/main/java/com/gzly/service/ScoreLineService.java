@@ -47,6 +47,7 @@ public class ScoreLineService {
         private String universityName;
         private String groupCode;
         private String groupName;
+        private String majorCode;
         private String majorName;
         private String majorId;
         private Integer year;
@@ -489,6 +490,7 @@ public class ScoreLineService {
         view.setUniversityName(line.getUniversityName());
         view.setGroupCode(line.getGroupCode());
         view.setGroupName(line.getGroupName());
+        view.setMajorCode(line.getGroupCode());
         view.setMajorName(StringUtils.isNotBlank(line.getGroupName()) ? line.getGroupName() : line.getGroupCode());
         view.setYear(line.getYear());
         view.setSubjectType(line.getSubjectType());
