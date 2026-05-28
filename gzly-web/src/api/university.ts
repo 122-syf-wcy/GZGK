@@ -1,9 +1,11 @@
 import http from './request'
 import type { OfficialLink, Result, PageResult, University } from '@/types'
+import type { ProvinceCode } from '@/constants/provinces'
 
 /** 查询院校列表 */
 export function getUniversityList(params: {
   keyword?: string
+  provinceCode?: ProvinceCode
   province?: string
   region?: string
   tag?: string
@@ -14,19 +16,19 @@ export function getUniversityList(params: {
 }
 
 /** 查询院校详情 */
-export function getUniversityDetail(id: number) {
-  return http.get<Result<University>>(`/university/${id}`)
+export function getUniversityDetail(id: number, provinceCode?: ProvinceCode) {
+  return http.get<Result<University>>(`/university/${id}`, { params: { provinceCode } })
 }
 
-export function getUniversityBySchoolId(schoolId: string) {
+export function getUniversityBySchoolId(schoolId: string, provinceCode?: ProvinceCode) {
   return http.get<Result<University>>('/university/by-school-id', {
-    params: { schoolId },
+    params: { schoolId, provinceCode },
   })
 }
 
-export function getUniversityOfficialLinks(schoolId: string) {
+export function getUniversityOfficialLinks(schoolId: string, provinceCode?: ProvinceCode) {
   return http.get<Result<OfficialLink | null>>('/university/official-links', {
-    params: { schoolId },
+    params: { schoolId, provinceCode },
   })
 }
 

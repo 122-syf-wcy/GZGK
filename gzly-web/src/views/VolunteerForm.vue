@@ -2,14 +2,18 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useVolunteerStore } from '@/stores/volunteer'
-import { generateVolunteerPlan, rankCheck } from '@/api/volunteer'
+import {
+  generateVolunteerPlan,
+  getProvinceBatchSupport,
+  rankCheck,
+  type BatchSupportItem,
+} from '@/api/volunteer'
 import { getHotMajors, type HotMajor } from '@/api/scoreLine'
 import DisclaimerDialog from '@/components/DisclaimerDialog.vue'
 import type { GradientRangeKey, GradientRanges } from '@/types'
 import {
   getProvinceConfig,
   normalizeProvinceCode,
-  PROVINCE_LIST,
   type ProvinceCode,
 } from '@/constants/provinces'
 import {
@@ -39,7 +43,8 @@ const route = useRoute()
 const volunteerStore = useVolunteerStore()
 
 const totalScore = ref<number | undefined>(volunteerStore.formData.totalScore || undefined)
-const provinceCode = ref<ProvinceCode>(normalizeProvinceCode(route.query.provinceCode))
+const initialProvinceCode = normalizeProvinceCode(route.query.provinceCode)
+const provinceCode = ref<ProvinceCode>(initialProvinceCode)
 const provinceRank = ref<number | undefined>(volunteerStore.formData.provinceRank || undefined)
 const firstSubject = ref<'物理' | '历史'>(volunteerStore.formData.firstSubject || '物理')
 const resubjects = ref<string[]>([...volunteerStore.formData.resubjects])
@@ -67,6 +72,16 @@ const hotMajorsLoading = ref(false)
 const rankHint = ref('')
 const rankConflict = ref('')
 const rankEstLoading = ref(false)
+const batchSupportLoading = ref(false)
+const batchSupportError = ref('')
+const batchSupportItems = ref<BatchSupportItem[]>([])
+const batchSupportMeta = ref({
+  recommendationPhase: 'PRE_OFFICIAL_DATA',
+  latestOfficialDataYear: 2025,
+  dataSourceYears: [2024, 2025] as number[],
+})
+const selectedBatchCode = ref('')
+const selectedCandidateType = ref('普通类')
 const rankEstimateLow = ref<number | null>(null)
 const rankEstimateHigh = ref<number | null>(null)
 const rankEstimateYear = ref<number | null>(null)
@@ -92,11 +107,80 @@ const strategyOptions = [
   { key: '冲刺型', title: '冲刺型', desc: '接受更高波动，优先争取平台或热门方向' },
 ] as const
 
-const provinceOptions = PROVINCE_LIST.map(item => ({
-  key: item.code,
-  title: item.shortName,
-  desc: `${item.targetBatch}，${item.volunteerUnit} · ${item.statusLabel}`,
-}))
+const batchSupportSummary = computed(() => {
+  const items = batchSupportItems.value
+  const identities = Array.from(new Set(items.map(item => item.candidateType).filter(Boolean)))
+  const queryOnly = items.filter(item => item.supportLevel === 'QUERY_ONLY').length
+  return {
+    identities,
+    total: items.length,
+    queryOnly,
+  }
+})
+
+const selectedBatch = computed(() => (
+  batchSupportItems.value.find(item => item.batchCode === selectedBatchCode.value) || batchSupportItems.value[0]
+))
+function isGeneratableBatch(item?: BatchSupportItem) {
+  return Boolean(item?.generatorReady && ['FULL_RECOMMEND', 'ESTIMATE_RECOMMEND'].includes(item.supportLevel))
+}
+
+function supportLevelText(item?: BatchSupportItem) {
+  if (!item) return '策略待读取'
+  if (item.supportLevel === 'FULL_RECOMMEND') return '完整数据生成'
+  if (item.supportLevel === 'ESTIMATE_RECOMMEND') return '历史估算'
+  if (item.supportLevel === 'TRIAL_RECOMMEND') return '试运行'
+  if (item.supportLevel === 'QUERY_ONLY') return '只查策略'
+  return '只查策略'
+}
+
+function phaseText(phase?: string) {
+  if (phase === 'PRE_OFFICIAL_DATA') return '官方数据待发布'
+  if (phase === 'OFFICIAL_DATA_PARTIAL') return '官方数据部分导入'
+  if (phase === 'OFFICIAL_DATA_IMPORTED') return '官方数据已导入待复核'
+  if (phase === 'MODEL_RETRAINED') return '模型已重训待验收'
+  if (phase === 'FULL_RECOMMEND_READY') return '完整数据生成待确认'
+  return phase || '官方数据待发布'
+}
+
+function publicFacingText(text?: string) {
+  return String(text || '')
+    .replace(/PRE_OFFICIAL_DATA/g, '官方数据待发布')
+    .replace(/ESTIMATE_RECOMMEND/g, '历史估算')
+    .replace(/QUERY_ONLY/g, '只查策略')
+    .replace(/FULL_RECOMMEND/g, '完整数据生成')
+    .replace(/QERY_ONLY/g, '只查策略')
+}
+
+function missingDataText(key: string) {
+  const labels: Record<string, string> = {
+    official_2026_admission_plan: '2026官方招生计划未发布/未导入',
+    official_2026_score_or_rank: '2026官方分数位次未发布/未导入',
+    official_2026_composite_score_rule: '综合分折算规则待核验',
+    official_2026_special_qualification: '艺术/体育资格条件待核验',
+    official_2026_skill_exam_rule: '技能高考规则待核验',
+    official_2026_skill_qualification: '技能高考资格条件待核验',
+    official_2026_qualification_rule: '资格/提前批条件待核验',
+    data_score_rank: '一分一段/位次表门禁未全绿',
+    data_admission_group_plan: '院校专业组计划门禁未全绿',
+    data_admission_plan_gz: '招生计划门禁未全绿',
+    data_major_requirement: '选科/资格要求门禁未全绿',
+    data_major_meta: '专业元数据门禁未全绿',
+    ml_training: '模型训练门禁未激活',
+    HB_A00306_manual_rank_review: '湖北清华A00306位次需人工确认',
+    formal_import_strategy_confirmation: '生产已有同年数据，导入策略待确认',
+  }
+  return labels[key] || key
+}
+
+function visibleMissingData(item?: BatchSupportItem) {
+  return (item?.missingData || []).map(missingDataText).slice(0, 5)
+}
+
+const selectedBatchReady = computed(() => Boolean(
+  isGeneratableBatch(selectedBatch.value),
+))
+const selectedBatchEstimateMode = computed(() => selectedBatch.value?.supportLevel === 'ESTIMATE_RECOMMEND')
 
 const gradientRangeRows: Array<{ key: GradientRangeKey; label: '冲' | '稳' | '保' | '垫'; desc: string }> = [
   { key: 'chong', label: '冲', desc: '尝试更高层次院校或热门方向' },
@@ -127,15 +211,17 @@ const regionOptions = [
   '重庆', '湖北', '湖南', '贵州', '云南', '陕西',
 ]
 
-const subjectTypeLabel = computed(() => (firstSubject.value === '物理' ? '物理类' : '历史类'))
 const currentProvince = computed(() => getProvinceConfig(provinceCode.value))
+const isThreePlusThreeProvince = computed(() => currentProvince.value.subjectMode === '3+3')
+const subjectTypeLabel = computed(() => (isThreePlusThreeProvince.value ? '综合改革' : (firstSubject.value === '物理' ? '物理类' : '历史类')))
 const provinceName = computed(() => currentProvince.value.name)
 const targetVolunteerCount = computed(() => currentProvince.value.targetCount)
+const effectiveTargetCount = computed(() => selectedBatch.value?.targetCount || targetVolunteerCount.value)
 const volunteerUnitLabel = computed(() => (
   currentProvince.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45' ? '院校专业组' : '志愿'
 ))
-const targetBatchLabel = computed(() => currentProvince.value.targetBatch)
-const isGenerateLocked = computed(() => currentProvince.value.status !== 'open')
+const targetBatchLabel = computed(() => selectedBatch.value?.batchName || currentProvince.value.targetBatch)
+const isGenerateLocked = computed(() => !selectedBatchReady.value)
 const hasRankEstimate = computed(() => Boolean(rankEstimateHigh.value && rankEstimateHigh.value > 0))
 const effectiveRankForPreview = computed(() => (
   provinceRank.value && provinceRank.value > 0
@@ -188,18 +274,33 @@ const missingItems = computed(() => {
 const readinessText = computed(() => (
   isGenerateLocked.value
     ? '生成能力暂未开放'
-    : missingItems.value.length ? `还差 ${missingItems.value.length} 项必填信息` : '已满足生成条件'
+    : missingItems.value.length ? `还差 ${missingItems.value.length} 项必填信息` : selectedBatchEstimateMode.value ? '可生成历史估算草稿' : '已满足生成条件'
 ))
 
 const readinessDetail = computed(() => (
   isGenerateLocked.value
-    ? currentProvince.value.volunteerLockDescription
+    ? publicFacingText(selectedBatch.value?.supportReason || currentProvince.value.volunteerLockDescription)
     : missingItems.value.length
     ? `请继续补全：${missingItems.value.join('、')}`
     : hasCurrentDisclaimer.value
-      ? `可以直接生成 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}草稿，随后继续做 AI 解读、Excel 导出和人工排序。`
-      : `点击生成按钮阅读并确认生成前风险告知后，即可生成 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}草稿。`
+      ? `可以直接生成 ${effectiveTargetCount.value} 个${volunteerUnitLabel.value}草稿，随后继续做 AI 解读、Excel 导出和人工排序。`
+      : `点击生成按钮阅读并确认生成前风险告知后，即可生成 ${effectiveTargetCount.value} 个${volunteerUnitLabel.value}草稿。`
 ))
+const lockedReason = computed(() => publicFacingText(selectedBatch.value?.supportReason || currentProvince.value.volunteerLockDescription))
+const selectedBatchStatusText = computed(() => {
+  if (!selectedBatch.value) return publicFacingText(currentProvince.value.batchSupportNote)
+  if (selectedBatch.value.supportLevel === 'FULL_RECOMMEND' && selectedBatchReady.value) return `${selectedBatch.value.batchName}已满足完整数据生成门禁。`
+  if (selectedBatch.value.supportLevel === 'ESTIMATE_RECOMMEND' && selectedBatchReady.value) return `${selectedBatch.value.batchName}可基于已核验历史数据生成估算草稿；不冒充2026官方数据。`
+  return publicFacingText(selectedBatch.value.supportReason || currentProvince.value.batchSupportNote)
+})
+
+function algorithmStatusText(item?: BatchSupportItem) {
+  if (!item) return currentProvince.value.batchSupportNote
+  if (item.mlEligible) return '本省模型可用'
+  if (item.modelRouteStatus === 'BASELINE_ONLY_NOT_ACTIVATED') return '本省基线待激活'
+  if (item.modelRouteStatus === 'QUERY_GATE_ONLY') return '仅查询门禁'
+  return item.modelRouteStatus || '规则兜底'
+}
 
 const progressRatio = computed(() => {
   let filled = 0
@@ -311,7 +412,11 @@ async function loadHotMajors() {
 }
 
 watch([firstSubject, provinceCode], loadHotMajors)
-onMounted(loadHotMajors)
+onMounted(() => {
+  volunteerStore.setFormData({ provinceCode: provinceCode.value })
+  void loadHotMajors()
+  void loadBatchSupport()
+})
 
 watch(() => route.query.provinceCode, (value) => {
   const next = normalizeProvinceCode(value)
@@ -322,7 +427,44 @@ watch(() => route.query.provinceCode, (value) => {
 
 watch(provinceCode, (code) => {
   volunteerStore.setFormData({ provinceCode: code })
+  void loadBatchSupport()
+  if (normalizeProvinceCode(route.query.provinceCode) !== code) {
+    router.replace({ query: { ...route.query, provinceCode: code } })
+  }
 })
+
+async function loadBatchSupport() {
+  batchSupportLoading.value = true
+  batchSupportError.value = ''
+  try {
+    const res = await getProvinceBatchSupport(provinceCode.value)
+    const payload = res.data?.data
+    batchSupportItems.value = payload?.items || []
+    batchSupportMeta.value = {
+      recommendationPhase: payload?.recommendationPhase || 'PRE_OFFICIAL_DATA',
+      latestOfficialDataYear: payload?.latestOfficialDataYear || 2025,
+      dataSourceYears: payload?.dataSourceYears?.length ? payload.dataSourceYears : [2024, 2025],
+    }
+    const preferred = batchSupportItems.value.find(item => item.candidateType === '普通类' && item.supportLevel === 'FULL_RECOMMEND' && item.generatorReady)
+      || batchSupportItems.value.find(item => item.candidateType === '普通类' && item.supportLevel === 'ESTIMATE_RECOMMEND' && item.generatorReady)
+      || batchSupportItems.value.find(item => item.candidateType === '普通类')
+      || batchSupportItems.value[0]
+    selectedBatchCode.value = preferred?.batchCode || ''
+    selectedCandidateType.value = preferred?.candidateType || '普通类'
+  } catch (err: any) {
+    batchSupportItems.value = []
+    batchSupportMeta.value = {
+      recommendationPhase: 'PRE_OFFICIAL_DATA',
+      latestOfficialDataYear: 2025,
+      dataSourceYears: [2024, 2025],
+    }
+    selectedBatchCode.value = ''
+    selectedCandidateType.value = '普通类'
+    batchSupportError.value = err?.message || '批次策略读取失败'
+  } finally {
+    batchSupportLoading.value = false
+  }
+}
 
 watch(strategyMode, (mode) => {
   if (gradientRangeMode.value === 'preset') {
@@ -428,18 +570,6 @@ function setRangeMode(mode: 'preset' | 'custom') {
   }
 }
 
-function selectProvince(code: ProvinceCode): void {
-  if (provinceCode.value !== code) {
-    provinceCode.value = code
-  }
-  router.replace({
-    query: {
-      ...route.query,
-      provinceCode: code,
-    },
-  })
-}
-
 function updateRange(key: GradientRangeKey, field: keyof GradientRanges[GradientRangeKey], rawValue: string | number) {
   const value = typeof rawValue === 'number' ? rawValue : Number(rawValue)
   gradientRanges.value = {
@@ -501,6 +631,9 @@ async function submitPlan() {
   try {
     const payload = {
       provinceCode: provinceCode.value,
+      year: 2026,
+      candidateType: selectedCandidateType.value,
+      batchCode: selectedBatchCode.value,
       totalScore: totalScore.value!,
       provinceRank: provinceRank.value && provinceRank.value > 0 ? provinceRank.value : 0,
       firstSubject: firstSubject.value,
@@ -554,7 +687,7 @@ async function submitPlan() {
         <div class="gz-shell-heading">
           <div class="gz-shell-title">智能志愿填报</div>
           <div class="gz-shell-subtitle">
-            {{ isGenerateLocked ? '查看地区口径、表单字段和数据准备状态' : `把会影响推荐结果的条件一次性填全，再生成 ${targetVolunteerCount} 个${volunteerUnitLabel}草稿` }}
+            {{ isGenerateLocked ? '查看地区口径、表单字段和数据准备状态' : `把会影响推荐结果的条件一次性填全，再生成 ${effectiveTargetCount} 个${volunteerUnitLabel}草稿` }}
           </div>
         </div>
         <div class="gz-shell-header-extra">{{ progressRatio }}%</div>
@@ -567,7 +700,7 @@ async function submitPlan() {
           <span class="gz-shell-kicker">volunteer plan</span>
           <h1 class="gz-shell-hero-title">主流程只保留真正影响结果的输入项</h1>
           <p class="gz-shell-hero-desc">
-            {{ isGenerateLocked ? currentProvince.volunteerLockDescription : `系统会综合分数、位次、选科、偏好、预算与风险取向生成 ${targetVolunteerCount} 个${volunteerUnitLabel}。` }}
+            {{ isGenerateLocked ? lockedReason : `系统会综合分数、位次、选科、偏好、预算与风险取向生成 ${effectiveTargetCount} 个${volunteerUnitLabel}。` }}
           </p>
           <div class="gz-shell-chip-row volunteer-hero__chips">
             <span class="gz-shell-chip is-soft-active">{{ subjectTypeLabel }}</span>
@@ -588,10 +721,10 @@ async function submitPlan() {
       </section>
 
       <section v-if="isGenerateLocked" class="gz-shell-panel volunteer-lock-panel">
-        <div class="volunteer-lock-panel__badge">数据准备中</div>
+        <div class="volunteer-lock-panel__badge">只查策略</div>
         <div>
           <h2>{{ currentProvince.volunteerLockTitle }}</h2>
-          <p>{{ currentProvince.volunteerLockDescription }}</p>
+          <p>{{ lockedReason }}</p>
           <small>可先查看政策、分数线入口和院校库；后端数据门禁继续保留，前端不会主动发起生成。</small>
         </div>
       </section>
@@ -608,27 +741,77 @@ async function submitPlan() {
             </div>
 
             <div class="option-group">
-              <div class="volunteer-block__label">填报省份</div>
-              <div class="option-grid option-grid--double">
-                <button
-                  v-for="opt in provinceOptions"
-                  :key="opt.key"
-                  type="button"
-                  class="option-card"
-                  :class="{ active: provinceCode === opt.key }"
-                  @click="selectProvince(opt.key)"
-                >
-                  <span class="option-card__title">{{ opt.title }}</span>
-                  <span class="option-card__desc">{{ opt.desc }}</span>
-                </button>
+              <div class="volunteer-block__label">当前省份</div>
+              <div class="province-context-card">
+                <div>
+                  <strong>{{ currentProvince.name }} AI 志愿工作台</strong>
+                  <span>{{ currentProvince.targetBatch }} · {{ currentProvince.targetCount }} 个{{ currentProvince.volunteerUnit }}</span>
+                </div>
+                <em>{{ currentProvince.statusLabel }}</em>
               </div>
-              <div v-if="currentProvince.volunteerUnitType === 'PROFESSIONAL_GROUP_45'" class="volunteer-note">
-                {{ currentProvince.shortName }}当前按{{ currentProvince.targetBatch }}院校专业组建模；公开可核验数据不足 45 个时，系统会提示补数据，不会伪装完整方案。
+              <div class="volunteer-note">
+                已按 URL 中的 provinceCode 进入 {{ currentProvince.shortName }} 口径；如需切换省份，请回首页选择对应入口。
+                <template v-if="currentProvince.volunteerUnitType === 'PROFESSIONAL_GROUP_45'">
+                  {{ currentProvince.shortName }}当前按{{ currentProvince.targetBatch }}院校专业组建模；公开可核验数据不足 45 个时，系统会提示补数据，不会伪装完整方案。
+                </template>
               </div>
             </div>
 
+            <div class="option-group batch-support-panel">
+              <div class="batch-support-panel__head">
+                <div>
+                  <div class="volunteer-block__label">身份与批次策略</div>
+                  <p>{{ currentProvince.identityStrategySummary }}</p>
+                  <p class="batch-support-panel__source">
+                    {{ phaseText(batchSupportMeta.recommendationPhase) }} · targetYear=2026 仅作展示 · 使用 {{ batchSupportMeta.dataSourceYears.join('/') }} 历史数据估算，最新官方数据年 {{ batchSupportMeta.latestOfficialDataYear }}
+                  </p>
+                </div>
+                <span>{{ batchSupportSummary.total }} 个批次</span>
+              </div>
+              <div class="identity-chip-row">
+                <span v-for="identity in (batchSupportSummary.identities.length ? batchSupportSummary.identities : currentProvince.supportedIdentities)" :key="identity" class="identity-chip">
+                  {{ identity }}
+                </span>
+              </div>
+              <div v-if="batchSupportLoading" class="inline-loading">批次策略读取中…</div>
+              <div v-else-if="batchSupportError" class="rank-hint rank-hint--warning">{{ batchSupportError }}</div>
+              <div v-else-if="batchSupportItems.length" class="batch-card-grid">
+                <button
+                  v-for="item in batchSupportItems"
+                  :key="item.batchCode"
+                  type="button"
+                  class="batch-card"
+                  :class="{ active: selectedBatchCode === item.batchCode }"
+                  @click="selectedBatchCode = item.batchCode; selectedCandidateType = item.candidateType"
+                >
+                  <span class="batch-card__meta">{{ item.candidateType }} · {{ supportLevelText(item) }}</span>
+                  <strong>{{ item.batchName }}</strong>
+                  <small>{{ item.maxVolunteerCount || item.targetCount }} 个{{ item.volunteerMode || volunteerUnitLabel }}</small>
+                  <span class="batch-card__strategy">
+                    <b>{{ item.generationEngine || item.engineName || item.engine }}</b>
+                    <i>{{ algorithmStatusText(item) }}</i>
+                  </span>
+                  <span v-if="item.modelRoute" class="batch-card__route">{{ item.modelRoute }}</span>
+                  <span v-if="visibleMissingData(item).length" class="batch-card__missing">
+                    <i v-for="missing in visibleMissingData(item).slice(0, 2)" :key="missing">{{ missing }}</i>
+                  </span>
+                  <details class="batch-card__details" @click.stop>
+                    <summary>缺口说明</summary>
+                    <em>{{ publicFacingText(item.supportReason || currentProvince.batchSupportNote) }}</em>
+                    <span v-if="visibleMissingData(item).length" class="batch-card__missing batch-card__missing--expanded">
+                      <i v-for="missing in visibleMissingData(item)" :key="missing">{{ missing }}</i>
+                    </span>
+                  </details>
+                </button>
+              </div>
+              <div class="volunteer-note">{{ selectedBatchStatusText }}</div>
+            </div>
+
             <div class="volunteer-block">
-              <div class="volunteer-block__label">首选科目（选 1 门）</div>
+              <div class="volunteer-block__label">{{ isThreePlusThreeProvince ? '综合改革选科口径' : '首选科目（选 1 门）' }}</div>
+              <div v-if="isThreePlusThreeProvince" class="volunteer-note volunteer-note--compact">
+                海南按 3+3 selectedSubjects 匹配 requiredSubjects；这里保留内部兼容字段，结果解释不按物理/历史分轨。
+              </div>
               <div class="subject-options">
                 <button
                   v-for="opt in firstSubjectOptions"
@@ -636,6 +819,7 @@ async function submitPlan() {
                   type="button"
                   class="subject-chip subject-chip--primary"
                   :class="{ active: firstSubject === opt.label }"
+                  :disabled="isThreePlusThreeProvince"
                   @click="firstSubject = opt.label"
                 >
                   <span class="subject-chip__icon" :class="opt.iconClass" aria-hidden="true">
@@ -647,7 +831,7 @@ async function submitPlan() {
             </div>
 
             <div class="volunteer-block">
-              <div class="volunteer-block__label">再选科目（选 2 门）</div>
+              <div class="volunteer-block__label">{{ isThreePlusThreeProvince ? '选科组合（当前表单保留两门再选字段）' : '再选科目（选 2 门）' }}</div>
               <div class="subject-options">
                 <button
                   v-for="opt in resubjectOptions"
@@ -1005,11 +1189,11 @@ async function submitPlan() {
         </button>
 
         <button class="submit-btn" :class="{ disabled: !canSubmit || generating }" :disabled="!canSubmit || generating" @click="onSubmit">
-          <span>{{ isGenerateLocked ? '生成能力暂未开放' : generating ? '生成中…' : hasCurrentDisclaimer ? `生成 ${targetVolunteerCount} 个${volunteerUnitLabel}` : '阅读风险告知并生成' }}</span>
+          <span>{{ isGenerateLocked ? '生成能力暂未开放' : generating ? '生成中…' : hasCurrentDisclaimer ? `${selectedBatchEstimateMode ? '生成历史估算' : '生成'} ${effectiveTargetCount} 个${volunteerUnitLabel}` : '阅读风险告知并生成' }}</span>
           <ArrowRight :size="18" />
         </button>
         <p class="submit-hint">
-          {{ isGenerateLocked ? currentProvince.volunteerLockDescription : '系统会综合专业数据、院校门槛、位次波动和你的偏好给出可解释结果。' }}
+          {{ isGenerateLocked ? lockedReason : selectedBatchEstimateMode ? '当前仅基于已核验历史数据生成估算草稿，不代表2026官方招生计划或录取承诺。' : '系统会综合专业数据、院校门槛、位次波动和你的偏好给出可解释结果。' }}
         </p>
       </section>
     </div>
@@ -1147,6 +1331,47 @@ async function submitPlan() {
   line-height: 1.5;
   font-weight: 700;
   color: #334155;
+}
+
+.province-context-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(34, 197, 94, 0.24);
+  background: #f0fdf4;
+}
+
+.province-context-card div {
+  display: grid;
+  gap: 5px;
+}
+
+.province-context-card strong {
+  color: #14532d;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.province-context-card span {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.province-context-card em {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  line-height: 1;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .subject-options,
@@ -1899,6 +2124,183 @@ async function submitPlan() {
   color: #64748b;
 }
 
+.batch-support-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.batch-support-panel__head p {
+  margin: 6px 0 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.batch-support-panel__head span {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+}
+
+.identity-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.identity-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #ecfeff;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.batch-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.batch-card {
+  min-height: 118px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #0f172a;
+}
+
+.batch-card.active {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
+}
+
+.batch-card__meta {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.batch-card strong {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.batch-card small,
+.batch-card em {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+  font-style: normal;
+}
+
+.batch-card__strategy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 28px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 11px;
+}
+
+.batch-card__strategy b,
+.batch-card__strategy i,
+.batch-card__route {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.batch-card__strategy b {
+  font-weight: 700;
+}
+
+.batch-card__strategy i {
+  color: #0f766e;
+  font-style: normal;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.batch-card__route {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.batch-support-panel__source {
+  margin: 4px 0 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.batch-card__missing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.batch-card__missing i {
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.25;
+}
+
+.batch-card__details {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid #edf2f7;
+  color: #64748b;
+}
+
+.batch-card__details summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  color: #334155;
+}
+
+.batch-card__details em {
+  font-style: normal;
+}
+
+.batch-card__missing--expanded {
+  max-height: none;
+}
+
+.subject-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.volunteer-note--compact {
+  margin-top: 8px;
+}
+
 .submit-btn {
   display: flex;
   align-items: center;
@@ -2559,6 +2961,160 @@ async function submitPlan() {
 
   .submit-btn {
     border-radius: 6px;
+  }
+}
+
+/* Final desktop layout override: keep mobile single-column, but let desktop use the whole canvas. */
+@media (min-width: 900px) {
+  .volunteer-form-page {
+    background: #f5f6f8;
+  }
+
+  .volunteer-main-shell {
+    width: min(1440px, calc(100vw - 64px));
+    max-width: none;
+    padding-top: 20px;
+    gap: 18px;
+  }
+
+  .volunteer-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .volunteer-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+    align-items: start;
+    gap: 18px;
+  }
+
+  .volunteer-main > .volunteer-section:first-child,
+  .volunteer-main > .volunteer-section:nth-child(4) {
+    grid-column: 1 / -1;
+  }
+
+  .volunteer-section,
+  .volunteer-summary-card,
+  .volunteer-submit-card {
+    min-width: 0;
+  }
+
+  .volunteer-section:first-child {
+    display: grid;
+    grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+    column-gap: 20px;
+    row-gap: 16px;
+  }
+
+  .volunteer-section:first-child .volunteer-section__head,
+  .volunteer-section:first-child .option-group:first-of-type,
+  .volunteer-section:first-child .volunteer-block,
+  .volunteer-section:first-child .volunteer-form-grid {
+    grid-column: 1;
+  }
+
+  .volunteer-section:first-child .batch-support-panel {
+    grid-column: 2;
+    grid-row: 1 / span 6;
+    margin-top: 0;
+  }
+
+  .batch-card-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+    align-items: stretch;
+  }
+
+  .batch-card {
+    min-height: 220px;
+    padding: 14px;
+  }
+
+  .batch-card__meta {
+    word-break: keep-all;
+  }
+
+  .batch-card em {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .batch-card__missing {
+    max-height: 54px;
+    overflow: hidden;
+  }
+
+  .volunteer-sidebar {
+    position: static;
+    display: grid;
+    grid-template-columns: minmax(320px, 0.75fr) minmax(0, 1.25fr);
+    gap: 16px;
+  }
+
+  .option-grid--triple {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .option-grid--double,
+  .volunteer-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .range-preview-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .interest-layout {
+    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  }
+
+  .volunteer-submit-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 0.9fr) 240px;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .volunteer-submit-card .gz-shell-panel-head,
+  .volunteer-submit-card .agreement-box,
+  .volunteer-submit-card .submit-btn {
+    margin-top: 0;
+  }
+
+  .volunteer-submit-card .submit-hint {
+    grid-column: 2 / 4;
+    margin-top: -2px;
+    text-align: left;
+  }
+}
+
+@media (min-width: 1280px) {
+  .volunteer-main-shell {
+    width: min(1480px, calc(100vw - 72px));
+  }
+
+  .batch-card-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+}
+
+@media (min-width: 1500px) {
+  .volunteer-main-shell {
+    width: min(1560px, calc(100vw - 96px));
+  }
+
+  .batch-card-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+}
+
+@media (max-width: 899px) {
+  .batch-card-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

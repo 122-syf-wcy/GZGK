@@ -29,6 +29,7 @@ const router = createRouter({
     },
     {
       path: '/score-line',
+      alias: '/score-lines',
       name: 'ScoreLineQuery',
       component: () => import('@/views/ScoreLineQuery.vue'),
       meta: { title: '历年分数线' },
@@ -74,20 +75,6 @@ const router = createRouter({
       name: 'Disclaimer',
       component: () => import('@/views/Disclaimer.vue'),
       meta: { title: '免责声明' },
-    },
-    {
-      path: '/auth/login',
-      redirect: '/volunteer',
-    },
-    {
-      path: '/auth/activate',
-      redirect: '/volunteer',
-    },
-    {
-      path: '/me/plans',
-      name: 'MyPlans',
-      component: () => import('@/views/MyPlans.vue'),
-      meta: { title: '我的志愿空间', requiresAuth: true },
     },
     {
       path: '/poster',
@@ -139,10 +126,6 @@ const router = createRouter({
           meta: { title: '方案记录 - 管理后台' },
         },
         {
-          path: 'card-keys',
-          redirect: '/admin/plans',
-        },
-        {
           path: 'universities',
           name: 'AdminUniversities',
           component: () => import('@/views/admin/Universities.vue'),
@@ -161,12 +144,6 @@ const router = createRouter({
           meta: { title: '官方入口 - 管理后台' },
         },
         {
-          path: 'import-jobs',
-          name: 'AdminImportJobs',
-          component: () => import('@/views/admin/ImportJobs.vue'),
-          meta: { title: '2026导入任务 - 管理后台' },
-        },
-        {
           path: 'announcements',
           name: 'AdminAnnouncements',
           component: () => import('@/views/admin/Announcements.vue'),
@@ -177,6 +154,12 @@ const router = createRouter({
           name: 'AdminAiConfig',
           component: () => import('@/views/admin/AiConfig.vue'),
           meta: { title: 'AI配置 - 管理后台' },
+        },
+        {
+          path: 'import-jobs',
+          name: 'AdminImportJobs',
+          component: () => import('@/views/admin/ImportJobs.vue'),
+          meta: { title: '导入任务确认包 - 管理后台' },
         },
         {
           path: 'feedbacks',
@@ -209,12 +192,6 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   document.title = (to.meta.title as string) || '高考志愿辅助系统'
-  if (to.meta.requiresAuth) {
-    const token = localStorage.getItem('gz_user_token')
-    if (!token) {
-      return '/volunteer'
-    }
-  }
 })
 
 export default router

@@ -2,8 +2,6 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useVolunteerStore } from '@/stores/volunteer'
-import { useAuthStore } from '@/stores/auth'
-import { fetchMyPlanDetail, fetchMyPlanSkillsHistory } from '@/api/myPlans'
 import {
   chatZxfSkill,
   createAiAnalysisTicket,
@@ -22,12 +20,9 @@ import ActionStepsSection from '@/components/ai/ActionStepsSection.vue'
 import SkillsServiceCard from '@/components/ai/SkillsServiceCard.vue'
 import SkillsChatBox from '@/components/ai/SkillsChatBox.vue'
 import FloatingExportBar from '@/components/ai/FloatingExportBar.vue'
-import AiAnalysisMetaBadge from '@/components/ai/AiAnalysisMetaBadge.vue'
-import VolunteerListPanel from '@/components/ai/VolunteerListPanel.vue'
 import { buildAiProfileSummary, formDataFromPlan } from '@/utils/volunteer-plan'
 import { renderMarkdown } from '@/utils/markdown'
 import { AI_GENERATED_NOTICE } from '@/constants/compliance'
-import type { VolunteerPlan } from '@/types'
 import {
   AlertTriangle,
   Bot,
@@ -38,7 +33,6 @@ import {
 const router = useRouter()
 const route = useRoute()
 const volunteerStore = useVolunteerStore()
-const authStore = useAuthStore()
 
 const content = ref('')
 const isStreaming = ref(false)
@@ -54,12 +48,6 @@ const skillMessages = ref<ZxfSkillChatMessage[]>([])
 const skillSourceOpen = ref(false)
 const skillSourceChunks = ref<Array<Record<string, unknown>>>([])
 const skillReferencedVolunteers = ref<Array<Record<string, unknown>>>([])
-const aiMeta = ref<{
-  modelVersion?: string
-  fallback?: boolean
-  fallbackReason?: string
-  issues?: string[]
-} | null>(null)
 let eventSource: EventSource | null = null
 
 const modeProfile = computed(() => buildAiProfileSummary(volunteerStore.formData))
@@ -206,7 +194,6 @@ const reportAnchors = computed(() => [
   { id: 'report-overview', label: '关键结论' },
   ...reportSections.value.map(section => ({ id: section.id, label: section.title })),
   { id: 'appendix', label: '附录补充' },
-  { id: 'volunteer-panel', label: '完整志愿清单' },
   { id: 'zxf-skills', label: 'skills 服务' },
 ])
 
@@ -251,7 +238,7 @@ const actionList = computed(() => {
 })
 
 async function startStream() {
-  if (!volunteerStore.planId || !volunteerStore.planSafetyCode) {
+  if (!volunteerStore.planId || !volunteerStore.planAccessKey) {
     content.value = '缺少方案信息，暂时无法生成 AI 深度解读。'
     isDone.value = true
     isStreaming.value = false
@@ -268,27 +255,19 @@ async function startStream() {
   isDone.value = false
 
   try {
-    const res = await generateAiAnalysis(volunteerStore.planId, volunteerStore.planSafetyCode, true)
-    const data = res.data.data
-    content.value = analysisToMarkdown(data)
-    aiMeta.value = {
-      modelVersion: data.aiModelVersion,
-      fallback: data.aiFallbackUsed === true,
-      fallbackReason: data.aiFallbackReason,
-      issues: data.dataIssues || [],
-    }
+    const res = await generateAiAnalysis(volunteerStore.planId, volunteerStore.planAccessKey, true)
+    content.value = analysisToMarkdown(res.data.data)
     isStreaming.value = false
     isDone.value = true
     volunteerStore.setAiContent(content.value)
     return
   } catch {
     // 结构化接口不可用时保留旧 SSE 兼容链路。
-    aiMeta.value = null
   }
 
   let url = ''
   try {
-    const ticketRes = await createAiAnalysisTicket(volunteerStore.planId, volunteerStore.planSafetyCode, modeProfile.value)
+    const ticketRes = await createAiAnalysisTicket(volunteerStore.planId, volunteerStore.planAccessKey, modeProfile.value)
     url = getAiAnalysisUrl(ticketRes.data.data.ticket)
   } catch (error: any) {
     content.value = error?.message || 'AI 分析凭证获取失败，请稍后重试。'
@@ -386,59 +365,22 @@ onMounted(async () => {
   } else {
     await startStream()
   }
-  // 登录态用户：跨设备恢复本方案的 skills 历史问答（B3）
-  await restoreSkillsHistory()
   window.addEventListener('scroll', onPageScroll, { passive: true })
   nextTick(() => updateActiveSection())
 })
 
-async function restoreSkillsHistory() {
-  if (!authStore.isAuthenticated || !volunteerStore.planId) return
-  if (skillMessages.value.length) return
-  try {
-    const res = await fetchMyPlanSkillsHistory(volunteerStore.planId)
-    const items = res.data.data || []
-    if (!items.length) return
-    const restored: ZxfSkillChatMessage[] = []
-    for (const it of items) {
-      if (it.question) restored.push({ role: 'user', content: it.question })
-      if (it.answer) restored.push({ role: 'assistant', content: it.answer })
-    }
-    if (restored.length) {
-      skillMessages.value = restored
-    }
-  } catch {
-    // 历史拉取失败不影响主流程
-  }
-}
-
 async function restorePlan() {
   const saved = volunteerStore.getSavedPlanMeta()
   const planId = Number(route.query.planId || saved?.planId)
-  if (!planId) return
-  let safetyCode = String(route.query.safetyCode || route.query.accessKey || saved?.safetyCode || saved?.accessKey || '')
-  if (!safetyCode && authStore.isAuthenticated) {
-    try {
-      const detailRes = await fetchMyPlanDetail(planId)
-      const detail = detailRes.data.data as VolunteerPlan
-      if (detail.items?.length) {
-        volunteerStore.setPlanFromResponse(detail)
-        volunteerStore.setFormData(formDataFromPlan(detail))
-        return
-      }
-      safetyCode = detail.safetyCode || detail.accessKey || ''
-    } catch {
-      safetyCode = ''
-    }
-  }
-  if (!safetyCode) return
+  const accessKey = String(route.query.accessKey || saved?.accessKey || '')
+  if (!planId || !accessKey) return
   try {
-    const res = await fetchVolunteerPlan(planId, safetyCode)
+    const res = await fetchVolunteerPlan(planId, accessKey)
     const plan = res.data.data
     volunteerStore.setPlanFromResponse(plan)
     volunteerStore.setFormData(formDataFromPlan(plan))
-    if (route.query.safetyCode || route.query.accessKey) {
-      router.replace({ path: route.path, query: { ...route.query, safetyCode: undefined, accessKey: undefined } })
+    if (route.query.accessKey) {
+      router.replace({ path: route.path, query: { ...route.query, accessKey: undefined } })
     }
   } catch {
     volunteerStore.clearPlan()
@@ -519,7 +461,7 @@ function formatSkillError(error: unknown) {
 async function sendSkillMessage() {
   const message = skillInput.value.trim()
   if (!message || skillLoading.value) return
-  if (!volunteerStore.planId || !volunteerStore.planSafetyCode) {
+  if (!volunteerStore.planId || !volunteerStore.planAccessKey) {
     skillError.value = '缺少当前志愿方案，暂时无法咨询。'
     return
   }
@@ -532,7 +474,7 @@ async function sendSkillMessage() {
   try {
     const res = await chatZxfSkill({
       planId: volunteerStore.planId,
-      safetyCode: volunteerStore.planSafetyCode,
+      accessKey: volunteerStore.planAccessKey,
       message,
       aiReport: content.value,
       messages: skillMessages.value.slice(-8),
@@ -551,12 +493,12 @@ async function sendSkillMessage() {
 }
 
 async function exportLongImage() {
-  if (!volunteerStore.planId || !volunteerStore.planSafetyCode) {
+  if (!volunteerStore.planId || !volunteerStore.planAccessKey) {
     router.push('/poster')
     return
   }
   try {
-    const res = await exportPlanLongImage(volunteerStore.planId, volunteerStore.planSafetyCode)
+    const res = await exportPlanLongImage(volunteerStore.planId, volunteerStore.planAccessKey)
     downloadBlob(res.data, 'gzly-volunteer-plan.png')
   } catch {
     router.push('/poster')
@@ -618,14 +560,6 @@ function downloadBlob(blob: Blob, filename: string) {
           <p>{{ AI_GENERATED_NOTICE }}</p>
           <p>{{ volunteerStore.referenceProbabilityNotice }}</p>
         </section>
-
-        <AiAnalysisMetaBadge
-          v-if="aiMeta"
-          :model-version="aiMeta.modelVersion"
-          :fallback="aiMeta.fallback"
-          :fallback-reason="aiMeta.fallbackReason"
-          :issues="aiMeta.issues"
-        />
 
         <section
           v-if="volunteerStore.manualReviewItems && volunteerStore.manualReviewItems.length"
@@ -725,12 +659,6 @@ function downloadBlob(blob: Blob, filename: string) {
         </section>
 
         <ActionStepsSection :actions="actionList" />
-
-        <VolunteerListPanel
-          :items="volunteerStore.planItems"
-          :plan-id="volunteerStore.planId"
-          :safety-code="volunteerStore.planSafetyCode"
-        />
 
         <SkillsServiceCard @show-sources="skillSourceOpen = true">
           <SkillsChatBox

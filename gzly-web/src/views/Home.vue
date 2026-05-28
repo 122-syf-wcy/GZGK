@@ -7,30 +7,44 @@ import OnlineCounter from '@/components/OnlineCounter.vue'
 import { showSuccessToast, showToast } from 'vant'
 import {
   ArrowRight,
+  BookOpenCheck,
+  Building2,
   CheckCircle2,
   Clock3,
+  GraduationCap,
   MessageSquare,
   ShieldAlert,
-  User,
+  Table2,
   X,
 } from 'lucide-vue-next'
-import { useAuthStore } from '@/stores/auth'
 
 defineOptions({ name: 'Home' })
 
 const router = useRouter()
 const route = useRoute()
-const authStore = useAuthStore()
 const showFeedbackPopup = ref(false)
 const feedbackContent = ref('')
 const feedbackSubmitting = ref(false)
 
 const feedbackLength = computed(() => feedbackContent.value.trim().length)
 const openCount = computed(() => PROVINCE_LIST.filter(item => item.status === 'open').length)
+const moduleLinks = [
+  { label: 'AI 志愿', path: '/volunteer', icon: GraduationCap },
+  { label: '院校查询', path: '/university', icon: Building2 },
+  { label: '分数线查询', path: '/score-line', icon: Table2 },
+  { label: '特长生专区', path: '/special-admissions', icon: BookOpenCheck },
+] as const
 
 function provinceRoute(province: ProvinceConfig): { path: string; query: ProvinceConfig['routeQuery'] } {
   return {
     path: `/region/${province.code}`,
+    query: province.routeQuery,
+  }
+}
+
+function moduleRoute(province: ProvinceConfig, path: string): { path: string; query: ProvinceConfig['routeQuery'] } {
+  return {
+    path,
     query: province.routeQuery,
   }
 }
@@ -78,26 +92,11 @@ async function submitFeedbackForm(): Promise<void> {
             <ShieldAlert :size="14" />
             公益高考志愿辅助
           </div>
-          <div class="home-hero__top-right">
-            <OnlineCounter class="home-hero__online" />
-            <router-link
-              v-if="authStore.isAuthenticated"
-              to="/me/plans"
-              class="auth-chip auth-chip--me"
-              :aria-label="`我的志愿空间，剩余 ${authStore.remainPlans} 次`"
-            >
-              <User :size="13" />
-              <span class="auth-chip__main">{{ authStore.profile.nickname || '我的空间' }}</span>
-              <span class="auth-chip__count">剩 {{ authStore.remainPlans }} 次</span>
-            </router-link>
-            <router-link v-else to="/volunteer" class="auth-chip auth-chip--activate" aria-label="直接生成方案">
-              <ArrowRight :size="13" /> 直接生成
-            </router-link>
-          </div>
+          <OnlineCounter class="home-hero__online" />
         </div>
-        <h1 class="home-hero__title">先选择地区，再进入对应工作台</h1>
+        <h1 class="home-hero__title">选择省份，进入 AI 志愿工作台</h1>
         <p class="home-hero__desc">
-          同一套页面结构、组件和流程；地区政策、志愿单位、数据状态和生成能力全部由地区配置隔离。
+          当前为 2026 官方数据待发布阶段，系统基于 2024/2025 历史数据提供预估参考。AI 志愿、院校查询、分数线查询、特长生专区和政策/数据状态统一从省份工作台进入。
         </p>
         <div class="home-hero__metrics" aria-label="地区入口状态">
           <div class="home-hero__metric">
@@ -106,7 +105,7 @@ async function submitFeedbackForm(): Promise<void> {
           </div>
           <div class="home-hero__metric">
             <strong>{{ openCount }}</strong>
-            <span>个生成开放</span>
+            <span>个工作台入口</span>
           </div>
           <div class="home-hero__metric">
             <strong>0</strong>
@@ -118,32 +117,51 @@ async function submitFeedbackForm(): Promise<void> {
 
     <main class="page-container home-main">
       <section class="province-grid" aria-label="地区选择">
-        <router-link
+        <article
           v-for="province in PROVINCE_LIST"
           :key="province.code"
-          :to="provinceRoute(province)"
           class="gz-card province-card"
           :class="`is-${province.statusTone}`"
           :data-testid="`province-card-${province.code}`"
           :aria-label="`${province.name}专区，${province.statusLabel}`"
+          role="button"
+          tabindex="0"
+          @click="router.push(provinceRoute(province))"
+          @keyup.enter="router.push(provinceRoute(province))"
+          @keyup.space.prevent="router.push(provinceRoute(province))"
         >
           <span class="province-card__status">
             <CheckCircle2 v-if="province.status === 'open'" :size="15" />
             <Clock3 v-else :size="15" />
             {{ province.statusLabel }}
           </span>
+          <span class="province-card__data-status" :class="`is-${province.scorelineStatusTone}`">
+            {{ province.scorelineStatusLabel }}
+          </span>
           <span class="province-card__title">{{ province.name }}专区</span>
-          <span class="province-card__desc">{{ province.heroDescription }}</span>
+          <span class="province-card__desc">{{ province.scorelineSummary }}</span>
           <span class="province-card__facts">
             <span>{{ province.targetBatch }}</span>
             <span>{{ province.targetCount }} 个{{ province.volunteerUnit }}</span>
             <span>{{ province.officialSource }}</span>
           </span>
+          <span class="province-card__modules" @click.stop>
+            <router-link
+              v-for="module in moduleLinks"
+              :key="module.label"
+              :to="moduleRoute(province, module.path)"
+              class="province-card__module"
+              :data-testid="`province-card-${province.code}-${module.label}`"
+            >
+              <component :is="module.icon" :size="13" />
+              {{ module.label }}
+            </router-link>
+          </span>
           <span class="province-card__action">
-            {{ province.status === 'open' ? '进入工作台' : '查看准备状态' }}
+            进入工作台
             <ArrowRight :size="16" />
           </span>
-        </router-link>
+        </article>
       </section>
 
       <section class="gz-card home-notice">
@@ -246,7 +264,7 @@ async function submitFeedbackForm(): Promise<void> {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 880px;
+  max-width: 1080px;
   margin: 0 auto;
 }
 
@@ -254,57 +272,8 @@ async function submitFeedbackForm(): Promise<void> {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
-}
-
-.home-hero__top-right {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.auth-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  height: 28px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-  text-decoration: none;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  color: #fffdf7;
-  background: rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(2px);
-  transition: background 0.16s ease, border-color 0.16s ease;
-}
-
-.auth-chip:hover {
-  background: rgba(255, 255, 255, 0.26);
-}
-
-.auth-chip--activate {
-  background: rgba(255, 215, 130, 0.32);
-  border-color: rgba(255, 215, 130, 0.4);
-}
-
-.auth-chip--me {
-  background: rgba(255, 255, 255, 0.94);
-  color: #1f2933;
-  border-color: rgba(31, 41, 51, 0.18);
-}
-
-.auth-chip__count {
-  margin-left: 4px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: rgba(31, 41, 51, 0.08);
-  color: #5f4630;
-  font-size: 11px;
-  font-weight: 800;
 }
 
 .home-hero__badge {
@@ -386,7 +355,7 @@ async function submitFeedbackForm(): Promise<void> {
 .province-card {
   display: flex;
   width: 100%;
-  min-height: 260px;
+  min-height: 238px;
   margin-bottom: 0;
   flex-direction: column;
   align-items: flex-start;
@@ -419,14 +388,39 @@ async function submitFeedbackForm(): Promise<void> {
   font-weight: 800;
 }
 
+.province-card__data-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin-top: 10px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.province-card__data-status.is-green,
+.province-card__data-status.is-blue {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.province-card__data-status.is-amber,
+.province-card__data-status.is-red {
+  background: #fffbeb;
+  color: #92400e;
+}
+
 .province-card.is-preparing .province-card__status {
   background: #fffbeb;
   color: #92400e;
 }
 
 .province-card__title {
-  margin-top: 18px;
-  font-size: 26px;
+  margin-top: 14px;
+  font-size: 24px;
   line-height: 1.15;
   font-weight: 850;
   letter-spacing: -0.03em;
@@ -436,8 +430,12 @@ async function submitFeedbackForm(): Promise<void> {
 .province-card__desc {
   margin-top: 10px;
   font-size: 14px;
-  line-height: 1.8;
+  line-height: 1.65;
   color: #475569;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .province-card__facts {
@@ -458,6 +456,37 @@ async function submitFeedbackForm(): Promise<void> {
   color: #475569;
   font-size: 12px;
   font-weight: 700;
+}
+
+.province-card__modules {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin-top: 18px;
+}
+
+.province-card__module {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: #fffdfa;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.province-card__module:hover,
+.province-card__module:focus-visible {
+  border-color: rgba(29, 78, 216, 0.22);
+  color: #1d4ed8;
+  outline: none;
 }
 
 .province-card__action {
@@ -645,6 +674,10 @@ async function submitFeedbackForm(): Promise<void> {
   .province-card {
     min-height: 0;
   }
+
+  .province-card__modules {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (min-width: 768px) {
@@ -659,6 +692,16 @@ async function submitFeedbackForm(): Promise<void> {
 
   .province-card {
     padding: 28px;
+  }
+}
+
+@media (min-width: 1180px) {
+  .province-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .province-card {
+    padding: 20px;
   }
 }
 </style>

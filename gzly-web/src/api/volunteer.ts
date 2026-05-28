@@ -2,6 +2,57 @@ import http from './request'
 import type { GradientRanges, Result, VolunteerPlan, RankCheckResponse } from '@/types'
 import type { ProvinceCode } from '@/constants/provinces'
 
+export interface BatchSupportItem {
+  batchCode: string
+  batchName: string
+  candidateType: string
+  category?: string
+  supportLevel: 'FULL_RECOMMEND' | 'TRIAL_RECOMMEND' | 'ESTIMATE_RECOMMEND' | 'QUERY_ONLY' | string
+  recommendMode?: string
+  engine?: string
+  engineName?: string
+  policyVersion?: string
+  algorithmFamily?: string
+  generationEngine?: string
+  modelRoute?: string
+  modelRouteStatus?: string
+  mlEligible?: boolean
+  mlModelPolicy?: string
+  activationGate?: string
+  algorithmReason?: string
+  algorithmPolicy?: Record<string, unknown>
+  targetCount: number
+  maxVolunteerCount: number
+  majorPerSchoolCount?: number
+  hasAdjustment?: boolean
+  volunteerMode?: string
+  policyStatus?: string
+  officialSourceTitle?: string
+  officialSourceUrl?: string
+  generatorReady?: boolean
+  supportReason?: string
+  missingData?: string[]
+}
+
+export interface ProvinceBatchSupportResponse {
+  provinceCode: ProvinceCode
+  provinceName?: string
+  year: number
+  targetYear?: number
+  latestOfficialDataYear?: number
+  dataSourceYears?: number[]
+  historyYears?: number[]
+  trainingYears?: number[]
+  recommendationPhase: string
+  phaseGate?: Record<string, unknown>
+  phaseGates?: Array<Record<string, unknown>>
+  officialDataReady: boolean
+  publicYearLocked?: boolean
+  items: BatchSupportItem[]
+  summary?: Record<string, number>
+  warnings?: string[]
+}
+
 /** 生成志愿方案：新链路会先校验年度政策，再返回机会指数口径的方案 */
 export function generateVolunteerPlan(data: {
   provinceCode?: ProvinceCode
@@ -31,16 +82,16 @@ export function fetchPlanHistory(identifier: string) {
   })
 }
 
-/** 通过安全码恢复单个志愿方案，后端兼容旧 accessKey */
-export function fetchVolunteerPlan(planId: number, safetyCode: string) {
-  return http.post<Result<VolunteerPlan>>('/volunteer/plan', { planId, safetyCode })
+/** 通过访问密钥恢复单个志愿方案 */
+export function fetchVolunteerPlan(planId: number, accessKey: string) {
+  return http.post<Result<VolunteerPlan>>('/volunteer/plan', { planId, accessKey })
 }
 
-/** AI 分析：换发短效一次性 SSE 凭证，避免长期安全码出现在 URL 中。 */
-export function createAiAnalysisTicket(planId: number, safetyCode: string, profile?: string) {
+/** AI 分析：换发短效一次性 SSE 凭证，避免长期 accessKey 出现在 URL 中。 */
+export function createAiAnalysisTicket(planId: number, accessKey: string, profile?: string) {
   return http.post<Result<{ ticket: string; expiresInSeconds: number }>>('/volunteer/ai-analysis-ticket', {
     planId,
-    safetyCode,
+    accessKey,
     profile,
   })
 }
@@ -64,26 +115,18 @@ export interface AiAnalysisResponse {
   actionSteps?: Array<{ title: string; content: string }>
   reorderAdvice?: string[]
   disclaimer?: string
-  /** 真实使用的 AI 模型名（如 "gpt-4o-mini"）；fallback 时为 "rule-template-v1"。 */
-  aiModelVersion?: string
-  /** 是否走规则模板兜底；true 表示未真正调用 AI 或 AI 异常。 */
-  aiFallbackUsed?: boolean
-  /** 兜底原因（仅 fallback 时填）。 */
-  aiFallbackReason?: string
-  /** 数据质量问题清单（低参考度志愿、缺失字段等），由后端从 plan 计算。 */
-  dataIssues?: string[]
 }
 
-export function generateAiAnalysis(planId: number, safetyCode: string, forceRefresh = false) {
+export function generateAiAnalysis(planId: number, accessKey: string, forceRefresh = false) {
   return http.post<Result<AiAnalysisResponse>>(`/volunteer/plans/${planId}/ai-analysis`, {
-    safetyCode,
+    accessKey,
     forceRefresh,
   }, { timeout: 90000 })
 }
 
-export function getAiAnalysis(planId: number, safetyCode: string) {
+export function getAiAnalysis(planId: number, accessKey: string) {
   return http.get<Result<AiAnalysisResponse>>(`/volunteer/plans/${planId}/ai-analysis`, {
-    params: { safetyCode },
+    params: { accessKey },
     timeout: 90000,
   })
 }
@@ -107,13 +150,13 @@ export interface ZxfSkillChatResponse {
 
 export function chatZxfSkill(data: {
   planId: number
-  safetyCode: string
+  accessKey: string
   message: string
   aiReport?: string
   messages?: ZxfSkillChatMessage[]
 }) {
   return http.post<Result<ZxfSkillChatResponse>>(`/volunteer/plans/${data.planId}/skills/ask`, {
-    safetyCode: data.safetyCode,
+    accessKey: data.accessKey,
     question: data.message,
     aiReport: data.aiReport,
     messages: data.messages,
@@ -122,15 +165,15 @@ export function chatZxfSkill(data: {
   })
 }
 
-export function exportPlanLongImage(planId: number, safetyCode: string) {
-  return http.post<Blob>(`/volunteer/plans/${planId}/export-long-image`, { safetyCode }, {
+export function exportPlanLongImage(planId: number, accessKey: string) {
+  return http.post<Blob>(`/volunteer/plans/${planId}/export-long-image`, { accessKey }, {
     responseType: 'blob',
     timeout: 90000,
   })
 }
 
-export function exportPlanExcel(planId: number, safetyCode: string) {
-  return http.post<Blob>(`/volunteer/plans/${planId}/export-excel`, { safetyCode }, {
+export function exportPlanExcel(planId: number, accessKey: string) {
+  return http.post<Blob>(`/volunteer/plans/${planId}/export-excel`, { accessKey }, {
     responseType: 'blob',
     timeout: 90000,
   })
@@ -147,6 +190,30 @@ export function rankCheck(params: {
   firstSubject: '物理' | '历史'
 }) {
   return http.get<Result<RankCheckResponse>>('/volunteer/rank-check', { params })
+}
+
+
+export function getProvinceBatchSupport(provinceCode: ProvinceCode, year = 2026) {
+  switch (provinceCode) {
+    case 'GZ':
+      return http.get<Result<ProvinceBatchSupportResponse>>('/volunteer/gz/batch-support', { params: { year } })
+    case 'SC':
+      return http.get<Result<ProvinceBatchSupportResponse>>('/volunteer/sc/batch-support', { params: { year } })
+    case 'AH':
+      return http.get<Result<ProvinceBatchSupportResponse>>('/volunteer/ah/batch-support', { params: { year } })
+    case 'HB':
+      return http.get<Result<ProvinceBatchSupportResponse>>('/volunteer/hb/batch-support', { params: { year } })
+    case 'GX':
+      return http.get<Result<ProvinceBatchSupportResponse>>('/volunteer/gx/batch-support', { params: { year } })
+    case 'HI':
+      return http.get<Result<ProvinceBatchSupportResponse>>('/volunteer/hi/batch-support', { params: { year } })
+    case 'YN':
+      return http.get<Result<ProvinceBatchSupportResponse>>('/volunteer/yn/batch-support', { params: { year } })
+    case 'HA':
+      return http.get<Result<ProvinceBatchSupportResponse>>('/volunteer/ha/batch-support', { params: { year } })
+    default:
+      throw new Error(`Unsupported province code: ${provinceCode}`)
+  }
 }
 
 export { generateVolunteerPlan as generatePlan }

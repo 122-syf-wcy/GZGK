@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getUniversityList } from '@/api/university'
 import { ArrowLeft, MapPin, Search, Crown, Award, Star, Building2, ChevronLeft, ChevronRight } from 'lucide-vue-next'
-import { getProvinceConfig } from '@/constants/provinces'
+import { getProvinceConfig, normalizeProvinceCode } from '@/constants/provinces'
 import type { University } from '@/types'
 
 const router = useRouter()
@@ -41,7 +41,8 @@ const regionOptions = [
 const allUniversities = ref<University[]>([])
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
-const currentProvince = computed(() => getProvinceConfig(route.query.provinceCode))
+const currentProvinceCode = computed(() => normalizeProvinceCode(route.query.provinceCode))
+const currentProvince = computed(() => getProvinceConfig(currentProvinceCode.value))
 const visibleRangeText = computed(() => {
   if (total.value === 0) return '0'
   const start = (page.value - 1) * pageSize + 1
@@ -71,6 +72,7 @@ async function fetchList(allowRetry = true) {
     const region = activeRegion.value !== '全部地区' ? activeRegion.value : undefined
     const res = await getUniversityList({
       keyword: keyword.value.trim() || undefined,
+      provinceCode: currentProvinceCode.value,
       tag,
       region,
       page: page.value,
@@ -194,13 +196,17 @@ function activeTagStyle(key: string, color: string) {
 onMounted(() => {
   fetchList()
 })
+
+function goRegionHome(): void {
+  router.push({ path: `/region/${currentProvinceCode.value}`, query: currentProvince.value.routeQuery })
+}
 </script>
 
 <template>
   <div class="gz-shell-page university-page">
     <header class="gz-shell-header">
       <div class="gz-shell-header-inner">
-        <button type="button" class="gz-shell-back" aria-label="返回上一页" @click="router.back()">
+        <button type="button" class="gz-shell-back" aria-label="返回地区工作台" @click="goRegionHome">
           <ArrowLeft :size="20" />
         </button>
         <div class="gz-shell-heading">
@@ -341,7 +347,11 @@ onMounted(() => {
       </div>
 
       <div v-else-if="allUniversities.length === 0" class="gz-shell-empty">
-        <van-empty description="未找到匹配的院校" />
+        <van-empty :description="`${currentProvince.shortName}当前条件下未找到匹配院校；入口保持开放，可调整关键词或先查看数据缺口。`" />
+        <div class="university-empty-gap">
+          <span>{{ currentProvince.scorelineStatusLabel }}</span>
+          <span>{{ currentProvince.scorelineGapTypes.slice(0, 3).join('、') }}</span>
+        </div>
       </div>
 
       <div v-else class="university-list">
@@ -456,6 +466,26 @@ onMounted(() => {
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: #f8fafc;
   color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.university-empty-gap {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.university-empty-gap span {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #fffbeb;
+  color: #92400e;
   font-size: 12px;
   font-weight: 700;
 }
