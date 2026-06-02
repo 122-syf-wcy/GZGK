@@ -44,7 +44,23 @@ from app.models.chance_score_model import train_chance_model  # noqa: E402
 from app.models.rank_prediction_model import train_rank_model  # noqa: E402
 
 
-def ensure_csv(csv_path: Path, min_rows: int, regenerate: bool) -> None:
+def csv_train_years_arg(train_year_range: str | None) -> str:
+    if not train_year_range:
+        return ""
+    parts = [part.strip() for part in train_year_range.split(",")]
+    if parts and all(part.isdigit() and len(part) == 4 for part in parts):
+        return ",".join(parts)
+    return ""
+
+
+def ensure_csv(
+    csv_path: Path,
+    min_rows: int,
+    regenerate: bool,
+    train_year_range: str | None,
+    quality_report: Path | None,
+    require_train_years: bool,
+) -> None:
     """如果 CSV 不存在或 regenerate=True，调用 build_training_csv 重建。
 
     采用延迟 import：只有真正需要重建 CSV 时才 import build_training_csv（依赖 pymysql），
@@ -54,11 +70,19 @@ def ensure_csv(csv_path: Path, min_rows: int, regenerate: bool) -> None:
         return
     print(f"[train] (re)building training CSV -> {csv_path}", flush=True)
     from scripts.build_training_csv import main as build_csv_main  # noqa: WPS433  延迟 import
-    rc = build_csv_main([
+    args = [
         "--output", str(csv_path),
         "--min-rows", str(min_rows),
         "--strict",
-    ])
+    ]
+    train_years = csv_train_years_arg(train_year_range)
+    if train_years:
+        args.extend(["--train-years", train_years])
+    if require_train_years:
+        args.append("--require-train-years")
+    if quality_report:
+        args.extend(["--quality-report", str(quality_report)])
+    rc = build_csv_main(args)
     if rc != 0:
         sys.exit(f"[train] build_training_csv failed with code {rc}")
 
@@ -149,10 +173,68 @@ def train_chance(csv: Path, output_dir: Path, train_year_range: str | None,
     return result
 
 
+def write_plan_trend_report(csv: Path, report_path: Path, train_year_range: str | None) -> dict[str, Any]:
+    """生成 plan trend 规则评估报告；本骨架不产出/激活真实模型文件。"""
+    import pandas as pd  # noqa: WPS433 仅 plan trend 报告需要
+
+    df = pd.read_csv(csv)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    year_counts = df["year"].value_counts().sort_index().astype(int).to_dict() if "year" in df.columns else {}
+    plan_change = df["plan_change_rate"] if "plan_change_rate" in df.columns else pd.Series(dtype=float)
+    negative_change_count = int((plan_change < -0.10).sum()) if len(plan_change) else 0
+    positive_change_count = int((plan_change > 0.10).sum()) if len(plan_change) else 0
+    stable_count = int(((plan_change >= -0.10) & (plan_change <= 0.10)).sum()) if len(plan_change) else 0
+    metrics = {
+        "rows": int(len(df)),
+        "negativePlanChangeRows": negative_change_count,
+        "positivePlanChangeRows": positive_change_count,
+        "stablePlanRows": stable_count,
+        "meanPlanChangeRate": float(plan_change.mean()) if len(plan_change) else 0.0,
+        "medianPlanChangeRate": float(plan_change.median()) if len(plan_change) else 0.0,
+    }
+    lines = [
+        "# GZLY Plan Trend Evaluation Report",
+        "",
+        f"- generatedAt: `{datetime.now().isoformat(timespec='seconds')}`",
+        f"- trainYearRange: `{train_year_range or ''}`",
+        "- boundary: rule evaluation report only; no plan trend model file; no activation.",
+        "",
+        "## Year Coverage",
+        "",
+        "| year | rows |",
+        "|---|---:|",
+    ]
+    for year, count in year_counts.items():
+        lines.append(f"| {year} | {count} |")
+    if not year_counts:
+        lines.append("| none | 0 |")
+    lines.extend(["", "## Plan Change Buckets", "", "| bucket | rows |", "|---|---:|"])
+    lines.append(f"| plan_change_rate < -10% | {negative_change_count} |")
+    lines.append(f"| -10% <= plan_change_rate <= 10% | {stable_count} |")
+    lines.append(f"| plan_change_rate > 10% | {positive_change_count} |")
+    lines.extend([
+        "",
+        "## Gate",
+        "",
+        "- 本报告只评估计划变化特征分布；正式 plan trend 模型或规则上线前必须补离线回测、人工确认和回滚目标。",
+        "- 低样本批次保持规则说明或 `QUERY_ONLY/TRIAL_RECOMMEND`，不得据此直接开放 `FULL_RECOMMEND`。",
+    ])
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {
+        "status": "ok",
+        "modelName": "plan-trend",
+        "modelType": "rule-evaluation-report",
+        "trainDataCount": int(len(df)),
+        "metrics": metrics,
+        "reportPath": str(report_path),
+        "registrySkipped": True,
+    }
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="GZLY 服务器端 ML 模型训练 + 注册")
     parser.add_argument("--models", nargs="+", default=["rank", "chance"],
-                        choices=["rank", "chance"], help="要训练的模型集合")
+                        choices=["rank", "chance", "plan-trend"], help="要训练或评估的模型集合")
     parser.add_argument("--csv", default="data/training_rank.csv", help="训练用 CSV 路径")
     parser.add_argument("--output-dir", default="/var/lib/gzly-ml/models",
                         help="模型 .joblib 输出目录")
@@ -160,6 +242,12 @@ def main(argv: Iterable[str] | None = None) -> int:
                         help="重新构建训练 CSV（跑 build_training_csv.py --strict）")
     parser.add_argument("--min-rows", type=int, default=50,
                         help="重新构建 CSV 时强制的最少行数，少于即报错")
+    parser.add_argument("--quality-report", default="",
+                        help="重新构建 CSV 时输出训练样本质量报告")
+    parser.add_argument("--require-train-years", action="store_true",
+                        help="重新构建 CSV 时要求 --train-year-range 中的每个逗号分隔年份均有样本")
+    parser.add_argument("--plan-trend-report", default="",
+                        help="plan-trend 规则评估报告输出路径")
     parser.add_argument("--register", action="store_true",
                         help="训练完成后调用 /api/admin/ml/models/register 写注册表")
     parser.add_argument("--status", default="draft", choices=["draft", "active", "archived"],
@@ -172,7 +260,15 @@ def main(argv: Iterable[str] | None = None) -> int:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    ensure_csv(csv_path, args.min_rows, args.regenerate_csv)
+    quality_report = Path(args.quality_report) if args.quality_report else None
+    ensure_csv(
+        csv_path,
+        args.min_rows,
+        args.regenerate_csv,
+        args.train_year_range,
+        quality_report,
+        args.require_train_years,
+    )
 
     summary: dict[str, Any] = {}
     if "rank" in args.models:
@@ -181,6 +277,9 @@ def main(argv: Iterable[str] | None = None) -> int:
     if "chance" in args.models:
         summary["chance"] = train_chance(csv_path, output_dir, args.train_year_range,
                                          args.status, args.register)
+    if "plan-trend" in args.models:
+        plan_report = Path(args.plan_trend_report) if args.plan_trend_report else output_dir / "plan_trend_evaluation_report.md"
+        summary["plan-trend"] = write_plan_trend_report(csv_path, plan_report, args.train_year_range)
 
     print("[train] summary:")
     print(json.dumps(summary, ensure_ascii=False, indent=2, default=str))

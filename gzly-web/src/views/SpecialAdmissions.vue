@@ -16,7 +16,7 @@ import {
   fetchSpecialAdmissionCategories,
   fetchSpecialAdmissionPolicies,
 } from '@/api/specialAdmission'
-import { getProvinceConfig } from '@/constants/provinces'
+import { getProvinceConfig, normalizeProvinceCode } from '@/constants/provinces'
 import type { SpecialAdmissionCategory, SpecialAdmissionPolicy } from '@/types'
 import { renderMarkdown, sanitizeHttpUrl } from '@/utils/markdown'
 import { showToast } from 'vant'
@@ -31,8 +31,9 @@ const categories = ref<SpecialAdmissionCategory[]>([])
 const policies = ref<SpecialAdmissionPolicy[]>([])
 const selectedCategory = ref('')
 const expandedId = ref<number | null>(null)
-const currentProvince = computed(() => getProvinceConfig(route.query.provinceCode))
-const isPreparingProvince = computed(() => currentProvince.value.status !== 'open')
+const currentProvinceCode = computed(() => normalizeProvinceCode(route.query.provinceCode))
+const currentProvince = computed(() => getProvinceConfig(currentProvinceCode.value))
+const isPolicyQueryOnlyProvince = computed(() => currentProvinceCode.value !== 'GZ')
 
 const selectedCategoryName = computed(() => {
   if (!selectedCategory.value) return '全部政策'
@@ -41,10 +42,10 @@ const selectedCategoryName = computed(() => {
 
 const policyCountText = computed(() => `${policies.value.length} 条官方政策线索`)
 const focusPaths = computed(() => [
-  { name: '艺术类', category: 'art', hint: '统考、校考、志愿批次' },
-  { name: '体育类', category: 'sports', hint: '专业考试、综合分规则' },
-  { name: '专项计划', category: 'special_plan', hint: '户籍学籍、资格审核' },
-  { name: '强基综评', category: 'early_batch', hint: '以教育部与院校通知为准' },
+  { name: '艺术类', category: 'art', hint: '查询统考、校考、综合分规则和缺口，不套普通位次模型。' },
+  { name: '体育类', category: 'sports', hint: '查询专业考试、综合分规则和历史政策，不生成普通志愿。' },
+  { name: '专项/特殊类型', category: 'special_plan', hint: '核对户籍学籍、资格审核、强基综评和提前批要求。' },
+  { name: '政策与规则', category: 'early_batch', hint: '优先看官方口径、数据缺口和后续需要的源文件。' },
 ])
 const deadlinePolicies = computed(() => policies.value
   .filter(item => item.applyEnd || item.examTime)
@@ -106,16 +107,16 @@ function openOfficial(policy: SpecialAdmissionPolicy) {
 }
 
 async function loadCategories() {
-  if (isPreparingProvince.value) {
+  if (isPolicyQueryOnlyProvince.value) {
     categories.value = []
     return
   }
-  const res = await fetchSpecialAdmissionCategories(year)
+  const res = await fetchSpecialAdmissionCategories(year, currentProvinceCode.value)
   categories.value = res.data?.data || []
 }
 
 async function loadPolicies() {
-  if (isPreparingProvince.value) {
+  if (isPolicyQueryOnlyProvince.value) {
     policies.value = []
     expandedId.value = null
     return
@@ -124,6 +125,7 @@ async function loadPolicies() {
   try {
     const res = await fetchSpecialAdmissionPolicies({
       year,
+      provinceCode: currentProvinceCode.value,
       category: selectedCategory.value || undefined,
       limit: 100,
     })
@@ -138,8 +140,8 @@ async function loadPolicies() {
 }
 
 async function selectCategory(category: string) {
-  if (isPreparingProvince.value) {
-    showToast(`${currentProvince.value.shortName}特殊类型招生资料仍需复核，暂不开放结构化列表`)
+  if (isPolicyQueryOnlyProvince.value) {
+    showToast(`${currentProvince.value.shortName}特长生专区当前为只查策略，先核对官方入口和历史规则`)
     return
   }
   if (selectedCategory.value === category) return
@@ -189,11 +191,11 @@ watch(() => route.query.provinceCode, () => {
     <main class="page-container special-main">
       <section class="quick-panel gz-card">
         <div class="quick-panel__item">
-          <span class="quick-num">{{ isPreparingProvince ? '—' : categories.length || '—' }}</span>
+          <span class="quick-num">{{ isPolicyQueryOnlyProvince ? '—' : categories.length || '—' }}</span>
           <span>政策分类</span>
         </div>
         <div class="quick-panel__item">
-          <span class="quick-num">{{ isPreparingProvince ? '—' : policies.length || '—' }}</span>
+          <span class="quick-num">{{ isPolicyQueryOnlyProvince ? '—' : policies.length || '—' }}</span>
           <span>当前列表</span>
         </div>
         <div class="quick-panel__item">
@@ -202,17 +204,33 @@ watch(() => route.query.provinceCode, () => {
         </div>
       </section>
 
-      <section v-if="isPreparingProvince" class="sc-special-lock gz-card">
+      <section v-if="isPolicyQueryOnlyProvince" class="sc-special-lock gz-card">
         <ShieldCheck :size="20" />
         <div>
-          <h2>{{ currentProvince.shortName }}特殊类型招生资料需复核</h2>
+          <h2>{{ currentProvince.shortName }}特长生专区当前为政策查询与缺口说明</h2>
           <p>
-            当前{{ currentProvince.shortName }}专区只保留官方来源提醒，不展示未核验的结构化政策列表。后续导入并核验{{ currentProvince.officialSource }}及院校官方通知后再开放分类查询。
+            当前{{ currentProvince.shortName }}专区已开放入口，展示艺术类、体育类、专项/特殊类型和政策规则四类入口；数据未完整时只展示官方数据待发布、政策查询和历史规则提醒，不套普通位次模型，也不生成普通志愿草稿。
           </p>
         </div>
       </section>
 
-      <section v-if="!isPreparingProvince" class="focus-section gz-card">
+      <section v-if="isPolicyQueryOnlyProvince" class="focus-section gz-card">
+        <div class="section-head">
+          <div>
+            <h2>专区入口</h2>
+            <p>入口保持开放，当前以查询、政策和缺口为主，等待官方文件补齐后再开放结构化数据。</p>
+          </div>
+        </div>
+        <div class="focus-grid">
+          <div v-for="path in focusPaths" :key="path.category" class="focus-card focus-card--readonly">
+            <Medal :size="18" />
+            <strong>{{ path.name }}</strong>
+            <span>{{ path.hint }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="!isPolicyQueryOnlyProvince" class="focus-section gz-card">
         <div class="section-head">
           <div>
             <h2>重点路径先看这里</h2>
@@ -244,7 +262,7 @@ watch(() => route.query.provinceCode, () => {
         </div>
       </section>
 
-      <section v-if="!isPreparingProvince && (missingCoverage.length || sourceStats.reprintCount)" class="coverage-section gz-card">
+      <section v-if="!isPolicyQueryOnlyProvince && (missingCoverage.length || sourceStats.reprintCount)" class="coverage-section gz-card">
         <div class="section-head coverage-head">
           <div>
             <h2>数据补齐提示</h2>
@@ -262,7 +280,7 @@ watch(() => route.query.provinceCode, () => {
         </div>
       </section>
 
-      <section v-if="!isPreparingProvince" class="category-section">
+      <section v-if="!isPolicyQueryOnlyProvince" class="category-section">
         <div class="section-head">
           <div>
             <h2>按类型查看</h2>
@@ -290,7 +308,7 @@ watch(() => route.query.provinceCode, () => {
         </div>
       </section>
 
-      <section v-if="!isPreparingProvince" class="policy-section">
+      <section v-if="!isPolicyQueryOnlyProvince" class="policy-section">
         <div class="section-head">
           <div>
             <h2>{{ selectedCategoryName }}</h2>
@@ -533,6 +551,14 @@ watch(() => route.query.provinceCode, () => {
   background: linear-gradient(135deg, #fffdfa, #f8fafc);
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 18px;
+}
+
+.focus-card--readonly {
+  cursor: default;
+}
+
+.focus-card--readonly:hover {
+  transform: none;
 }
 
 .focus-card svg {

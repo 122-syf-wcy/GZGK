@@ -1,7 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getSchoolScoreLineHistory, getSchoolScoreLineList, getScoreLineYears } from '@/api/scoreLine'
+import {
+  getScoreLineCapability,
+  queryProvinceScoreLines,
+  type ScoreLineCapability,
+  type ScoreLineCapabilityType,
+  type ScoreLineQueryRow,
+  type ScoreLineType,
+} from '@/api/scoreLine'
 import {
   getProvinceConfig,
   normalizeProvinceCode,
@@ -10,575 +17,620 @@ import {
 } from '@/constants/provinces'
 import {
   ArrowLeft,
-  BookOpen,
-  Building2,
+  BookOpenCheck,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Hash,
-  History,
+  Database,
+  FileWarning,
   Search,
 } from 'lucide-vue-next'
-import type { SchoolScoreSummary, ScoreLine } from '@/types'
 
 const router = useRouter()
 const route = useRoute()
 
 const provinceCode = ref<ProvinceCode>(normalizeProvinceCode(route.query.provinceCode))
+const capability = ref<ScoreLineCapability | null>(null)
+const activeType = ref<ScoreLineType | string>('score_rank')
 const year = ref(2025)
-const subjectType = ref('物理类')
-const searchKeyword = ref('')
-const loading = ref(false)
+const subjectCategory = ref('物理类')
+const selectedSubjects = ref<string[]>([])
+const keyword = ref('')
+const loadingCapability = ref(false)
+const loadingRows = ref(false)
+const errorMessage = ref('')
+const rows = ref<ScoreLineQueryRow[]>([])
 const total = ref(0)
 const page = ref(1)
-const pageSize = 24
-
-const yearOptions = ref<number[]>([2025, 2024, 2023, 2022, 2021])
-const provinceOptions = PROVINCE_LIST.map(item => ({
-  key: item.code,
-  label: item.name,
-  unit: item.volunteerUnitType === 'PROFESSIONAL_GROUP_45' ? '专业组调档线' : '院校分',
-}))
-const subjectOptions = ['物理类', '历史类']
-const schools = ref<SchoolScoreSummary[]>([])
-
-const detailVisible = ref(false)
-const detailLoading = ref(false)
-const selectedSchool = ref<SchoolScoreSummary | null>(null)
-const historyLines = ref<ScoreLine[]>([])
-const isDesktop = ref(false)
-let mediaQuery: MediaQueryList | null = null
+const pageSize = 20
+const expandedSourceId = ref<string | null>(null)
 
 const currentProvince = computed(() => getProvinceConfig(provinceCode.value))
-const isProfessionalGroupProvince = computed(() => currentProvince.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45')
+const isHi = computed(() => provinceCode.value === 'HI')
+const isFirstYear = computed(() => currentProvince.value.subjectMode === '3+1+2_FIRST_YEAR')
+const scoreLineTypes = computed(() => capability.value?.scoreLineTypes || [])
+const activeTypeMeta = computed(() => scoreLineTypes.value.find(item => item.type === activeType.value) || scoreLineTypes.value[0])
+const availableYears = computed(() => {
+  const years = activeTypeMeta.value?.availableYears?.length
+    ? activeTypeMeta.value.availableYears
+    : capability.value?.availableYears || [2025]
+  return Array.from(new Set(years)).sort((a, b) => b - a)
+})
+const queryableTypes = computed(() => scoreLineTypes.value.filter(item => item.queryable).length)
+const missingTypes = computed(() => scoreLineTypes.value.filter(item => !item.queryable).length)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
+const provinceOptions = computed(() => PROVINCE_LIST.map(item => ({ code: item.code, name: item.shortName, status: item.scorelineStatusLabel })))
+const subjectOptions = computed(() => {
+  if (isHi.value) return ['综合改革']
+  return capability.value?.subjectOptions?.length ? capability.value.subjectOptions : ['物理类', '历史类']
+})
+const selectedSubjectOptions = computed(() => capability.value?.selectedSubjectOptions || ['物理', '化学', '生物', '思想政治', '历史', '地理'])
 const visibleRangeText = computed(() => {
-  if (total.value === 0) return '0'
+  if (!total.value) return '0'
   const start = (page.value - 1) * pageSize + 1
   const end = Math.min(page.value * pageSize, total.value)
   return `${start}-${end}`
 })
-const activeKeywords = computed(() => {
-  const tags = [`${year.value}年${isProfessionalGroupProvince.value ? '专业组调档线' : '院校分'}`, currentProvince.value.shortName, subjectType.value]
-  const keyword = searchKeyword.value.trim()
-  if (keyword) tags.push(`院校：${keyword}`)
-  return tags
+const activeStatusText = computed(() => {
+  if (!activeTypeMeta.value) return '待读取'
+  if (activeTypeMeta.value.queryable && rows.value.length) return '真实表格'
+  if (activeTypeMeta.value.queryable) return '可查询'
+  return '暂缺官方源'
 })
-const subjectDescription = computed(() => (
-  subjectType.value === '物理类'
-    ? `按首选物理口径展示${currentProvince.value.shortName}${isProfessionalGroupProvince.value ? '院校专业组调档线' : '院校级投档线'}，点击查看历年分数和位次。`
-    : `按首选历史口径展示${currentProvince.value.shortName}${isProfessionalGroupProvince.value ? '院校专业组调档线' : '院校级投档线'}，点击查看历年分数和位次。`
-))
-const selectedYearRange = computed(() => {
-  if (!selectedSchool.value) return ''
-  const first = selectedSchool.value.firstYear
-  const last = selectedSchool.value.lastYear
-  if (!first || !last) return `${selectedSchool.value.availableYearCount || 0} 年记录`
-  if (first === last) return `${last}年`
-  return `${first}年-${last}年`
+const currentMissingReason = computed(() => {
+  if (loadingRows.value) return ''
+  return activeTypeMeta.value?.missingReason || capability.value?.missingReasonByType?.[String(activeType.value)] || currentProvince.value.scorelineSummary
 })
-const emptyDescription = computed(() => {
-  if (isProfessionalGroupProvince.value && yearOptions.value.length === 0) {
-    return `${currentProvince.value.shortName}院校专业组调档线数据准备中，当前没有可核验年份。`
-  }
-  if (isProfessionalGroupProvince.value) {
-    return `当前条件下暂无${currentProvince.value.shortName}院校专业组调档线；只展示已导入且可核验的数据。`
-  }
-  return '当前条件下暂无匹配院校'
+const noticeList = computed(() => {
+  const notices = isHi.value
+    ? (capability.value?.notices || []).filter(item => !/物理|历史/.test(item))
+    : [...(capability.value?.notices || [])]
+  if (isFirstYear.value) notices.unshift('2025 首年新高考，旧文理数据仅作历史参考，不进入新高考主查询。')
+  if (isHi.value) notices.unshift('海南 3+3 综合改革按选科组合与专业组要求复核。')
+  return Array.from(new Set(notices)).slice(0, 5)
 })
 
-async function fetchYears(): Promise<void> {
+onMounted(() => {
+  void loadCapability()
+})
+
+watch(() => route.query.provinceCode, (value) => {
+  const next = normalizeProvinceCode(value)
+  if (provinceCode.value !== next) provinceCode.value = next
+})
+
+watch(provinceCode, () => {
+  router.replace({ query: { ...route.query, provinceCode: provinceCode.value } })
+  void loadCapability()
+})
+
+watch(activeType, () => {
+  const years = availableYears.value
+  year.value = years[0] || 2025
+  page.value = 1
+  expandedSourceId.value = null
+  void loadRows()
+})
+
+async function loadCapability(): Promise<void> {
+  loadingCapability.value = true
+  errorMessage.value = ''
+  rows.value = []
+  total.value = 0
   try {
-    const res = await getScoreLineYears(provinceCode.value)
-    if (res.data.code === 0) {
-      yearOptions.value = res.data.data || []
-      year.value = yearOptions.value[0] ?? 2025
-    }
-  } catch {
-    yearOptions.value = []
-    year.value = 2025
+    const res = await getScoreLineCapability(provinceCode.value)
+    capability.value = res.data.data
+    const firstQueryable = capability.value.scoreLineTypes.find(item => item.queryable) || capability.value.scoreLineTypes[0]
+    activeType.value = firstQueryable?.type || 'score_rank'
+    year.value = firstQueryable?.availableYears?.[0] || capability.value.availableYears?.[0] || 2025
+    subjectCategory.value = isHi.value ? '综合改革' : (capability.value.subjectOptions?.[0] || '物理类')
+    selectedSubjects.value = isHi.value ? ['物理', '化学', '生物'] : []
+    page.value = 1
+    await loadRows()
+  } catch (error: any) {
+    capability.value = null
+    errorMessage.value = error?.message || '分数线能力读取失败'
+  } finally {
+    loadingCapability.value = false
   }
 }
 
-async function fetchSchools(): Promise<void> {
-  if (isProfessionalGroupProvince.value && yearOptions.value.length === 0) {
-    schools.value = []
+async function loadRows(): Promise<void> {
+  const meta = activeTypeMeta.value
+  if (!meta || !meta.queryable) {
+    rows.value = []
     total.value = 0
     return
   }
-  loading.value = true
+  loadingRows.value = true
+  errorMessage.value = ''
   try {
-    const keyword = searchKeyword.value.trim()
-    const res = await getSchoolScoreLineList({
-      provinceCode: provinceCode.value,
+    const res = await queryProvinceScoreLines(provinceCode.value, activeType.value, {
       year: year.value,
-      subjectType: subjectType.value,
-      universityName: keyword || undefined,
+      subjectCategory: isHi.value ? '综合改革' : subjectCategory.value,
+      keyword: keyword.value.trim() || undefined,
+      schoolName: keyword.value.trim() || undefined,
       page: page.value,
       pageSize,
     })
-    if (res.data.code === 0) {
-      schools.value = res.data.data.items || []
-      total.value = res.data.data.total || 0
-      return
+    const data = res.data.data
+    rows.value = data.pageResult?.items || []
+    total.value = data.pageResult?.total || 0
+    if (data.missingReason && !rows.value.length) {
+      errorMessage.value = data.missingReason
     }
-    schools.value = []
+  } catch (error: any) {
+    rows.value = []
     total.value = 0
-  } catch {
-    schools.value = []
-    total.value = 0
+    errorMessage.value = error?.message || '分数线数据加载失败'
   } finally {
-    loading.value = false
+    loadingRows.value = false
   }
 }
 
-async function openHistory(school: SchoolScoreSummary): Promise<void> {
-  selectedSchool.value = school
-  if (!isDesktop.value) {
-    detailVisible.value = true
-  }
-  detailLoading.value = true
-  historyLines.value = []
-  try {
-    const res = await getSchoolScoreLineHistory({
-      provinceCode: provinceCode.value,
-      schoolId: school.schoolId,
-      groupCode: school.groupCode,
-      subjectType: subjectType.value,
-      maxRecords: 10,
-    })
-    if (res.data.code === 0) {
-      historyLines.value = res.data.data || []
-    }
-  } catch {
-    historyLines.value = []
-  } finally {
-    detailLoading.value = false
-  }
+function selectProvince(target: ProvinceCode): void {
+  if (provinceCode.value === target) return
+  provinceCode.value = target
 }
 
-function onRefresh(): void {
+function selectType(type: string): void {
+  if (activeType.value === type) return
+  activeType.value = type
+}
+
+function selectYear(target: number): void {
+  if (year.value === target) return
+  year.value = target
   page.value = 1
-  fetchSchools()
-}
-
-function selectYear(targetYear: number): void {
-  if (year.value === targetYear) return
-  year.value = targetYear
-  onRefresh()
+  void loadRows()
 }
 
 function selectSubject(target: string): void {
-  if (subjectType.value === target) return
-  subjectType.value = target
-  onRefresh()
+  if (subjectCategory.value === target) return
+  subjectCategory.value = target
+  page.value = 1
+  void loadRows()
 }
 
-async function selectProvince(target: ProvinceCode): Promise<void> {
-  if (provinceCode.value === target) return
-  provinceCode.value = target
-  router.replace({
-    query: {
-      ...route.query,
-      provinceCode: target,
-    },
-  })
+function toggleSelectedSubject(subject: string): void {
+  const idx = selectedSubjects.value.indexOf(subject)
+  if (idx >= 0) {
+    selectedSubjects.value.splice(idx, 1)
+  } else if (selectedSubjects.value.length < 3) {
+    selectedSubjects.value.push(subject)
+  }
+}
+
+function onSearch(): void {
   page.value = 1
-  selectedSchool.value = null
-  historyLines.value = []
-  await fetchYears()
-  await fetchSchools()
+  expandedSourceId.value = null
+  void loadRows()
 }
 
 function resetFilters(): void {
-  searchKeyword.value = ''
-  year.value = yearOptions.value[0] ?? 2025
-  subjectType.value = subjectOptions[0]
-  onRefresh()
+  keyword.value = ''
+  subjectCategory.value = isHi.value ? '综合改革' : (subjectOptions.value[0] || '物理类')
+  selectedSubjects.value = isHi.value ? ['物理', '化学', '生物'] : []
+  page.value = 1
+  void loadRows()
 }
 
 function prevPage(): void {
   if (page.value <= 1) return
   page.value -= 1
-  fetchSchools()
+  void loadRows()
 }
 
 function nextPage(): void {
   if (page.value >= totalPages.value) return
   page.value += 1
-  fetchSchools()
+  void loadRows()
 }
 
-function formatRank(rank?: number | null): string {
-  return rank && rank > 0 ? rank.toLocaleString() : '—'
+function goRegionHome(): void {
+  router.push({ path: `/region/${provinceCode.value}`, query: currentProvince.value.routeQuery })
 }
 
-function formatScore(score?: number | null): string {
-  return score && score > 0 ? `${score}` : '—'
-}
-
-function rankSourceLabel(type?: string): string {
-  if (type === 'original') return '原始位次'
-  if (type === 'score_rank_converted') return '一分一段换算'
-  return '缺位次复核'
-}
-
-function rankSourceClass(type?: string): string {
-  if (type === 'original') return 'is-original'
-  if (type === 'score_rank_converted') return 'is-converted'
+function typeTone(item: ScoreLineCapabilityType): string {
+  if (item.queryable && item.dataStatus === 'AVAILABLE') return 'is-available'
+  if (item.queryable) return 'is-partial'
   return 'is-missing'
 }
 
-function syncDesktopMode(): void {
-  isDesktop.value = Boolean(mediaQuery?.matches)
-  if (isDesktop.value) {
-    detailVisible.value = false
-  }
+function typeStatus(item: ScoreLineCapabilityType): string {
+  if (item.queryable && item.dataStatus === 'AVAILABLE') return '可查询'
+  if (item.queryable) return '部分可用'
+  return '暂缺官方源'
 }
 
-onMounted(async () => {
-  mediaQuery = window.matchMedia('(min-width: 1024px)')
-  syncDesktopMode()
-  mediaQuery.addEventListener('change', syncDesktopMode)
-  await fetchYears()
-  await fetchSchools()
-})
+function publicScoreLineText(text?: string): string {
+  const value = String(text || '')
+  if (!isHi.value) return value
+  return value
+    .replace(/海南 3\+3 不分物理\/历史；?/g, '海南 3+3 按综合改革口径查询；')
+    .replace(/不分物理类\/历史类/g, '按综合改革口径')
+    .replace(/不按物理\/历史或普通位次模型/g, '不套普通位次模型')
+    .replace(/如传入物理类或历史类，接口返回空结果和明确原因。?/g, '')
+    .replace(/物理类|历史类|物理\/历史/g, '综合改革')
+}
 
-onBeforeUnmount(() => {
-  mediaQuery?.removeEventListener('change', syncDesktopMode)
-})
+function formatNumber(value?: number | null): string {
+  return value === undefined || value === null || value <= 0 ? '-' : value.toLocaleString()
+}
+
+function formatText(value?: string | number | null): string {
+  if (value === undefined || value === null || value === '') return '-'
+  return String(value)
+}
+
+function rowKey(row: ScoreLineQueryRow, index: number): string {
+  return `${row.id || index}-${row.schoolCode || ''}-${row.majorGroupCode || ''}-${row.score || row.minScore || ''}`
+}
+
+function isScoreRankType(): boolean {
+  return activeType.value === 'score_rank'
+}
+
+function sourceSummary(row: ScoreLineQueryRow): string {
+  if (row.sourceUrl?.startsWith('local_official_cache')) return '官方缓存源'
+  if (row.sourceUrl) return row.sourceUrl.replace(/^https?:\/\//, '').slice(0, 44)
+  if (row.sourceFile) return row.sourceFile.split('/').pop() || '源文件'
+  return '来源待补'
+}
+
+function toggleSource(row: ScoreLineQueryRow, index: number): void {
+  const key = rowKey(row, index)
+  expandedSourceId.value = expandedSourceId.value === key ? null : key
+}
 </script>
 
 <template>
   <div class="gz-shell-page score-page">
     <header class="gz-shell-header">
       <div class="gz-shell-header-inner">
-        <button type="button" class="gz-shell-back" aria-label="返回上一页" @click="router.back()">
+        <button type="button" class="gz-shell-back" aria-label="返回地区工作台" @click="goRegionHome">
           <ArrowLeft :size="20" />
         </button>
         <div class="gz-shell-heading">
-          <div class="gz-shell-title">院校分数线</div>
-          <div class="gz-shell-subtitle">{{ isProfessionalGroupProvince ? `${currentProvince.shortName}按院校专业组看调档线` : '先按院校看投档门槛，再点进学校查看历年走势' }}</div>
+          <div class="gz-shell-title">分数线查询</div>
+          <div class="gz-shell-subtitle">{{ currentProvince.name }} · {{ currentProvince.scorelineStatusLabel }} · {{ currentProvince.officialSource }}</div>
         </div>
-        <div class="gz-shell-header-extra">{{ total.toLocaleString() }} {{ isProfessionalGroupProvince ? '组' : '所' }}</div>
+        <div class="gz-shell-header-extra">{{ activeStatusText }}</div>
       </div>
     </header>
 
-    <div class="gz-shell-main score-main">
+    <main class="gz-shell-main score-main">
       <section class="gz-shell-hero score-hero">
         <div class="score-hero__copy">
-          <span class="gz-shell-kicker">school score lines</span>
-          <h1 class="gz-shell-hero-title">{{ isProfessionalGroupProvince ? '按院校专业组浏览调档线' : '按院校分浏览，再看历年分数线' }}</h1>
+          <span class="gz-shell-kicker">score line workspace</span>
+          <h1 class="gz-shell-hero-title">{{ currentProvince.name }}分数线工作台</h1>
           <p class="gz-shell-hero-desc">
-            {{ subjectDescription }} {{ isProfessionalGroupProvince ? `${currentProvince.shortName}只展示已导入且可核验的院校专业组数据。` : '当前页面只展示院校级数据；专业级数据请在生成志愿或院校详情中继续复核。' }}
-            最终以{{ currentProvince.officialSource }}和高校官方材料为准。
+            {{ currentProvince.scorelineSummary }} 当前为 2026 官方数据待发布阶段，只展示已导入且可核验的历史数据；缺少官方源的类型会保留入口和缺口说明。
           </p>
           <div class="gz-shell-chip-row score-hero__filters">
-            <span v-for="tag in activeKeywords" :key="tag" class="gz-shell-chip is-soft-active">{{ tag }}</span>
+            <span class="gz-shell-chip is-soft-active">{{ currentProvince.scorelineStatusLabel }}</span>
+            <span class="gz-shell-chip is-soft-active">最新官方数据年 {{ capability?.latestOfficialDataYear || 2025 }}</span>
+            <span class="gz-shell-chip is-soft-active">targetYear=2026 仅展示</span>
+            <span v-if="isHi" class="gz-shell-chip is-soft-active">3+3 综合改革</span>
+            <span v-if="isFirstYear" class="gz-shell-chip is-soft-active">2025 首年新高考</span>
           </div>
         </div>
 
         <div class="gz-shell-metrics">
           <div class="gz-shell-metric">
-            <span class="gz-shell-metric-label">{{ isProfessionalGroupProvince ? '当前专业组' : '当前院校' }}</span>
+            <span class="gz-shell-metric-label">可查询类型</span>
+            <span class="gz-shell-metric-value">{{ queryableTypes }}</span>
+            <span class="gz-shell-metric-note">真实表格优先展示</span>
+          </div>
+          <div class="gz-shell-metric">
+            <span class="gz-shell-metric-label">缺口类型</span>
+            <span class="gz-shell-metric-value">{{ missingTypes }}</span>
+            <span class="gz-shell-metric-note">保留入口与原因</span>
+          </div>
+          <div class="gz-shell-metric">
+            <span class="gz-shell-metric-label">当前类型</span>
+            <span class="gz-shell-metric-value">{{ activeTypeMeta?.label || '-' }}</span>
+            <span class="gz-shell-metric-note">{{ activeStatusText }}</span>
+          </div>
+          <div class="gz-shell-metric">
+            <span class="gz-shell-metric-label">当前记录</span>
             <span class="gz-shell-metric-value">{{ total.toLocaleString() }}</span>
-            <span class="gz-shell-metric-note">{{ isProfessionalGroupProvince ? '按院校专业组聚合' : '按学校聚合，不重复铺年份' }}</span>
-          </div>
-          <div class="gz-shell-metric">
-            <span class="gz-shell-metric-label">基准年份</span>
-            <span class="gz-shell-metric-value">{{ year }}</span>
-            <span class="gz-shell-metric-note">卡片展示该年院校分</span>
-          </div>
-          <div class="gz-shell-metric">
-            <span class="gz-shell-metric-label">科类口径</span>
-            <span class="gz-shell-metric-value">{{ subjectType }}</span>
-            <span class="gz-shell-metric-note">{{ currentProvince.shortName }}新高考口径</span>
-          </div>
-          <div class="gz-shell-metric">
-            <span class="gz-shell-metric-label">当前页</span>
-            <span class="gz-shell-metric-value">{{ visibleRangeText }}</span>
-            <span class="gz-shell-metric-note">点击卡片看历年记录</span>
+            <span class="gz-shell-metric-note">{{ visibleRangeText }}</span>
           </div>
         </div>
       </section>
 
       <section class="gz-shell-panel score-toolbar">
-        <div class="score-toolbar__grid">
-          <div class="toolbar-block">
-            <div class="gz-shell-panel-head">
-              <div class="gz-shell-panel-title">省份</div>
-              <div class="gz-shell-panel-desc">不同省份志愿单位不同：贵州看院校分，四川、湖北、安徽看院校专业组调档线。</div>
-            </div>
-            <div class="score-segment">
-              <button
-                v-for="item in provinceOptions"
-                :key="item.key"
-                type="button"
-                class="score-segment__btn"
-                :class="{ 'is-active': provinceCode === item.key }"
-                @click="selectProvince(item.key)"
-              >
-                <Building2 :size="16" />
-                <span>{{ item.label }}</span>
-              </button>
-            </div>
+        <div class="score-toolbar__topline">
+          <div>
+            <div class="gz-shell-panel-title">省份与数据类型</div>
+            <div class="gz-shell-panel-desc">UI 可共用，业务口径按省份 adapter 返回；海南使用 3+3 综合改革选科口径。</div>
           </div>
+          <div class="score-status-pill" :class="`is-${currentProvince.scorelineStatusTone}`">{{ currentProvince.scorelineStatusLabel }}</div>
+        </div>
 
-          <div class="toolbar-block">
-            <div class="gz-shell-panel-head">
-              <div class="gz-shell-panel-title">基准年份</div>
-              <div class="gz-shell-panel-desc">列表按所选年份的{{ isProfessionalGroupProvince ? '专业组调档线' : '院校分' }}排序，详情中展示历年记录。</div>
-            </div>
-            <div class="gz-shell-chip-row">
-              <button
-                v-for="item in yearOptions"
-                :key="item"
-                type="button"
-                class="gz-shell-chip"
-                :class="{ 'is-active': year === item }"
-                @click="selectYear(item)"
-              >
-                {{ item }}年
-              </button>
-            </div>
-          </div>
+        <div class="score-province-row" aria-label="省份切换">
+          <button
+            v-for="item in provinceOptions"
+            :key="item.code"
+            type="button"
+            class="score-province-chip"
+            :class="{ 'is-active': provinceCode === item.code }"
+            @click="selectProvince(item.code)"
+          >
+            <span>{{ item.name }}</span>
+            <small>{{ item.status }}</small>
+          </button>
+        </div>
 
-          <div class="toolbar-block">
-            <div class="gz-shell-panel-head">
-              <div class="gz-shell-panel-title">科类口径</div>
-              <div class="gz-shell-panel-desc">切换物理类 / 历史类，避免把不同口径的位次混在一起看。</div>
-            </div>
-            <div class="score-segment">
-              <button
-                v-for="item in subjectOptions"
-                :key="item"
-                type="button"
-                class="score-segment__btn"
-                :class="{ 'is-active': subjectType === item }"
-                @click="selectSubject(item)"
-              >
-                <Building2 v-if="item === '物理类'" :size="16" />
-                <BookOpen v-else :size="16" />
-                <span>{{ item }}</span>
-              </button>
-            </div>
-          </div>
+        <div v-if="loadingCapability" class="score-state score-state--compact">
+          <van-loading size="22" color="#0f172a" />
+          <span>正在读取分数线能力…</span>
+        </div>
 
-          <div class="toolbar-block toolbar-block--search">
+        <div v-else class="score-capability-grid">
+          <button
+            v-for="item in scoreLineTypes"
+            :key="item.type"
+            type="button"
+            class="score-capability-card"
+            :class="[typeTone(item), { 'is-active': activeType === item.type }]"
+            @click="selectType(item.type)"
+          >
+            <span class="score-capability-card__status">{{ typeStatus(item) }}</span>
+            <strong>{{ item.label }}</strong>
+            <small>{{ item.queryable ? (item.availableYears?.length ? `${item.availableYears.join('/')} 可查` : '历史数据可查') : publicScoreLineText(item.missingReason) }}</small>
+          </button>
+        </div>
+      </section>
+
+      <section class="score-content-grid">
+        <div class="score-left-stack">
+          <section class="gz-shell-panel score-query-panel">
             <div class="gz-shell-panel-head">
-              <div class="gz-shell-panel-title">院校检索</div>
-              <div class="gz-shell-panel-desc">输入院校名称，快速查看{{ isProfessionalGroupProvince ? '相关院校专业组' : '某所学校的院校级历年分数线' }}。</div>
+              <div class="gz-shell-panel-title">查询条件</div>
+              <div class="gz-shell-panel-desc">只对当前省份和当前类型生效；不可查询类型会展示缺口，不返回空白页。</div>
             </div>
-            <div class="score-search-field">
-              <Search :size="18" class="score-search-field__icon" />
-              <input
-                v-model="searchKeyword"
-                class="score-search-field__input"
-                type="text"
-                placeholder="例如：贵州大学、南京大学、武汉大学、安徽大学"
-                @keyup.enter="onRefresh"
-              >
+
+            <div class="score-filter-grid">
+              <div class="score-filter-block">
+                <span class="score-filter-label">年份</span>
+                <div class="gz-shell-chip-row">
+                  <button
+                    v-for="item in availableYears"
+                    :key="item"
+                    type="button"
+                    class="gz-shell-chip"
+                    :class="{ 'is-active': year === item }"
+                    @click="selectYear(item)"
+                  >
+                    {{ item }}年
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="!isHi" class="score-filter-block">
+                <span class="score-filter-label">科类</span>
+                <div class="score-segment">
+                  <button
+                    v-for="item in subjectOptions"
+                    :key="item"
+                    type="button"
+                    class="score-segment__btn"
+                    :class="{ 'is-active': subjectCategory === item }"
+                    @click="selectSubject(item)"
+                  >
+                    {{ item }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-else class="score-filter-block score-filter-block--wide">
+                <span class="score-filter-label">选科组合（3+3）</span>
+                <div class="score-subject-grid">
+                  <button
+                    v-for="item in selectedSubjectOptions"
+                    :key="item"
+                    type="button"
+                    class="score-subject-chip"
+                    :class="{ 'is-active': selectedSubjects.includes(item) }"
+                    @click="toggleSelectedSubject(item)"
+                  >
+                    {{ item }}
+                  </button>
+                </div>
+                <p class="score-filter-note">当前查询按“综合改革”展示，选科组合用于你人工复核 requiredSubjects，不作为物理/历史筛选。</p>
+              </div>
+
+              <div class="score-filter-block score-filter-block--search">
+                <span class="score-filter-label">院校 / 专业组搜索</span>
+                <div class="score-search-field">
+                  <Search :size="17" class="score-search-field__icon" />
+                  <input
+                    v-model="keyword"
+                    class="score-search-field__input"
+                    type="text"
+                    placeholder="输入院校名称、学校代码或专业组关键词"
+                    @keyup.enter="onSearch"
+                  >
+                </div>
+              </div>
             </div>
-            <div class="gz-shell-actions">
-              <button type="button" class="gz-shell-action gz-shell-action--primary" @click="onRefresh">查询{{ isProfessionalGroupProvince ? '专业组' : '院校' }}</button>
+
+            <div class="gz-shell-actions score-actions">
+              <button type="button" class="gz-shell-action gz-shell-action--primary" :disabled="!activeTypeMeta?.queryable" @click="onSearch">查询真实表格</button>
               <button type="button" class="gz-shell-action" @click="resetFilters">恢复默认</button>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      <div class="score-results-head">
-        <div>
-          <h2 class="score-results-head__title">{{ isProfessionalGroupProvince ? '院校专业组调档线列表' : '院校分列表' }}</h2>
-          <p class="score-results-head__desc">卡片显示基准年份的最低分和最低位次；点击后查看历年{{ isProfessionalGroupProvince ? '专业组调档线' : '院校级投档线' }}。</p>
-        </div>
-        <div class="score-results-head__meta">
-          第 {{ page }} / {{ totalPages }} 页 · 当前展示 {{ visibleRangeText }}
-        </div>
-      </div>
-
-      <div v-if="loading" class="score-state gz-shell-panel">
-        <van-loading size="24" color="#0f172a" />
-        <span>正在加载院校分数据…</span>
-      </div>
-
-      <div v-else-if="schools.length === 0" class="gz-shell-empty">
-        <van-empty :description="emptyDescription" />
-      </div>
-
-      <div v-else class="score-workbench">
-        <div class="score-workbench__list">
-          <div class="school-list">
-            <article
-              v-for="school in schools"
-              :key="`${school.schoolId}-${school.groupCode || ''}-${school.subjectType}`"
-              class="gz-shell-panel school-card"
-              :class="{ 'is-selected': selectedSchool?.schoolId === school.schoolId }"
-              role="button"
-              tabindex="0"
-              @click="openHistory(school)"
-              @keyup.enter="openHistory(school)"
-            >
-              <div class="school-card__rank">{{ formatRank(school.minRank) }}</div>
-              <div class="school-card__main">
-                <div class="school-card__badges">
-                  <span class="school-card__badge school-card__badge--year">{{ school.latestYear }}年</span>
-                  <span class="school-card__badge">{{ school.subjectType }}</span>
-                  <span class="school-card__badge">{{ school.dataSourceType || (isProfessionalGroupProvince ? '院校专业组' : '院校级') }}</span>
-                </div>
-                <h3 class="school-card__name">{{ school.universityName }}</h3>
-                <p class="school-card__desc">
-                  <template v-if="isProfessionalGroupProvince && school.groupCode">{{ school.groupCode }} · {{ school.groupName || '院校专业组' }} · </template>
-                  {{ school.batch || '普通批次' }} · {{ school.firstYear && school.lastYear ? `${school.firstYear}年-${school.lastYear}年` : '历年记录' }}
-                </p>
-              </div>
-
-              <div class="school-card__numbers">
-                <div class="school-number">
-                  <span class="school-number__label">最低分</span>
-                  <strong class="school-number__value">{{ formatScore(school.minScore) }}</strong>
-                </div>
-                <div class="school-number school-number--years">
-                  <span class="school-number__label">年份</span>
-                  <strong class="school-number__value">{{ school.availableYearCount || 0 }}</strong>
-                </div>
-              </div>
-
-              <button type="button" class="school-card__detail" @click.stop="openHistory(school)">
-                查看历年
-                <ChevronRight :size="16" />
-              </button>
-            </article>
-          </div>
-
-          <div v-if="totalPages > 1" class="gz-shell-panel score-pagination">
-            <button type="button" class="gz-shell-action" :disabled="page <= 1" @click="prevPage">
-              <ChevronLeft :size="16" />
-              上一页
-            </button>
-            <div class="score-pagination__text">第 {{ page }} / {{ totalPages }} 页 · 共 {{ total.toLocaleString() }} {{ isProfessionalGroupProvince ? '个专业组' : '所院校' }}</div>
-            <button type="button" class="gz-shell-action" :disabled="page >= totalPages" @click="nextPage">
-              下一页
-              <ChevronRight :size="16" />
-            </button>
-          </div>
-        </div>
-
-        <aside v-if="isDesktop" class="gz-shell-panel history-sidebar">
-          <div v-if="!selectedSchool" class="history-empty">
-            <History :size="28" />
-            <h3>选择一所院校</h3>
-            <p>点击左侧行后，这里会显示历年{{ isProfessionalGroupProvince ? '院校专业组调档线' : '院校级投档线' }}。</p>
-          </div>
-          <section v-else class="history-panel history-panel--sidebar">
-            <div class="history-panel__header">
+          <section class="score-results-section">
+            <div class="score-results-head">
               <div>
-                <div class="history-panel__kicker">{{ isProfessionalGroupProvince ? '院校专业组历年调档线' : '院校历年分数线' }}</div>
-                <h2 class="history-panel__title">{{ selectedSchool.universityName }}</h2>
-                <p class="history-panel__desc">
-                  {{ subjectType }} · {{ selectedYearRange }} · {{ isProfessionalGroupProvince ? '院校专业组调档线' : '院校级投档线' }}，仅供填报复核参考。
-                </p>
+                <h2 class="score-results-head__title">{{ activeTypeMeta?.label || '分数线' }}</h2>
+                <p class="score-results-head__desc">{{ activeTypeMeta?.description || currentProvince.scoreLineDescription }}</p>
               </div>
+              <div class="score-results-head__meta">第 {{ page }} / {{ totalPages }} 页 · 当前展示 {{ visibleRangeText }}</div>
             </div>
 
-            <div v-if="detailLoading" class="history-state">
+            <div v-if="loadingRows" class="score-state gz-shell-panel">
               <van-loading size="24" color="#0f172a" />
-              <span>正在加载历年分数线…</span>
+              <span>正在加载分数线数据…</span>
             </div>
 
-            <div v-else-if="historyLines.length === 0" class="history-state">
-              <van-empty description="暂无历年院校分记录" />
-            </div>
-
-            <div v-else class="history-table">
-              <div class="history-table__head">
-                <span>年份</span>
-                <span>最低分</span>
-                <span>最低位次</span>
-                <span>批次</span>
-                <span>位次来源</span>
-              </div>
-              <div v-for="line in historyLines" :key="`${line.schoolId}-${line.year}-${line.id}`" class="history-table__row">
-                <strong>{{ line.year }}年</strong>
-                <span>{{ formatScore(line.minScore) }}</span>
-                <span>{{ formatRank(line.minRank) }}</span>
-                <span>{{ line.batch || '—' }}</span>
-                <span
-                  :class="['rank-source-tag', rankSourceClass(line.rankSourceType)]"
-                  :title="line.rankSourceNote || rankSourceLabel(line.rankSourceType)"
-                >
-                  {{ rankSourceLabel(line.rankSourceType) }}
-                </span>
+            <div v-else-if="!activeTypeMeta?.queryable" class="gz-shell-panel score-gap-card">
+              <FileWarning :size="24" />
+              <div>
+                <h3>{{ activeTypeMeta?.label || '该类型' }}暂缺官方源</h3>
+                <p>{{ publicScoreLineText(currentMissingReason) }}</p>
+                <details>
+                  <summary>需要补齐的官方源</summary>
+                  <div class="score-gap-list">
+                    <span v-for="gap in currentProvince.scorelineGapTypes" :key="gap">{{ gap }}</span>
+                  </div>
+                </details>
               </div>
             </div>
 
-            <div class="history-panel__notice">
-              <Hash :size="16" />
-              <span>同分排序、招生计划变化、专业热度变化会影响实际填报，最终以{{ currentProvince.officialSource }}和高校官方信息为准。</span>
+            <div v-else-if="rows.length === 0" class="gz-shell-panel score-gap-card">
+              <FileWarning :size="24" />
+              <div>
+                <h3>当前条件下暂无真实表格</h3>
+                <p>{{ publicScoreLineText(errorMessage || currentMissingReason || '请调整年份、科类或关键词后重试。') }}</p>
+              </div>
+            </div>
+
+            <div v-else class="gz-shell-panel score-table-panel">
+              <div class="score-table-wrap">
+                <table class="score-table">
+                  <thead>
+                    <tr v-if="isScoreRankType()">
+                      <th>分数</th>
+                      <th>同分人数</th>
+                      <th>累计人数</th>
+                      <th>位次区间</th>
+                      <th>科类</th>
+                      <th>来源</th>
+                    </tr>
+                    <tr v-else>
+                      <th>院校</th>
+                      <th>批次</th>
+                      <th>专业组</th>
+                      <th>最低分</th>
+                      <th>最低位次</th>
+                      <th>选科/科类</th>
+                      <th>来源</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template v-for="(row, index) in rows" :key="rowKey(row, index)">
+                      <tr v-if="isScoreRankType()">
+                        <td><strong>{{ formatNumber(row.score) }}</strong></td>
+                        <td>{{ formatNumber(row.sameScoreCount) }}</td>
+                        <td>{{ formatNumber(row.cumulativeCount) }}</td>
+                        <td>{{ formatNumber(row.rankLow) }} - {{ formatNumber(row.rankHigh) }}</td>
+                        <td>{{ formatText(row.subjectCategory) }}</td>
+                        <td>
+                          <button type="button" class="source-toggle" @click="toggleSource(row, index)">
+                            {{ sourceSummary(row) }}
+                            <ChevronDown :size="14" />
+                          </button>
+                        </td>
+                      </tr>
+                      <tr v-else>
+                        <td>
+                          <strong>{{ formatText(row.schoolName) }}</strong>
+                          <small>{{ formatText(row.schoolCode) }}</small>
+                        </td>
+                        <td>{{ formatText(row.batchName || row.batchCode) }}</td>
+                        <td>
+                          <span>{{ formatText(row.majorGroupCode || row.majorGroupName) }}</span>
+                          <small v-if="row.majorName && row.majorName !== row.majorGroupCode">{{ row.majorName }}</small>
+                        </td>
+                        <td><strong>{{ formatNumber(row.minScore) }}</strong></td>
+                        <td>{{ formatNumber(row.minRank) }}</td>
+                        <td>{{ formatText(row.requiredSubjects || row.subjectCategory) }}</td>
+                        <td>
+                          <button type="button" class="source-toggle" @click="toggleSource(row, index)">
+                            {{ sourceSummary(row) }}
+                            <ChevronDown :size="14" />
+                          </button>
+                        </td>
+                      </tr>
+                      <tr v-if="expandedSourceId === rowKey(row, index)" class="source-row">
+                        <td :colspan="isScoreRankType() ? 6 : 7">
+                          <div class="source-detail">
+                            <span><b>source_file</b>{{ row.sourceFile || '-' }}</span>
+                            <span><b>source_url</b>{{ row.sourceUrl || '-' }}</span>
+                            <span><b>source_page</b>{{ row.sourcePage || '-' }}</span>
+                            <span v-if="row.rawText"><b>raw_text</b>{{ row.rawText }}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+
+              <div v-if="totalPages > 1" class="score-pagination">
+                <button type="button" class="gz-shell-action" :disabled="page <= 1" @click="prevPage">
+                  <ChevronLeft :size="16" />
+                  上一页
+                </button>
+                <div class="score-pagination__text">第 {{ page }} / {{ totalPages }} 页 · 共 {{ total.toLocaleString() }} 行</div>
+                <button type="button" class="gz-shell-action" :disabled="page >= totalPages" @click="nextPage">
+                  下一页
+                  <ChevronRight :size="16" />
+                </button>
+              </div>
             </div>
           </section>
+        </div>
+
+        <aside class="score-right-stack">
+          <section class="gz-shell-panel score-status-card">
+            <div class="score-status-card__icon"><Database :size="22" /></div>
+            <div>
+              <h2>当前省份数据状态</h2>
+              <p>{{ currentProvince.scorelineSummary }}</p>
+              <div class="score-mini-grid">
+                <span>{{ capability?.dataStatus ? '官方数据待发布' : '状态读取中' }}</span>
+                <span>2026 不造数据</span>
+                <span>{{ currentProvince.scorelineStatusLabel }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="gz-shell-panel score-notice-card">
+            <h2>口径提醒</h2>
+            <ul>
+              <li v-for="notice in noticeList" :key="notice">{{ notice }}</li>
+            </ul>
+          </section>
+
+          <section class="gz-shell-panel score-gap-summary-card">
+            <h2>缺口说明</h2>
+            <details open>
+              <summary>当前缺什么</summary>
+              <div class="score-gap-list">
+                <span v-for="gap in currentProvince.scorelineGapTypes" :key="gap">{{ gap }}</span>
+              </div>
+            </details>
+            <details>
+              <summary>当前可查什么</summary>
+              <div class="score-gap-list score-gap-list--ok">
+                <span v-for="item in currentProvince.scorelineAvailableTypes" :key="item">{{ item }}</span>
+                <span v-if="!currentProvince.scorelineAvailableTypes.length">暂无真实表格</span>
+              </div>
+            </details>
+          </section>
+
+          <button type="button" class="gz-shell-action score-region-btn" @click="goRegionHome">
+            <BookOpenCheck :size="16" />
+            返回{{ currentProvince.shortName }}工作台
+          </button>
         </aside>
-      </div>
-    </div>
-
-    <van-popup
-      v-if="!isDesktop"
-      v-model:show="detailVisible"
-      round
-      closeable
-      position="bottom"
-      :style="{ maxHeight: '86vh' }"
-    >
-      <section class="history-panel">
-        <div class="history-panel__header">
-          <div>
-            <div class="history-panel__kicker">{{ isProfessionalGroupProvince ? '院校专业组历年调档线' : '院校历年分数线' }}</div>
-            <h2 class="history-panel__title">{{ selectedSchool?.universityName || '院校详情' }}</h2>
-            <p class="history-panel__desc">
-              {{ subjectType }} · {{ selectedYearRange }} · {{ isProfessionalGroupProvince ? '院校专业组调档线' : '院校级投档线' }}，仅供填报复核参考。
-            </p>
-          </div>
-        </div>
-
-        <div v-if="detailLoading" class="history-state">
-          <van-loading size="24" color="#0f172a" />
-          <span>正在加载历年分数线…</span>
-        </div>
-
-        <div v-else-if="historyLines.length === 0" class="history-state">
-          <van-empty description="暂无历年院校分记录" />
-        </div>
-
-        <div v-else class="history-table">
-          <div class="history-table__head">
-            <span>年份</span>
-            <span>最低分</span>
-            <span>最低位次</span>
-            <span>批次</span>
-            <span>位次来源</span>
-          </div>
-          <div v-for="line in historyLines" :key="`${line.schoolId}-${line.year}-${line.id}`" class="history-table__row">
-            <strong>{{ line.year }}年</strong>
-            <span>{{ formatScore(line.minScore) }}</span>
-            <span>{{ formatRank(line.minRank) }}</span>
-            <span>{{ line.batch || '—' }}</span>
-            <span
-              :class="['rank-source-tag', rankSourceClass(line.rankSourceType)]"
-              :title="line.rankSourceNote || rankSourceLabel(line.rankSourceType)"
-            >
-              {{ rankSourceLabel(line.rankSourceType) }}
-            </span>
-          </div>
-        </div>
-
-        <div class="history-panel__notice">
-          <Hash :size="16" />
-          <span>同分排序、招生计划变化、专业热度变化会影响实际填报，最终以{{ currentProvince.officialSource }}和高校官方信息为准。</span>
-        </div>
-        <button type="button" class="history-panel__close" @click="detailVisible = false">
-          关闭
-        </button>
       </section>
-    </van-popup>
+    </main>
   </div>
 </template>
 
@@ -586,64 +638,266 @@ onBeforeUnmount(() => {
 .score-main {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
+}
+
+.score-hero,
+.score-toolbar,
+.score-query-panel,
+.score-table-panel,
+.score-status-card,
+.score-notice-card,
+.score-gap-summary-card {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.score-hero {
+  padding: 22px;
+}
+
+.score-hero__filters {
+  margin-top: 14px;
 }
 
 .score-toolbar {
-  padding: 20px;
+  padding: 16px;
 }
 
-.score-toolbar__grid {
+.score-toolbar__topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.score-status-pill {
+  flex-shrink: 0;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.score-status-pill.is-green,
+.score-status-pill.is-blue {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.score-status-pill.is-amber,
+.score-status-pill.is-red {
+  color: #92400e;
+  background: #fffbeb;
+}
+
+.score-province-row {
   display: grid;
-  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
 }
 
-.toolbar-block {
+.score-province-chip {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  min-height: 50px;
+  padding: 9px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  text-align: left;
+}
+
+.score-province-chip span {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.score-province-chip small {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.score-province-chip.is-active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.score-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.score-capability-card {
+  min-height: 118px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  text-align: left;
+}
+
+.score-capability-card.is-active {
+  border-color: #2563eb;
+  background: #f8fbff;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+}
+
+.score-capability-card__status {
+  min-height: 24px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.score-capability-card.is-available .score-capability-card__status,
+.score-capability-card.is-partial .score-capability-card__status {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.score-capability-card.is-missing .score-capability-card__status {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.score-capability-card strong {
+  font-size: 16px;
+  line-height: 1.25;
+  color: #0f172a;
+}
+
+.score-capability-card small {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #64748b;
+}
+
+.score-content-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.score-left-stack,
+.score-right-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.score-query-panel {
+  padding: 16px;
+}
+
+.score-filter-grid {
+  display: grid;
   gap: 14px;
+  margin-top: 14px;
+}
+
+.score-filter-block {
+  min-width: 0;
+}
+
+.score-filter-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .score-segment {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 6px;
-  border-radius: 18px;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 8px;
   border: 1px solid #e2e8f0;
   background: #f8fafc;
 }
 
 .score-segment__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  border: none;
-  border-radius: 14px;
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
   background: transparent;
   color: #475569;
-  font-size: 14px;
-  font-weight: 600;
-  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .score-segment__btn.is-active {
   background: #fff;
   color: #0f172a;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05);
+}
+
+.score-subject-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.score-subject-chip {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.score-subject-chip.is-active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.score-filter-note {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .score-search-field {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 50px;
-  padding: 0 14px;
-  border-radius: 16px;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
   border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  background: #fff;
 }
 
 .score-search-field__icon {
@@ -654,36 +908,36 @@ onBeforeUnmount(() => {
 .score-search-field__input {
   flex: 1;
   min-width: 0;
-  border: none;
-  outline: none;
+  border: 0;
+  outline: 0;
   background: transparent;
-  font-size: 14px;
   color: #0f172a;
+  font-size: 14px;
 }
 
-.score-search-field__input::placeholder {
-  color: #94a3b8;
+.score-actions {
+  margin-top: 14px;
 }
 
 .score-results-head {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 0 4px;
+  gap: 8px;
+  padding: 0 2px;
 }
 
 .score-results-head__title {
   font-size: 18px;
-  font-weight: 700;
   line-height: 1.2;
   color: #0f172a;
 }
 
 .score-results-head__desc,
-.score-results-head__meta {
-  font-size: 13px;
-  line-height: 1.7;
+.score-results-head__meta,
+.score-pagination__text {
   color: #64748b;
+  font-size: 13px;
+  line-height: 1.65;
 }
 
 .score-state {
@@ -692,441 +946,287 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   color: #64748b;
 }
 
-.score-workbench {
-  display: grid;
-  gap: 16px;
+.score-state--compact {
+  min-height: 80px;
 }
 
-.score-workbench__list,
-.school-list {
-  display: grid;
-  gap: 10px;
-}
-
-.school-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+.score-gap-card {
+  display: flex;
   gap: 12px;
-  align-items: center;
-  padding: 14px;
+  padding: 18px;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.score-gap-card svg {
+  flex-shrink: 0;
+  color: #92400e;
+  margin-top: 2px;
+}
+
+.score-gap-card h3,
+.score-status-card h2,
+.score-notice-card h2,
+.score-gap-summary-card h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.score-gap-card p,
+.score-status-card p {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.score-gap-card details,
+.score-gap-summary-card details {
+  margin-top: 10px;
+}
+
+.score-gap-card summary,
+.score-gap-summary-card summary {
   cursor: pointer;
-  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
 }
 
-.school-card:hover {
-  transform: translateY(-1px);
-  border-color: #bfdbfe;
-  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
-}
-
-.school-card:focus-visible {
-  outline: 3px solid rgba(37, 99, 235, 0.22);
-  outline-offset: 2px;
-}
-
-.school-card.is-selected {
-  border-color: #93c5fd;
-  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.12);
-}
-
-.school-card__rank {
-  display: none;
-}
-
-.school-card__main {
-  min-width: 0;
-}
-
-.school-card__badges {
+.score-gap-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-top: 10px;
 }
 
-.school-card__badge {
+.score-gap-list span {
+  min-height: 28px;
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  padding: 0 8px;
+  padding: 0 9px;
   border-radius: 999px;
-  border: 1px solid #dbe4ef;
-  background: #f8fafc;
-  color: #475569;
-  font-size: 11px;
-  font-weight: 600;
+  border: 1px solid #fde68a;
+  background: #fff7ed;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 700;
 }
 
-.school-card__badge--year {
-  border-color: rgba(37, 99, 235, 0.14);
-  background: #eff6ff;
-  color: #1d4ed8;
+.score-gap-list--ok span {
+  border-color: #bbf7d0;
+  background: #ecfdf5;
+  color: #047857;
 }
 
-.school-card__name {
-  font-size: 17px;
-  line-height: 1.35;
-  font-weight: 750;
-  color: #0f172a;
+.score-table-panel {
+  padding: 0;
+  overflow: hidden;
 }
 
-.school-card__desc {
-  margin-top: 6px;
+.score-table-wrap {
+  max-height: 620px;
+  overflow: auto;
+}
+
+.score-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.score-table th,
+.score-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #edf2f7;
+  text-align: left;
+  vertical-align: top;
   font-size: 13px;
   line-height: 1.5;
+  color: #334155;
+}
+
+.score-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
   color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
 }
 
-.school-card__numbers {
-  display: flex;
-  gap: 8px;
+.score-table td strong {
+  display: block;
+  color: #0f172a;
+  font-size: 14px;
 }
 
-.school-number {
-  min-width: 82px;
-  min-height: 58px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid #edf2f7;
+.score-table td small {
+  display: block;
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.source-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 190px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-row td {
   background: #f8fafc;
 }
 
-.school-number__label {
-  display: block;
-  font-size: 12px;
-  line-height: 1.4;
-  color: #64748b;
-}
-
-.school-number__value {
-  display: block;
-  margin-top: 5px;
-  font-size: 20px;
-  line-height: 1.05;
-  color: #0f172a;
-  font-variant-numeric: tabular-nums;
-}
-
-.school-card__detail {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.source-detail {
+  display: grid;
   gap: 6px;
-  min-height: 38px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid #bfdbfe;
-  background: #fff;
-  color: #2563eb;
-  font-size: 13px;
-  font-weight: 700;
-  grid-column: 1 / -1;
-  justify-self: end;
+}
+
+.source-detail span {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 8px;
+  color: #475569;
+  word-break: break-all;
+}
+
+.source-detail b {
+  color: #0f172a;
 }
 
 .score-pagination {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 18px;
-}
-
-.score-pagination__text {
-  font-size: 13px;
-  line-height: 1.6;
-  color: #64748b;
-  text-align: center;
-}
-
-.history-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 22px 18px calc(22px + env(safe-area-inset-bottom));
-  background: #fff;
-}
-
-.history-sidebar {
-  padding: 0;
-  overflow: hidden;
-}
-
-.history-panel--sidebar {
-  padding: 18px;
-}
-
-.history-empty {
-  min-height: 320px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   gap: 10px;
-  padding: 24px;
-  text-align: center;
-  color: #64748b;
+  padding: 14px;
+  border-top: 1px solid #edf2f7;
 }
 
-.history-empty svg {
-  color: #2563eb;
-}
-
-.history-empty h3 {
-  font-size: 18px;
-  line-height: 1.3;
-  color: #0f172a;
-}
-
-.history-empty p {
-  max-width: 260px;
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.history-panel__header {
-  padding-right: 32px;
-}
-
-.history-panel__kicker {
-  font-size: 12px;
-  line-height: 1.5;
-  font-weight: 700;
-  color: #2563eb;
-  text-transform: uppercase;
-}
-
-.history-panel__title {
-  margin-top: 4px;
-  font-size: 22px;
-  line-height: 1.25;
-  color: #0f172a;
-}
-
-.history-panel__desc {
-  margin-top: 8px;
-  font-size: 13px;
-  line-height: 1.7;
-  color: #64748b;
-}
-
-.history-state {
-  min-height: 180px;
+.score-status-card {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   gap: 12px;
-  color: #64748b;
+  padding: 16px;
 }
 
-.history-table {
-  display: grid;
-  overflow: hidden;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  background: #fff;
-}
-
-.history-table__head,
-.history-table__row {
-  display: grid;
-  grid-template-columns: 70px 70px minmax(92px, 1fr) minmax(76px, 0.9fr) minmax(112px, 1fr);
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-}
-
-.history-table__head {
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  font-size: 12px;
-  font-weight: 700;
-  color: #64748b;
-}
-
-.history-table__row {
-  min-height: 54px;
-  border-bottom: 1px solid #edf2f7;
-  font-size: 15px;
-  line-height: 1.4;
-  color: #0f172a;
-  font-variant-numeric: tabular-nums;
-}
-
-.history-table__row:last-child {
-  border-bottom: none;
-}
-
-.history-table__row span:last-child {
-  font-size: 13px;
-}
-
-.rank-source-tag {
-  justify-self: start;
-  max-width: 100%;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
-.rank-source-tag.is-original {
-  color: #047857;
-  background: #ecfdf5;
-}
-
-.rank-source-tag.is-converted {
-  color: #1d4ed8;
-  background: #eff6ff;
-}
-
-.rank-source-tag.is-missing {
-  color: #b45309;
-  background: #fff7ed;
-}
-
-.history-panel__notice {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  padding: 12px;
-  border-radius: 14px;
-  border: 1px solid #fde68a;
-  background: #fffbeb;
-  color: #92400e;
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-.history-panel__notice svg {
+.score-status-card__icon {
+  width: 42px;
+  height: 42px;
   flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.history-panel__close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.score-mini-grid {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  min-height: 44px;
-  border-radius: 12px;
-  border: none;
-  background: #0f172a;
-  color: #fff;
-  font-size: 14px;
+  margin-top: 12px;
+}
+
+.score-mini-grid span {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
   font-weight: 700;
 }
 
+.score-notice-card,
+.score-gap-summary-card {
+  padding: 16px;
+}
+
+.score-notice-card ul {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.score-region-btn {
+  width: 100%;
+}
+
 @media (min-width: 768px) {
-  .score-toolbar {
-    padding: 24px;
+  .score-province-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .score-results-head {
-    flex-direction: row;
-    align-items: flex-end;
-    justify-content: space-between;
+  .score-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .score-filter-block--wide,
+  .score-filter-block--search {
+    grid-column: span 2;
+  }
+
+  .score-results-head,
   .score-pagination {
     flex-direction: row;
     justify-content: space-between;
-  }
-
-  .history-panel {
-    max-width: 880px;
-    margin: 0 auto;
-    padding: 26px 26px calc(26px + env(safe-area-inset-bottom));
-  }
-
-  .history-table__head,
-  .history-table__row {
-    grid-template-columns: 82px 78px minmax(104px, 1fr) minmax(88px, 0.9fr) minmax(126px, 1fr);
+    align-items: center;
   }
 }
 
-@media (min-width: 1024px) {
-  .score-hero {
-    grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
-    align-items: end;
+@media (min-width: 1180px) {
+  .score-main {
+    max-width: 1440px;
   }
 
-  .score-toolbar__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .score-content-grid {
+    grid-template-columns: minmax(0, 1fr) 340px;
     align-items: start;
   }
 
-  .toolbar-block--search {
-    min-height: 100%;
-  }
-
-  .score-workbench {
-    grid-template-columns: minmax(0, 1fr) 430px;
-    align-items: start;
-  }
-
-  .history-sidebar {
+  .score-right-stack {
     position: sticky;
     top: 92px;
   }
-
-  .school-card {
-    grid-template-columns: 100px minmax(0, 1fr) 178px 112px;
-    min-height: 86px;
-  }
-
-  .school-card__rank {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 56px;
-    border-radius: 14px;
-    background: #f8fafc;
-    border: 1px solid #edf2f7;
-    color: #0f172a;
-    font-size: 20px;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .school-card__detail {
-    grid-column: auto;
-    justify-self: stretch;
-  }
-
-  .history-panel__title {
-    font-size: 20px;
-  }
 }
 
-@media (max-width: 640px) {
-  .school-card__numbers {
+@media (max-width: 540px) {
+  .score-toolbar__topline,
+  .score-gap-card,
+  .score-status-card {
     flex-direction: column;
   }
 
-  .school-card {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .school-card__detail {
-    width: 100%;
-    justify-self: stretch;
-  }
-
-  .history-table {
-    overflow-x: auto;
-  }
-
-  .history-table__head,
-  .history-table__row {
-    min-width: 600px;
+  .score-province-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>

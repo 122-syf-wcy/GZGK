@@ -32,6 +32,7 @@ import { listMedia, checkSchoolHasAdmin } from '@/api/alumni'
 import { sanitizeHttpUrl } from '@/utils/markdown'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import UniversityQa from '@/components/UniversityQa.vue'
+import { getProvinceConfig, normalizeProvinceCode } from '@/constants/provinces'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,6 +41,8 @@ const officialLink = ref<OfficialLink | null>(null)
 const loading = ref(true)
 const cdnInfo = ref<Record<string, any> | null>(null)
 const showVideo = ref(false)
+const currentProvinceCode = computed(() => normalizeProvinceCode(route.query.provinceCode))
+const currentProvince = computed(() => getProvinceConfig(currentProvinceCode.value))
 
 onMounted(async () => {
   const id = Number(route.params.id)
@@ -48,11 +51,11 @@ onMounted(async () => {
   try {
     let data: University | null = null
     if (schoolId) {
-      const res = await getUniversityBySchoolId(schoolId)
+      const res = await getUniversityBySchoolId(schoolId, currentProvinceCode.value)
       if (res.data.code === 0 && res.data.data) data = res.data.data
     }
     if (!data && id) {
-      const res = await getUniversityDetail(id)
+      const res = await getUniversityDetail(id, currentProvinceCode.value)
       if (res.data.code === 0 && res.data.data) data = res.data.data
     }
     if (data) {
@@ -76,6 +79,10 @@ const activePhotoIdx = ref(0)
 const alumniNews = ref<any[]>([])
 const alumniFiles = ref<any[]>([])
 const hasAdmin = ref(false)
+
+function goUniversitySearch(): void {
+  router.push({ path: '/university', query: currentProvince.value.routeQuery })
+}
 
 function mergeUniqueMedia(current: string[], incoming: string[], max: number): string[] {
   const seen = new Set<string>()
@@ -125,7 +132,7 @@ async function fetchCdnInfo(sid: string) {
 
 async function fetchOfficialLinks(sid: string) {
   try {
-    const res = await getUniversityOfficialLinks(sid)
+    const res = await getUniversityOfficialLinks(sid, currentProvinceCode.value)
     officialLink.value = res.data?.data || null
   } catch {
     officialLink.value = null
@@ -343,7 +350,7 @@ const parsedRules = computed(() => {
   <div class="detail-page">
     <header class="page-header">
       <div class="page-header-inner">
-        <button class="back-btn" @click="router.back()"><ArrowLeft :size="20" /></button>
+        <button class="back-btn" @click="goUniversitySearch"><ArrowLeft :size="20" /></button>
         <h1 class="page-header-title">{{ uni?.name || '院校详情' }}</h1>
       </div>
     </header>

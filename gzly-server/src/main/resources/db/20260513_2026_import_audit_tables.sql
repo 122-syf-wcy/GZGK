@@ -1,0 +1,55 @@
+-- GZLY 2026 官方数据导入审计表
+-- 只新增审计/追溯结构；不导入 2026 数据，不切换 readiness，不开启 FULL_RECOMMEND。
+
+CREATE TABLE IF NOT EXISTS `data_year_readiness_batch` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
+  `province_code` VARCHAR(16) NOT NULL COMMENT '省份代码',
+  `year` INT NOT NULL COMMENT '招生年份',
+  `data_type` VARCHAR(80) NOT NULL COMMENT 'score_segment/admission_plan/policy_rule/major_requirement/major_meta/batch_line/art_sports_rule/special_plan_rule',
+  `import_batch_id` VARCHAR(120) NOT NULL COMMENT '导入批次ID',
+  `status` VARCHAR(40) NOT NULL DEFAULT 'staged' COMMENT 'staged/quality_passed/promoted/rolled_back/rejected',
+  `source_manifest` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '官方来源清单路径或URL',
+  `source_file` VARCHAR(240) NOT NULL DEFAULT '' COMMENT '官方来源文件名',
+  `source_url` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '官方来源URL',
+  `file_hash` VARCHAR(128) NOT NULL DEFAULT '' COMMENT '官方文件hash',
+  `quality_report_path` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '质检报告路径',
+  `rollback_sql_path` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '回滚SQL路径',
+  `row_count` INT NOT NULL DEFAULT 0 COMMENT '本批行数',
+  `failed_gate_count` INT NOT NULL DEFAULT 0 COMMENT '质检失败项数',
+  `reviewed_by` VARCHAR(80) NOT NULL DEFAULT '' COMMENT '人工复核人',
+  `reviewed_at` DATETIME DEFAULT NULL COMMENT '人工复核时间',
+  `remarks` VARCHAR(800) NOT NULL DEFAULT '' COMMENT '备注',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  UNIQUE KEY `uk_readiness_batch_identity` (`province_code`, `year`, `data_type`, `import_batch_id`),
+  KEY `idx_readiness_batch_year_status` (`province_code`, `year`, `status`),
+  KEY `idx_readiness_batch_import` (`import_batch_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='招生年份官方数据导入批次审计';
+
+CREATE TABLE IF NOT EXISTS `admission_plan_import_audit` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
+  `import_batch_id` VARCHAR(120) NOT NULL COMMENT 'staging导入批次ID',
+  `formal_batch_id` VARCHAR(140) NOT NULL DEFAULT '' COMMENT '正式表晋级批次ID',
+  `year` SMALLINT NOT NULL COMMENT '年份',
+  `province` VARCHAR(20) NOT NULL COMMENT '省份',
+  `batch_code` VARCHAR(60) NOT NULL COMMENT '批次代码',
+  `candidate_type` VARCHAR(30) NOT NULL COMMENT '考生类别',
+  `subject_type` VARCHAR(30) NOT NULL COMMENT '科类',
+  `school_code` VARCHAR(60) NOT NULL COMMENT '院校代码',
+  `school_name` VARCHAR(160) NOT NULL DEFAULT '' COMMENT '院校名称',
+  `major_code` VARCHAR(80) NOT NULL DEFAULT '' COMMENT '专业代码',
+  `major_name` VARCHAR(240) NOT NULL COMMENT '专业名称',
+  `plan_count` INT NOT NULL DEFAULT 0 COMMENT '计划数',
+  `source_file` VARCHAR(240) NOT NULL DEFAULT '' COMMENT '来源文件',
+  `source_url` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '来源URL',
+  `source_page_url` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '来源页面URL',
+  `source_page` VARCHAR(80) NOT NULL DEFAULT '' COMMENT '来源页码',
+  `raw_text` MEDIUMTEXT NULL COMMENT '官方原文片段',
+  `promote_action` VARCHAR(40) NOT NULL DEFAULT 'insert_or_update' COMMENT 'insert/update/insert_or_update',
+  `promoted_by` VARCHAR(80) NOT NULL DEFAULT '' COMMENT '晋级执行人',
+  `promoted_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '晋级时间',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  UNIQUE KEY `uk_plan_import_audit_nk` (`import_batch_id`, `year`, `province`, `batch_code`, `candidate_type`, `subject_type`, `school_code`, `major_code`, `major_name`),
+  KEY `idx_plan_import_audit_formal_batch` (`formal_batch_id`),
+  KEY `idx_plan_import_audit_year_batch` (`year`, `province`, `batch_code`, `candidate_type`, `subject_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='招生计划正式表导入批次映射审计';

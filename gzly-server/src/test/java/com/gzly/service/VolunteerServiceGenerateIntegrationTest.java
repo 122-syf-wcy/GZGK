@@ -135,11 +135,12 @@ class VolunteerServiceGenerateIntegrationTest {
         lenient().when(scoreLineService.getUniversityById(anyString())).thenReturn(null);
 
         ProvincePolicyService provincePolicyService = new ProvincePolicyService();
+        SafetyCodeService safetyCodeService = new SafetyCodeService();
 
         service = new VolunteerService(
                 scoreLineService, algorithmService, bizUserMapper, planHistoryMapper, majorRequirementGzMapper,
                 officialLinkService, new ObjectMapper(), stringRedisTemplate,
-                new VolunteerMetricsRecorder(), provincePolicyService, provinceRankService,
+                new VolunteerMetricsRecorder(), safetyCodeService, provincePolicyService, provinceRankService,
                 new CandidateFilterEngine(),
                 new FeatureBuildEngine(),
                 new FallbackRulePredictionEngine(),
@@ -150,7 +151,7 @@ class VolunteerServiceGenerateIntegrationTest {
         ReflectionTestUtils.setField(service, "generateCacheSeconds", 30L);
         ReflectionTestUtils.setField(service, "generateLockSeconds", 30L);
         ReflectionTestUtils.setField(service, "generateWaitMillis", 100L);
-        ReflectionTestUtils.setField(service, "jwtSecret", "integration-test-secret-key-change-me");
+        ReflectionTestUtils.setField(safetyCodeService, "jwtSecret", "integration-test-secret-key-change-me");
     }
 
     @Test

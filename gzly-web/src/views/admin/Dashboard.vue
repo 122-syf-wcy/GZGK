@@ -68,7 +68,7 @@ const officialGaps = computed(() => [
 ])
 
 const generationQualityItems = computed(() => [
-  { label: '接口完成率', value: `${volunteerQuality.value.generateSuccessRate || 0}%`, tone: 'ok' },
+  { label: '生成完成率', value: `${volunteerQuality.value.generateSuccessRate || 0}%`, tone: 'ok' },
   { label: '不足96条', value: volunteerQuality.value.generateIncomplete || 0, tone: (volunteerQuality.value.generateIncomplete || 0) > 0 ? 'warn' : 'ok' },
   { label: '平均耗时', value: `${volunteerQuality.value.generateAvgCostMs || 0}ms`, tone: 'neutral' },
   { label: '最高耗时', value: `${volunteerQuality.value.generateMaxCostMs || 0}ms`, tone: (volunteerQuality.value.generateMaxCostMs || 0) > 5000 ? 'warn' : 'neutral' },

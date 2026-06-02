@@ -3,12 +3,10 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showSuccessToast, showToast } from 'vant'
 import { fetchVolunteerPlan } from '@/api/volunteer'
-import { fetchMyPlanDetail } from '@/api/myPlans'
 import { useVolunteerStore } from '@/stores/volunteer'
-import { useAuthStore } from '@/stores/auth'
 import RecommendSection from '@/components/RecommendSection.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
-import type { GradientRangeDetail, VolunteerPlan } from '@/types'
+import type { GradientRangeDetail } from '@/types'
 import { buildPlanModeItems, formDataFromPlan, summarizePlan, type PlanMode } from '@/utils/volunteer-plan'
 import { sanitizeHttpUrl } from '@/utils/markdown'
 import { getProvinceConfig, normalizeProvinceCode } from '@/constants/provinces'
@@ -32,7 +30,6 @@ import {
 const router = useRouter()
 const route = useRoute()
 const volunteerStore = useVolunteerStore()
-const authStore = useAuthStore()
 
 const activeTab = ref<'all' | '冲' | '稳' | '保' | '垫'>('all')
 const activeMode = ref<PlanMode>(volunteerStore.formData.strategyMode || '均衡型')
@@ -159,47 +156,6 @@ const rangeSummaryRows = computed(() => {
   return (['冲', '稳', '保', '垫'] as const)
     .flatMap(key => ranges[key] ? [ranges[key] as GradientRangeDetail] : [])
 })
-
-/** 招生类型枚举显示文案，与 com.gzly.algorithm.RecruitTypeClassifier 常量一一对应。 */
-const RECRUIT_TYPE_LABELS: Record<string, string> = {
-  NORMAL: '普通批次',
-  ART_SPORTS: '艺术 / 体育类',
-  GENDER_RESTRICTED: '性别限制',
-  FREE_NORMAL: '免费师范生',
-  DIRECTED: '定向 / 委培',
-  SUPPLEMENT: '本科预科 / 补录',
-}
-const recruitTypeRows = computed(() => {
-  const breakdown = volunteerStore.planMetrics?.recruitTypeBreakdown
-  if (!breakdown) return [] as Array<{ key: string; label: string; count: number; percent: string; warn: boolean }>
-  const total = Object.values(breakdown).reduce((sum, v) => sum + (v ?? 0), 0)
-  if (!total) return []
-  return Object.entries(breakdown)
-    .filter(([, count]) => (count ?? 0) > 0)
-    .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
-    .map(([key, count]) => ({
-      key,
-      label: RECRUIT_TYPE_LABELS[key] ?? key,
-      count: count ?? 0,
-      percent: total ? `${(((count ?? 0) / total) * 100).toFixed(1)}%` : '0%',
-      warn: key !== 'NORMAL',
-    }))
-})
-
-/** 监控阈值告警提示：当 overRisk / firstTwentyHit 突破 strategyMode 自适应基线时给出文案。 */
-const metricsBaselineNote = computed(() => {
-  const m = volunteerStore.planMetrics
-  if (!m) return ''
-  const segments: string[] = []
-  if (m.overRiskExposureBreached && typeof m.overRiskExposure === 'number' && typeof m.overRiskExposureBaseline === 'number') {
-    segments.push(`前 20 高风险占比 ${(m.overRiskExposure * 100).toFixed(0)}%（${m.strategyMode || '均衡型'} 基线 ${(m.overRiskExposureBaseline * 100).toFixed(0)}%），建议核对冲档分布是否过多`)
-  }
-  if (m.firstTwentyHitRateBreached && typeof m.firstTwentyHitRate === 'number' && typeof m.firstTwentyHitRateBaseline === 'number') {
-    segments.push(`前 20 高机会指数占比 ${(m.firstTwentyHitRate * 100).toFixed(0)}%（${m.strategyMode || '均衡型'} 基线 ${(m.firstTwentyHitRateBaseline * 100).toFixed(0)}%），可适度增厚稳/保档`)
-  }
-  return segments.join('；')
-})
-const metricsBaselineWarn = computed(() => Boolean(metricsBaselineNote.value))
 const planProvinceCode = computed(() => normalizeProvinceCode(volunteerStore.formData.provinceCode || volunteerStore.planItems[0]?.provinceCode || 'GZ'))
 const planProvinceConfig = computed(() => getProvinceConfig(planProvinceCode.value))
 const isProfessionalGroupPlan = computed(() => planProvinceConfig.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45')
@@ -264,37 +220,19 @@ onMounted(async () => {
 })
 
 async function restorePlan() {
-  const saved = volunteerStore.getSavedPlanMeta()
-  const planId = Number(route.query.planId || saved?.planId)
-  if (!planId) return
-  let safetyCode = String(route.query.safetyCode || route.query.accessKey || saved?.safetyCode || saved?.accessKey || '')
-  if (!safetyCode && authStore.isAuthenticated) {
-    try {
-      const detailRes = await fetchMyPlanDetail(planId)
-      const detail = detailRes.data.data as VolunteerPlan
-      if (detail.items?.length) {
-        const formData = formDataFromPlan(detail)
-        volunteerStore.setPlanFromResponse(detail)
-        volunteerStore.setFormData(formData)
-        activeMode.value = formData.strategyMode
-        return
-      }
-      safetyCode = detail.safetyCode || detail.accessKey || ''
-    } catch {
-      safetyCode = ''
-    }
-  }
-  if (!safetyCode) return
+  const planId = Number(route.query.planId || volunteerStore.getSavedPlanMeta()?.planId)
+  const accessKey = String(route.query.accessKey || volunteerStore.getSavedPlanMeta()?.accessKey || '')
+  if (!planId || !accessKey) return
   restoring.value = true
   try {
-    const res = await fetchVolunteerPlan(planId, safetyCode)
+    const res = await fetchVolunteerPlan(planId, accessKey)
     const plan = res.data.data
     const formData = formDataFromPlan(plan)
     volunteerStore.setPlanFromResponse(plan)
     volunteerStore.setFormData(formData)
     activeMode.value = formData.strategyMode
-    if (route.query.safetyCode || route.query.accessKey) {
-      router.replace({ path: route.path, query: { ...route.query, safetyCode: undefined, accessKey: undefined } })
+    if (route.query.accessKey) {
+      router.replace({ path: route.path, query: { ...route.query, accessKey: undefined } })
     }
   } catch {
     volunteerStore.clearPlan()
@@ -438,7 +376,7 @@ function openUniversity(item: { schoolId?: string | null }) {
   if (!item.schoolId) return
   router.push({
     path: `/university/${item.schoolId}`,
-    query: { schoolId: item.schoolId },
+    query: { schoolId: item.schoolId, provinceCode: planProvinceCode.value },
   })
 }
 
@@ -665,9 +603,6 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
         <ShieldAlert :size="16" />
         <span>{{ volunteerStore.referenceProbabilityNotice }}</span>
       </div>
-      <div v-if="volunteerStore.planSafetyCode" class="result-warning">
-        方案 ID：{{ volunteerStore.planId }}；安全码：{{ volunteerStore.planSafetyCode }}。请立即保存，后续跨设备查看、AI 解读和导出都需要它。
-      </div>
       <div class="hero-main">
         <div class="hero-metrics">
           <span class="hero-tag">{{ volunteerStore.formData.totalScore }}分</span>
@@ -742,27 +677,6 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
         </div>
         <p v-if="volunteerStore.planMetrics?.portfolioSafetyNote" class="algorithm-card__note">
           {{ volunteerStore.planMetrics.portfolioSafetyLevel }}：{{ volunteerStore.planMetrics.portfolioSafetyNote }}
-        </p>
-        <div v-if="recruitTypeRows.length" class="algorithm-recruit-breakdown">
-          <div class="algorithm-recruit-breakdown__title">
-            <strong>主列表招生类型分布</strong>
-            <span v-if="volunteerStore.planMetrics?.ruleViolationCount">
-              规则前置异常 {{ volunteerStore.planMetrics.ruleViolationCount }} 条
-            </span>
-          </div>
-          <ul class="algorithm-recruit-breakdown__list">
-            <li v-for="row in recruitTypeRows" :key="row.key" :class="{ 'is-warn': row.warn }">
-              <span>{{ row.label }}</span>
-              <strong>{{ row.count }}</strong>
-              <small>{{ row.percent }}</small>
-            </li>
-          </ul>
-        </div>
-        <p
-          v-if="metricsBaselineNote"
-          :class="['algorithm-card__note', { 'algorithm-card__note--warn': metricsBaselineWarn }]"
-        >
-          {{ metricsBaselineNote }}
         </p>
         <div class="algorithm-range-grid">
           <div v-for="range in rangeSummaryRows" :key="range.gradient" class="algorithm-range-item">
@@ -1395,74 +1309,6 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   border-radius: 12px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-}
-
-.algorithm-card__note--warn {
-  background: #fff7ed;
-  border-color: #fed7aa;
-  color: #c2410c;
-}
-
-.algorithm-recruit-breakdown {
-  margin-top: 10px;
-  padding: 10px;
-  border-radius: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.algorithm-recruit-breakdown__title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: 13px;
-}
-
-.algorithm-recruit-breakdown__title span {
-  color: #c2410c;
-  font-size: 12px;
-}
-
-.algorithm-recruit-breakdown__list {
-  list-style: none;
-  margin: 6px 0 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.algorithm-recruit-breakdown__list li {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  font-size: 12px;
-  color: #475569;
-}
-
-.algorithm-recruit-breakdown__list li.is-warn {
-  background: #fff1f2;
-  border-color: #fecaca;
-  color: #b91c1c;
-}
-
-.algorithm-recruit-breakdown__list li strong {
-  color: #0f172a;
-  font-size: 13px;
-}
-
-.algorithm-recruit-breakdown__list li.is-warn strong {
-  color: #b91c1c;
-}
-
-.algorithm-recruit-breakdown__list li small {
-  color: #94a3b8;
 }
 
 .algorithm-metrics {

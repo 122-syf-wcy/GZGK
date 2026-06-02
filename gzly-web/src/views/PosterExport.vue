@@ -2,12 +2,9 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useVolunteerStore } from '@/stores/volunteer'
-import { useAuthStore } from '@/stores/auth'
 import { fetchVolunteerPlan } from '@/api/volunteer'
-import { fetchMyPlanDetail } from '@/api/myPlans'
 import { formDataFromPlan } from '@/utils/volunteer-plan'
 import { showLoadingToast, closeToast, showToast } from 'vant'
-import type { VolunteerPlan } from '@/types'
 import {
   ArrowLeft,
   Image,
@@ -19,7 +16,6 @@ import {
 const router = useRouter()
 const route = useRoute()
 const volunteerStore = useVolunteerStore()
-const authStore = useAuthStore()
 
 const posterRef = ref<HTMLDivElement | null>(null)
 const posterImage = ref('')
@@ -43,29 +39,16 @@ async function exportPoster() {
 
   try {
     const html2canvas = (await import('html2canvas')).default
-    // html2canvas 在 cloneDocument 里渲染时不会继承全局 body 字体栈，
-    // 需要在 onclone 阶段把中文字体显式注入到克隆文档的 root，避免中文 tofu。
-    const cjkFontStack = `-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Heiti SC", "Hiragino Sans GB", "Source Han Sans CN", "Noto Sans CJK SC", sans-serif`
     const canvas = await html2canvas(posterRef.value, {
       scale: 2,
       useCORS: true,
       backgroundColor: '#ffffff',
-      onclone(clonedDoc) {
-        const root = clonedDoc.documentElement
-        root.style.fontFamily = cjkFontStack
-        const body = clonedDoc.body
-        if (body) body.style.fontFamily = cjkFontStack
-        clonedDoc.querySelectorAll<HTMLElement>('.poster-content, .poster-content *').forEach((el) => {
-          el.style.fontFamily = cjkFontStack
-        })
-      },
     })
 
     const ctx = canvas.getContext('2d')
     if (ctx) {
       ctx.save()
-      // 水印同样需要中文字体，否则 "AI生成 仅供参考" 也会 tofu
-      ctx.font = `16px ${cjkFontStack}`
+      ctx.font = '16px sans-serif'
       ctx.fillStyle = 'rgba(0,0,0,0.06)'
       ctx.rotate((-30 * Math.PI) / 180)
       const text = 'AI生成 仅供参考'
@@ -108,30 +91,15 @@ onMounted(async () => {
 async function restorePlan() {
   const saved = volunteerStore.getSavedPlanMeta()
   const planId = Number(route.query.planId || saved?.planId)
-  if (!planId) return
-  let safetyCode = String(route.query.safetyCode || route.query.accessKey || saved?.safetyCode || saved?.accessKey || '')
-  if (!safetyCode && authStore.isAuthenticated) {
-    try {
-      const detailRes = await fetchMyPlanDetail(planId)
-      const detail = detailRes.data.data as VolunteerPlan
-      if (detail.items?.length) {
-        volunteerStore.setPlanFromResponse(detail)
-        volunteerStore.setFormData(formDataFromPlan(detail))
-        return
-      }
-      safetyCode = detail.safetyCode || detail.accessKey || ''
-    } catch {
-      safetyCode = ''
-    }
-  }
-  if (!safetyCode) return
+  const accessKey = String(route.query.accessKey || saved?.accessKey || '')
+  if (!planId || !accessKey) return
   try {
-    const res = await fetchVolunteerPlan(planId, safetyCode)
+    const res = await fetchVolunteerPlan(planId, accessKey)
     const plan = res.data.data
     volunteerStore.setPlanFromResponse(plan)
     volunteerStore.setFormData(formDataFromPlan(plan))
-    if (route.query.safetyCode || route.query.accessKey) {
-      router.replace({ path: route.path, query: { ...route.query, safetyCode: undefined, accessKey: undefined } })
+    if (route.query.accessKey) {
+      router.replace({ path: route.path, query: { ...route.query, accessKey: undefined } })
     }
   } catch {
     volunteerStore.clearPlan()

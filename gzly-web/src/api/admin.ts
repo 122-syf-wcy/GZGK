@@ -124,3 +124,47 @@ export function fetchAdminEncouragementMessages(page = 1, size = 20, status?: nu
 export function deleteAdminEncouragementMessage(id: number) {
   return request.delete<Result<string>>(`/admin/encouragement-messages/${id}`)
 }
+
+export interface AdminImportJob {
+  id: number
+  provinceCode: string
+  year: number
+  batchCode?: string
+  subjectType?: string
+  importType?: string
+  sourceType?: string
+  status: string
+  sourceDir?: string
+  outputDir?: string
+  createdBy?: string
+  createdAt?: string
+  updatedAt?: string
+  files?: Array<Record<string, unknown>>
+  gates?: Array<Record<string, unknown>>
+  artifacts?: Array<Record<string, unknown>>
+  readiness?: Record<string, unknown>
+  phaseGates?: Array<Record<string, unknown>>
+  formalPromoteAllowed?: boolean
+  fullRecommendSwitchAllowed?: boolean
+  guardrail?: string
+}
+
+export function fetchAdminImportJobs(params: { provinceCode?: string; year?: number; status?: string; limit?: number } = {}) {
+  return request.get<Result<AdminImportJob[]>>('/admin/import-jobs', { params })
+}
+
+export function createAdminImportJob(data: Partial<AdminImportJob>) {
+  return request.post<Result<AdminImportJob>>('/admin/import-jobs', data)
+}
+
+export function fetchAdminImportJob(jobId: number) {
+  return request.get<Result<AdminImportJob>>(`/admin/import-jobs/${jobId}`)
+}
+
+export function registerAdminImportJobFile(jobId: number, data: { filePath: string; fileName?: string; fileType?: string; sourceUrl?: string }) {
+  return request.post<Result<AdminImportJob>>(`/admin/import-jobs/${jobId}/files`, data)
+}
+
+export function runAdminImportJobAction(jobId: number, action: 'staging-dry-run' | 'quality-gate' | 'generate-formal-sql' | 'rollback-plan' | 'post-check') {
+  return request.post<Result<AdminImportJob>>(`/admin/import-jobs/${jobId}/${action}`)
+}
