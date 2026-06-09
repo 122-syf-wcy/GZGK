@@ -76,6 +76,31 @@ const generationQualityItems = computed(() => [
   { label: '人工复核方案', value: volunteerQuality.value.persistedManualReviews || 0, tone: (volunteerQuality.value.persistedManualReviews || 0) > 0 ? 'warn' : 'ok' },
 ])
 
+const businessFunnelItems = computed(() => {
+  const generateTotal = volunteerQuality.value.generateTotal
+  const generateFailure = volunteerQuality.value.generateFailure
+  return [
+    { label: '首页访问', value: '暂无数据', note: '待接入访问日志聚合', available: false },
+    { label: '进入 AI 志愿', value: '暂无数据', note: '待接入页面事件', available: false },
+    {
+      label: '点击生成',
+      value: typeof generateTotal === 'number' ? generateTotal : '暂无数据',
+      note: '运行期 recommend 请求',
+      available: typeof generateTotal === 'number',
+    },
+    { label: '生成成功', value: stats.value.todayPlans, note: '今日方案记录', available: true },
+    {
+      label: '生成失败',
+      value: typeof generateFailure === 'number' ? generateFailure : '暂无数据',
+      note: '运行期失败计数',
+      available: typeof generateFailure === 'number',
+    },
+    { label: '查看结果', value: '暂无数据', note: '待接入结果页事件', available: false },
+    { label: '导出 Excel', value: '暂无数据', note: '待接入导出事件', available: false },
+    { label: '提交反馈', value: '暂无数据', note: '待接入今日反馈统计', available: false },
+  ]
+})
+
 function goOfficialGap(field: string) {
   router.push({ path: '/admin/official-links', query: { missingField: field } })
 }
@@ -125,6 +150,31 @@ function goOfficialGap(field: string) {
           <div class="stat-badge">{{ stats.totalSpecialAdmissionPolicies }} 条特招政策</div>
         </div>
       </div>
+
+      <section class="funnel-card gz-card">
+        <div class="quality-head">
+          <div class="chart-title-row">
+            <Activity :size="16" />
+            <h3>今日业务漏斗</h3>
+          </div>
+          <span class="quality-pill">只读统计</span>
+        </div>
+        <div class="funnel-grid">
+          <div
+            v-for="item in businessFunnelItems"
+            :key="item.label"
+            class="funnel-step"
+            :class="{ 'funnel-step--unavailable': !item.available }"
+          >
+            <span class="funnel-step__label">{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+            <small>{{ item.note }}</small>
+          </div>
+        </div>
+        <p class="quality-note">
+          未接入事件埋点的环节显示“暂无数据”；当前不会用估算值填充访问、导出或反馈数量。
+        </p>
+      </section>
 
       <section class="quality-card gz-card">
         <div class="quality-head">
@@ -376,6 +426,59 @@ function goOfficialGap(field: string) {
 .quality-card {
   padding: var(--gz-space-5);
   margin-bottom: var(--gz-space-6);
+}
+
+.funnel-card {
+  padding: var(--gz-space-5);
+  margin-bottom: var(--gz-space-6);
+}
+
+.funnel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gz-space-3);
+}
+
+.funnel-step {
+  min-width: 0;
+  padding: var(--gz-space-4);
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-radius: var(--gz-radius-md);
+  background: #f8fbff;
+}
+
+.funnel-step--unavailable {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
+.funnel-step__label {
+  display: block;
+  color: var(--gz-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.funnel-step strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--gz-text-primary);
+  font-size: 22px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.funnel-step--unavailable strong {
+  color: #94a3b8;
+  font-size: 18px;
+}
+
+.funnel-step small {
+  display: block;
+  margin-top: 4px;
+  color: var(--gz-text-tertiary);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .quality-head,
@@ -746,7 +849,8 @@ function goOfficialGap(field: string) {
   }
 
   .gap-list,
-  .quality-grid {
+  .quality-grid,
+  .funnel-grid {
     grid-template-columns: 1fr;
   }
 }

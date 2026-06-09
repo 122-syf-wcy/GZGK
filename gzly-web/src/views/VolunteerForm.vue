@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useVolunteerStore } from '@/stores/volunteer'
-import { generateVolunteerPlan, rankCheck } from '@/api/volunteer'
+import { getCurrentSafetyCode, setCurrentSafetyCode, useVolunteerStore } from '@/stores/volunteer'
+import { generateVolunteerPlan, getAhCompositeScore, getBatchSupportByProvince, getScCompositeScore, rankCheck } from '@/api/volunteer'
 import { getHotMajors, type HotMajor } from '@/api/scoreLine'
 import DisclaimerDialog from '@/components/DisclaimerDialog.vue'
-import type { GradientRangeKey, GradientRanges } from '@/types'
+import UserFeedbackDialog from '@/components/UserFeedbackDialog.vue'
+import type { BatchSupportItem, CandidateType, GradientRangeKey, GradientRanges } from '@/types'
 import {
   getProvinceConfig,
   normalizeProvinceCode,
@@ -38,8 +39,17 @@ const router = useRouter()
 const route = useRoute()
 const volunteerStore = useVolunteerStore()
 
+function provinceCodeFromRouteQuery(value: unknown): ProvinceCode | null {
+  const raw = Array.isArray(value) ? value[0] : value
+  if (raw == null || String(raw).trim() === '') return null
+  return normalizeProvinceCode(raw)
+}
+
 const totalScore = ref<number | undefined>(volunteerStore.formData.totalScore || undefined)
-const provinceCode = ref<ProvinceCode>(normalizeProvinceCode(route.query.provinceCode))
+const lockedProvinceCode = ref<ProvinceCode | null>(provinceCodeFromRouteQuery(route.query.provinceCode))
+const provinceCode = ref<ProvinceCode>(lockedProvinceCode.value || normalizeProvinceCode(volunteerStore.formData.provinceCode))
+const candidateType = ref<CandidateType | ''>(volunteerStore.formData.candidateType || '')
+const batchCode = ref(volunteerStore.formData.batchCode || '')
 const provinceRank = ref<number | undefined>(volunteerStore.formData.provinceRank || undefined)
 const firstSubject = ref<'物理' | '历史'>(volunteerStore.formData.firstSubject || '物理')
 const resubjects = ref<string[]>([...volunteerStore.formData.resubjects])
@@ -61,8 +71,44 @@ const customMajor = ref('')
 const agreedDisclaimer = ref(volunteerStore.formData.agreedDisclaimer)
 const disclaimerVersion = ref(volunteerStore.formData.disclaimerVersion || '')
 const disclaimerRef = ref<InstanceType<typeof DisclaimerDialog> | null>(null)
+const qualificationTags = ref<string[]>([...(volunteerStore.formData.qualificationTags || [])])
+const artProfessionalScore = ref<number | undefined>(volunteerStore.formData.artProfessionalScore)
+const sportsProfessionalScore = ref<number | undefined>(volunteerStore.formData.sportsProfessionalScore)
+const comprehensiveScore = ref<number | undefined>(volunteerStore.formData.comprehensiveScore)
+// 四川 / 安徽艺术统考类别。SC 按 11 类（5050 vs 3070）、AH 按 7 类（5050 vs 7030 播音）
+const scArtCategory = ref<string>('美术与设计类')
+const scArtCategories = ref<string[]>([
+  '美术与设计类', '戏剧影视编导类', '戏剧影视表演类', '戏剧影视导演类',
+  '服装表演类', '播音与主持类', '音乐表演类', '音乐教育类',
+  '舞蹈类', '书法类', '航空服务艺术类',
+])
+const ahArtCategories = ref<string[]>([
+  '音乐表演类', '音乐教育类', '舞蹈类', '表（导）演类',
+  '美术与设计类', '书法类', '播音与主持类',
+])
+const artCategoryOptions = computed<string[]>(() => (
+  provinceCode.value === 'AH' ? ahArtCategories.value : scArtCategories.value
+))
+// 综合分实时预览（与省份无关，sc/ah 公式由 watch 自动分发）
+const scCompositeFormula = ref<string>('')
+const scCompositeScore = ref<number | null>(null)
+const compositeProvinceSourceLabel = computed<string>(() => (
+  provinceCode.value === 'AH'
+    ? '安徽 2025 皖招委〔2024〕11 号 + 2025 体育文化控线公告'
+    : '四川省教育考试院 2026 公告'
+))
+let compositeTimer: ReturnType<typeof setTimeout> | null = null
+const currentSafetyCode = ref(getCurrentSafetyCode())
 
 const hotMajors = ref<HotMajor[]>([])
+const batchSupportItems = ref<BatchSupportItem[]>([])
+const activeAdmissionYear = ref<number>()
+const latestOfficialDataYear = ref<number>()
+const trainingYears = ref<number[]>([])
+const recommendationPhase = ref('PRE_OFFICIAL_DATA')
+const estimateMode = ref(true)
+const historyYears = ref<number[]>([])
+const batchSupportLoading = ref(false)
 const hotMajorsLoading = ref(false)
 const rankHint = ref('')
 const rankConflict = ref('')
@@ -84,6 +130,16 @@ const resubjectOptions = [
   { label: '生物', icon: Dna, iconClass: 'subject-icon--biology' },
   { label: '政治', icon: Scale, iconClass: 'subject-icon--politics' },
   { label: '地理', icon: Globe, iconClass: 'subject-icon--geography' },
+]
+
+const candidateTypeOptions: Array<{ key: CandidateType; title: string; desc: string }> = [
+  { key: '普通类', title: '普通类', desc: '普通本科、专科、提前批和专项计划' },
+  { key: '艺术类', title: '艺术类', desc: '按艺术类批次展示，不套普通位次模型' },
+  { key: '体育类', title: '体育类', desc: '按体育类批次展示，不套普通位次模型' },
+]
+
+const qualificationOptions = [
+  '国家专项计划', '地方专项计划', '高校专项计划', '民族班', '预科班', '定向招生', '免费医学定向', '优师专项',
 ]
 
 const strategyOptions = [
@@ -130,12 +186,354 @@ const regionOptions = [
 const subjectTypeLabel = computed(() => (firstSubject.value === '物理' ? '物理类' : '历史类'))
 const currentProvince = computed(() => getProvinceConfig(provinceCode.value))
 const provinceName = computed(() => currentProvince.value.name)
-const targetVolunteerCount = computed(() => currentProvince.value.targetCount)
-const volunteerUnitLabel = computed(() => (
-  currentProvince.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45' ? '院校专业组' : '志愿'
+const isProvinceEntryLocked = computed(() => Boolean(lockedProvinceCode.value))
+const admissionYearText = computed(() => (activeAdmissionYear.value ? `${activeAdmissionYear.value}届` : '最新高考年份'))
+const historyYearText = computed(() => historyYears.value.length ? historyYears.value.join('、') : '历史')
+const trainingYearText = computed(() => trainingYears.value.length ? trainingYears.value.join('、') : historyYearText.value)
+const isPreOfficialData = computed(() => recommendationPhase.value === 'PRE_OFFICIAL_DATA' || estimateMode.value)
+const isOfficialDataPartial = computed(() => recommendationPhase.value === 'OFFICIAL_DATA_PARTIAL')
+const isOfficialDataImported = computed(() => recommendationPhase.value === 'OFFICIAL_DATA_IMPORTED')
+const isModelRetrained = computed(() => recommendationPhase.value === 'MODEL_RETRAINED')
+const shouldShowPhaseNotice = computed(() => isPreOfficialData.value || isOfficialDataPartial.value || isOfficialDataImported.value || isModelRetrained.value)
+const phaseBadgeText = computed(() => (
+  isPreOfficialData.value
+    ? `${activeAdmissionYear.value || 2026}官方数据未发布`
+    : isOfficialDataPartial.value
+      ? `${activeAdmissionYear.value || 2026}官方数据导入中`
+      : isOfficialDataImported.value
+        ? `${activeAdmissionYear.value || 2026}官方数据已导入`
+        : isModelRetrained.value
+        ? '模型已重训'
+        : '数据状态待核验'
 ))
-const targetBatchLabel = computed(() => currentProvince.value.targetBatch)
-const isGenerateLocked = computed(() => currentProvince.value.status !== 'open')
+const phaseNoticeText = computed(() => (
+  isPreOfficialData.value
+    ? `${activeAdmissionYear.value || 2026} 年招生计划和一分一段表尚未发布；当前只基于 ${trainingYearText.value} 年历史数据展示趋势、缺口和预估参考，不作为正式推荐。`
+    : isOfficialDataPartial.value
+      ? `${activeAdmissionYear.value || 2026} 年官方数据正在分批导入和质检；页面可查看数据准备进度，普通本科/专科仍不会开放完整推荐。`
+      : isOfficialDataImported.value
+        ? `${activeAdmissionYear.value || 2026} 官方数据已导入；普通本科/专科进入试推荐阶段，模型重训完成前不展示完整推荐。`
+        : isModelRetrained.value
+          ? `${activeAdmissionYear.value || 2026} 官方数据已导入并完成模型重训；仍请以考试院和高校章程为准。`
+          : `当前已按 ${latestOfficialDataYear.value || activeAdmissionYear.value || '最新'} 年官方数据口径展示批次支持状态。`
+))
+const pageTitle = computed(() => (isProvinceEntryLocked.value ? `${provinceName.value}志愿填报` : '智能志愿填报'))
+const pageSubtitle = computed(() => (
+  isProvinceEntryLocked.value
+    ? `${provinceName.value}入口已固定，省份选择和接口请求均使用${provinceName.value}口径`
+    : isProvinceGenerateLocked.value
+      ? '查看地区口径、表单字段和数据准备状态'
+      : '先选择考生类别和批次，再填写影响推荐结果的条件'
+))
+const heroTitle = computed(() => (
+  isProvinceEntryLocked.value ? `${provinceName.value}专区志愿填报` : '主流程只保留真正影响结果的输入项'
+))
+const heroDescription = computed(() => (
+  isProvinceEntryLocked.value
+    ? `当前从${provinceName.value}入口进入，页面、批次矩阵和生成请求均固定为${provinceName.value}，公共生成年份锁定为${admissionYearText.value}。`
+    : isProvinceGenerateLocked.value
+      ? currentProvince.value.volunteerLockDescription
+      : `系统会按${admissionYearText.value}批次综合分数、位次、选科、偏好、预算与风险取向给出对应结果。`
+))
+const gzDataScopeText = computed(() => {
+  if (provinceCode.value !== 'GZ') return ''
+  const years = trainingYears.value.length ? trainingYears.value.join('、') : '2024、2025'
+  return `贵州历史库已按 ${years} 年口径补入普通类历史/物理专业分与院校级投档线；2024 艺术、体育批次保留查询与复核入口，2025 艺体专业分等待考试院或高校后续公开源补充。`
+})
+watch(pageTitle, (title) => {
+  document.title = title
+}, { immediate: true })
+const targetVolunteerCount = computed(() => (
+  selectedBatchSupport.value
+    ? selectedBatchSupport.value.maxVolunteerCount || selectedBatchSupport.value.targetCount || 0
+    : currentProvince.value.targetCount
+))
+const volunteerUnitLabel = computed(() => (
+  selectedBatchSupport.value?.volunteerMode || (currentProvince.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45' ? '院校专业组' : '志愿')
+))
+function fallbackDataStatus(status = 'UNKNOWN') {
+  return {
+    status,
+    policyCount: 0,
+    scoreLineCount: 0,
+    majorScoreCount: 0,
+    historyCount: 0,
+    planCount: 0,
+    requirementCount: 0,
+    ready: false,
+    detail: '待接口返回批次支持矩阵',
+  }
+}
+
+function buildFallbackBatchSupportItem(
+  province: ProvinceCode,
+  batchCode: string,
+  batchName: string,
+  candidateTypeValue: CandidateType,
+  category: string,
+  targetCount: number,
+  volunteerMode: string,
+  supportNote: string,
+): BatchSupportItem {
+  return {
+    batchCode,
+    batchName,
+    candidateType: candidateTypeValue,
+    category,
+    supportLevel: 'QUERY_ONLY',
+    recommendMode: 'QUERY_ONLY',
+    engine: 'QueryOnlyRecommendEngine',
+    engineName: 'QueryOnlyRecommendEngine',
+    targetCount,
+    maxVolunteerCount: targetCount,
+    majorPerSchoolCount: 6,
+    hasAdjustment: category === 'ORDINARY' || category === 'EARLY' || category === 'SPECIAL_PROGRAM',
+    volunteerMode,
+    policyConfigured: false,
+    policyStatus: 'frontend_query_only',
+    scoreLineCount: 0,
+    majorScoreCount: 0,
+    planCount: 0,
+    requirementCount: 0,
+    dataStatus: fallbackDataStatus('PRE_OFFICIAL_DATA'),
+    missingData: [`${getProvinceConfig(province).shortName}官方完整数据窗口未补齐`],
+    supportNote,
+    supportReason: supportNote,
+    warnings: [supportNote],
+  }
+}
+
+function buildQueryOnlyBatchSupportItemsForProvince(code: ProvinceCode): BatchSupportItem[] {
+  const province = getProvinceConfig(code)
+  const prefix = code
+  return [
+    buildFallbackBatchSupportItem(
+      code,
+      `${prefix}_BENKE`,
+      province.targetBatch,
+      '普通类',
+      'ORDINARY',
+      province.targetCount,
+      `${province.volunteerUnit}（查询态）`,
+      `${province.shortName}${province.targetBatch}当前开放规则查询和历史估算；批次与生成请求保持 ${code} 口径，不套用其他省份规则。`,
+    ),
+    buildFallbackBatchSupportItem(
+      code,
+      `${prefix}_EARLY`,
+      '普通类提前批',
+      '普通类',
+      'EARLY',
+      Math.min(province.targetCount, 20),
+      '提前批志愿（查询态）',
+      `${province.shortName}提前批当前仅展示规则、资格和官方来源线索。`,
+    ),
+    buildFallbackBatchSupportItem(
+      code,
+      `${prefix}_SPECIAL`,
+      '专项计划',
+      '普通类',
+      'SPECIAL_PROGRAM',
+      Math.min(province.targetCount, 20),
+      '专项计划（查询态）',
+      `${province.shortName}专项计划需按本省户籍、学籍和资格审核口径复核。`,
+    ),
+    buildFallbackBatchSupportItem(
+      code,
+      `${prefix}_ART`,
+      '艺术类批次',
+      '艺术类',
+      'ART',
+      province.targetCount,
+      `${province.volunteerUnit}（综合分查询态）`,
+      `${province.shortName}艺术类批次当前仅保留统考、综合分和院校章程复核入口，不套普通位次模型。`,
+    ),
+    buildFallbackBatchSupportItem(
+      code,
+      `${prefix}_SPORTS`,
+      '体育类批次',
+      '体育类',
+      'SPORTS',
+      province.targetCount,
+      `${province.volunteerUnit}（体育查询态）`,
+      `${province.shortName}体育类批次当前仅保留专业成绩、综合分和官方规则复核入口。`,
+    ),
+  ]
+}
+
+const fallbackBatchSupportItems: BatchSupportItem[] = [
+  ['NORMAL_UNDERGRADUATE', '普通本科批', '普通类', 'ORDINARY', 'QUERY_ONLY', 'QUERY_ONLY', 96, '专业（类）+ 院校', 'QueryOnlyRecommendEngine', '批次支持矩阵未返回，先按查询说明处理，不展示完整推荐'],
+  ['NORMAL_SPECIALTY', '普通类高职专科批', '普通类', 'ORDINARY', 'TRIAL_RECOMMEND', 'PARALLEL_MAJOR', 96, '专业（类）+ 院校', 'OrdinaryParallelMajorEngine', '普通类高职专科批按96个专业（类）+院校推荐，专科梯度窗口采用更宽口径并保留保档自动扩展'],
+  ['EARLY_A_B', '普通类本科提前批A/B段', '普通类', 'EARLY', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'SequentialCollegeEngine', '提前A/B段为1个院校顺序志愿，当前仅展示顺序志愿规则、资格条件和数据缺口'],
+  ['EARLY_C', '普通类本科提前批C段', '普通类', 'EARLY', 'QUERY_ONLY', 'PARALLEL_MAJOR_60', 60, '专业（类）平行志愿', 'EarlyCParallelMajorEngine', '提前C段为60个专业（类）平行志愿，需单独处理公费师范、优师、免费医学、定向和履约风险'],
+  ['SPECIALTY_EARLY', '普通类高职专科提前批', '普通类', 'EARLY', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'SequentialCollegeEngine', '高职专科提前批为1个院校顺序志愿，需单独计划与资格规则，当前仅返回规则与数据缺口'],
+  ['NATIONAL_SPECIAL', '国家专项计划', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '专项计划', 'SpecialPlanEligibilityEngine', '国家专项计划需资格校验和单独计划数据'],
+  ['LOCAL_SPECIAL', '地方专项计划', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '专项计划', 'SpecialPlanEligibilityEngine', '地方专项需资格校验和单独计划数据'],
+  ['UNIVERSITY_SPECIAL', '高校专项计划', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '专项计划', 'SpecialPlanEligibilityEngine', '高校专项需报名审核结果与学校名单'],
+  ['ETHNIC_CLASS', '民族班', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '特殊计划', 'SpecialPlanEligibilityEngine', '民族班需民族与资格条件校验'],
+  ['PREPARATORY', '预科班', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '特殊计划', 'SpecialPlanEligibilityEngine', '预科班需资格与计划数据校验'],
+  ['ORIENTED', '定向招生', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '特殊计划', 'SpecialPlanEligibilityEngine', '定向招生需协议与地区资格校验'],
+  ['FREE_MEDICAL', '免费医学定向', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '特殊计划', 'SpecialPlanEligibilityEngine', '免费医学定向需资格与履约条件校验'],
+  ['TEACHER_EXCELLENCE', '优师专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'ELIGIBILITY_QUERY', 0, '特殊计划', 'SpecialPlanEligibilityEngine', '优师专项需资格、履约和单独计划数据'],
+  ['ART_UNDERGRADUATE_A', '艺术类本科A段', '艺术类', 'ART', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'ArtCompositeRecommendEngine', '艺术本科A段为1个院校顺序志愿，需艺术专业成绩、文化成绩、综合分规则和院校章程共同复核'],
+  ['ART_UNDERGRADUATE_B', '艺术类本科B段', '艺术类', 'ART', 'QUERY_ONLY', 'ART_COMPOSITE', 60, '专业（类）平行志愿', 'ArtCompositeRecommendEngine', '艺术本科B段为60个专业（类）平行志愿，必须按艺术综合成绩口径，不套用普通位次推荐模型'],
+  ['ART_SPECIALTY', '艺术类高职专科批', '艺术类', 'ART', 'QUERY_ONLY', 'ART_COMPOSITE', 60, '专业（类）平行志愿', 'ArtCompositeRecommendEngine', '艺术高职专科批为60个专业（类）平行志愿，必须按艺术综合成绩口径，不套用普通位次推荐模型'],
+  ['SPORTS_UNDERGRADUATE', '体育类本科批', '体育类', 'SPORTS', 'QUERY_ONLY', 'SPORTS_COMPOSITE', 60, '专业（类）平行志愿', 'SportsCompositeRecommendEngine', '体育本科批为60个专业（类）平行志愿，必须按体育综合成绩口径，不套用普通位次推荐模型'],
+  ['SPORTS_SPECIALTY', '体育类高职专科批', '体育类', 'SPORTS', 'QUERY_ONLY', 'SPORTS_COMPOSITE', 60, '专业（类）平行志愿', 'SportsCompositeRecommendEngine', '体育高职专科批为60个专业（类）平行志愿，必须按体育综合成绩口径，不套用普通位次推荐模型'],
+].map(([batchCode, batchName, type, category, supportLevel, recommendMode, targetCount, volunteerMode, engine, supportNote]) => ({
+  batchCode: batchCode as string,
+  batchName: batchName as string,
+  candidateType: type as CandidateType,
+  category: category as string,
+  supportLevel: supportLevel as BatchSupportItem['supportLevel'],
+  recommendMode: recommendMode as string,
+  engine: engine as string,
+  engineName: engine as string,
+  targetCount: targetCount as number,
+  maxVolunteerCount: targetCount as number,
+  majorPerSchoolCount: 0,
+  hasAdjustment: false,
+  volunteerMode: volunteerMode as string,
+  policyConfigured: false,
+  policyStatus: 'registry_only',
+  scoreLineCount: 0,
+  majorScoreCount: 0,
+  planCount: 0,
+  requirementCount: 0,
+  dataStatus: fallbackDataStatus(),
+  missingData: ['batch-support接口未返回'],
+  supportNote: supportNote as string,
+  supportReason: supportNote as string,
+  warnings: [supportNote as string],
+}))
+const fallbackBatchSupportItemsSichuan: BatchSupportItem[] = [
+  ['SC_TIQIAN_BEFORE_A_NATIONAL', '本科提前批 A 段前国家专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 6, '院校专业组（平行志愿）', 'SichuanSpecialPlanEligibilityEngine', '提前批 A 段前国家专项 2026 起 6 个平行院校专业组，需国家专项资格审查；当前仅展示规则与缺口。'],
+  ['SC_TIQIAN_A', '本科提前批 A 段', '普通类', 'EARLY', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 3, '院校顺序志愿（1 第一 + 2 平行第二）', 'SichuanSequentialCollegeEngine', '提前批 A 段含军事、公安、空军等院校，1 + 2 顺序志愿，当前仅展示规则。'],
+  ['SC_GAOXIAO_SPECIAL_PRE_B', '本科提前批高校专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿（待 6 月细则确认）', 'SichuanSpecialPlanEligibilityEngine', '高校专项 2026 官方表述存在 1 顺序 vs 20 平行两种口径，暂按 1 顺序兜底。'],
+  ['SC_TIQIAN_B', '本科提前批 B 段', '普通类', 'EARLY', 'QUERY_ONLY', 'PARALLEL_GROUP', 30, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '提前批 B 段含国家公费师范、优师、免费医学定向等，30 个平行院校专业组；履约风险需考生核对。'],
+  ['SC_BENKE_A_NATIONAL', '本科批 A 段国家专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'SichuanSpecialPlanEligibilityEngine', '本科批 A 段国家专项 20 平行，需贫困地区户籍 + 高中学籍资格。'],
+  ['SC_BENKE_A_LOCAL', '本科批 A 段地方专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'SichuanSpecialPlanEligibilityEngine', '本科批 A 段地方专项 20 平行，需四川民族自治地方 / 边远地区资格。'],
+  ['SC_BENKE_GAOXIAO_SPECIAL', '本科批 A 段后高校专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'SichuanSpecialPlanEligibilityEngine', '本科批 A 段后高校专项 2026 由 2 顺序升级 20 平行；需教育部高校专项审核结果。'],
+  ['SC_BENKE_SPORTS_TEAM', '本科批高水平运动队', '普通类', 'OTHER', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿（1 个）', 'SichuanSequentialCollegeEngine', '本科批高水平运动队 1 个院校顺序志愿，需教育部高水平运动队认定 + 体育专项测试。'],
+  ['SC_BENKE_B', '本科批 B 段', '普通类', 'ORDINARY', 'TRIAL_RECOMMEND', 'PARALLEL_GROUP', 45, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '四川主流程：本科批 B 段 45 个平行院校专业组志愿，每组 6 专业 + 是否服从专业调剂。'],
+  ['SC_BENKE_REGION_BALANCE', '本科批 B 段后区域教育均衡发展专项', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'SichuanSpecialPlanEligibilityEngine', '本科批后区域教育均衡专项 20 平行，面向四川教育薄弱区县考生。'],
+  ['SC_BENKE_MINORITY_PRE', '本科批省属高校少数民族预科', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'SichuanSpecialPlanEligibilityEngine', '省属高校少数民族预科 20 平行，需少数民族身份与户籍资格。'],
+  ['SC_ZHUANKE_B', '高职（专科）批', '普通类', 'ORDINARY', 'QUERY_ONLY', 'PARALLEL_GROUP', 45, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '高职（专科）批 45 个平行院校专业组（数量以 2026 实施细则为准）。'],
+  ['SC_ZHUANKE_EARLY', '高职（专科）提前批', '普通类', 'EARLY', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 3, '院校顺序志愿（1 第一 + 2 平行第二）', 'SichuanSequentialCollegeEngine', '高职专科提前批含定向培养军士、公安专科等，1 + 2 顺序志愿。'],
+  ['SC_ART_TIQIAN', '艺术类本科提前批', '艺术类', 'ART', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'SichuanArtCompositeEngine', '艺术类本科提前批含独立设置艺术院校等，按顺序志愿投档；需校考或专项审核。'],
+  ['SC_ART_BENKE', '艺术类本科批', '艺术类', 'ART', 'QUERY_ONLY', 'PARALLEL_GROUP', 45, '院校专业组（综合分平行志愿）', 'SichuanArtCompositeEngine', '艺术类本科批 45 个平行院校专业组，按综合成绩（文化 + 省级专业统考）位次投档；公式按统考类别分两档。'],
+  ['SC_ART_ZHUANKE', '艺术类高职（专科）批', '艺术类', 'ART', 'QUERY_ONLY', 'PARALLEL_GROUP', 45, '院校专业组（综合分平行志愿）', 'SichuanArtCompositeEngine', '艺术类高职（专科）批 45 个平行院校专业组，按综合成绩位次投档。'],
+  ['SC_SPORTS_BENKE', '体育类本科批', '体育类', 'SPORTS', 'QUERY_ONLY', 'PARALLEL_GROUP', 45, '院校专业组（综合分平行志愿）', 'SichuanSportsCompositeEngine', '体育类本科批 45 个平行院校专业组，按体育统考成绩位次投档（双线达标后按统考分排序）。'],
+  ['SC_SPORTS_ZHUANKE', '体育类高职（专科）批', '体育类', 'SPORTS', 'QUERY_ONLY', 'PARALLEL_GROUP', 45, '院校专业组（综合分平行志愿）', 'SichuanSportsCompositeEngine', '体育类高职（专科）批 45 个平行院校专业组，按体育统考成绩位次投档。'],
+].map(([batchCode, batchName, type, category, supportLevel, recommendMode, targetCount, volunteerMode, engine, supportNote]) => ({
+  batchCode: batchCode as string,
+  batchName: batchName as string,
+  candidateType: type as CandidateType,
+  category: category as string,
+  supportLevel: supportLevel as BatchSupportItem['supportLevel'],
+  recommendMode: recommendMode as string,
+  engine: engine as string,
+  engineName: engine as string,
+  targetCount: targetCount as number,
+  maxVolunteerCount: targetCount as number,
+  majorPerSchoolCount: 6,
+  hasAdjustment: (category as string) === 'ORDINARY' || (category as string) === 'EARLY' || (category as string) === 'SPECIAL_PROGRAM',
+  volunteerMode: volunteerMode as string,
+  policyConfigured: false,
+  policyStatus: 'registry_only',
+  scoreLineCount: 0,
+  majorScoreCount: 0,
+  planCount: 0,
+  requirementCount: 0,
+  dataStatus: fallbackDataStatus(),
+  missingData: ['batch-support接口未返回'],
+  supportNote: supportNote as string,
+  supportReason: supportNote as string,
+  warnings: [supportNote as string],
+}))
+const fallbackBatchSupportItemsAnhui: BatchSupportItem[] = [
+  ['AH_TIQIAN_BENKE_PARALLEL', '普通本科提前批（军事/公安/公费师范/优师/免费医学/农技推广）', '普通类', 'EARLY', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '安徽本科提前批军事/公安/公费师范/优师/免费医学/农技推广 6 个子类合并 20 个平行院校专业组，每组 6 专业 + 专业服从（免费医学定向 / 农技推广人才定向不设专业服从）。'],
+  ['AH_TIQIAN_BENKE_SEQUENTIAL', '普通本科提前批（司法应急消防/其他类）', '普通类', 'EARLY', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'QueryOnlyRecommendEngine', '安徽本科提前批司法（含司法国家专项）、应急消防、综合评价、定向培养乡村教师按 1 个院校专业组顺序志愿，从高分到低分按比例投档。'],
+  ['AH_NATIONAL_SPECIAL', '国家专项计划', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '安徽国家专项计划 20 个平行院校专业组，需户籍/学籍/综合素质/农村脱贫地区资格审查。'],
+  ['AH_LOCAL_SPECIAL', '地方专项计划', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '安徽地方专项计划 20 个平行院校专业组，面向安徽省内农村及脱贫地区考生。'],
+  ['AH_UNIVERSITY_SPECIAL', '高校专项计划', '普通类', 'SPECIAL_PROGRAM', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'QueryOnlyRecommendEngine', '安徽高校专项计划 1 个院校专业组顺序志愿，需通过高校自主审核与省考试院公示。'],
+  ['AH_BENKE', '普通本科批', '普通类', 'ORDINARY', 'TRIAL_RECOMMEND', 'PARALLEL_GROUP', 45, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '安徽主流程：普通本科批 45 个平行院校专业组志愿，每组 6 专业 + 是否服从专业调剂；高水平运动队填第 1 志愿位置。'],
+  ['AH_TIQIAN_ZHUANKE_PARALLEL', '普通高职（专科）提前批（定向军士/免费医学/农技推广）', '普通类', 'EARLY', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '安徽高职（专科）提前批定向培养军士 / 免费医学定向 / 农技推广人才定向 20 个平行院校专业组。'],
+  ['AH_TIQIAN_ZHUANKE_SEQUENTIAL', '普通高职（专科）提前批（司法/其他）', '普通类', 'EARLY', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'QueryOnlyRecommendEngine', '安徽高职（专科）提前批司法 / 其他类 1 个院校专业组顺序志愿。'],
+  ['AH_ZHUANKE', '普通高职（专科）批', '普通类', 'ORDINARY', 'QUERY_ONLY', 'PARALLEL_GROUP', 45, '院校专业组（平行志愿）', 'ProfessionalGroupVolunteerEngine', '安徽普通高职（专科）批 45 个平行院校专业组志愿，每组 6 专业 + 专业服从。'],
+  ['AH_ART_XIAOKAO_BENKE', '艺术类校考本科批', '艺术类', 'ART', 'QUERY_ONLY', 'SEQUENTIAL_COLLEGE', 1, '院校顺序志愿', 'QueryOnlyRecommendEngine', '安徽艺术类校考本科批 1 个院校专业组顺序志愿，含校考艺术类与戏曲省际联考。'],
+  ['AH_ART_TONGKAO_BENKE', '艺术类统考本科批', '艺术类', 'ART', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（综合分平行志愿）', 'QueryOnlyRecommendEngine', '安徽艺术类统考本科批 20 个平行院校专业组，按综合分优先、遵循志愿投档（A/B 段细分 + 音乐特殊单投）。'],
+  ['AH_ART_TONGKAO_ZHUANKE', '艺术类统考高职（专科）批', '艺术类', 'ART', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（综合分平行志愿）', 'QueryOnlyRecommendEngine', '安徽艺术类统考高职（专科）批 20 个平行院校专业组，按综合分优先、遵循志愿投档。'],
+  ['AH_SPORTS_BENKE', '体育类本科批', '体育类', 'SPORTS', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（综合分平行志愿）', 'QueryOnlyRecommendEngine', '安徽体育类本科批 20 个平行院校专业组，文化课按普通类本科控线 65% 划定，综合分优先。'],
+  ['AH_SPORTS_ZHUANKE', '体育类高职（专科）批', '体育类', 'SPORTS', 'QUERY_ONLY', 'PARALLEL_GROUP', 20, '院校专业组（综合分平行志愿）', 'QueryOnlyRecommendEngine', '安徽体育类高职（专科）批 20 个平行院校专业组，按综合分优先、遵循志愿投档。'],
+].map(([batchCode, batchName, type, category, supportLevel, recommendMode, targetCount, volunteerMode, engine, supportNote]) => ({
+  batchCode: batchCode as string,
+  batchName: batchName as string,
+  candidateType: type as CandidateType,
+  category: category as string,
+  supportLevel: supportLevel as BatchSupportItem['supportLevel'],
+  recommendMode: recommendMode as string,
+  engine: engine as string,
+  engineName: engine as string,
+  targetCount: targetCount as number,
+  maxVolunteerCount: targetCount as number,
+  majorPerSchoolCount: 6,
+  hasAdjustment: (category as string) === 'ORDINARY' || (category as string) === 'EARLY' || (category as string) === 'SPECIAL_PROGRAM',
+  volunteerMode: volunteerMode as string,
+  policyConfigured: false,
+  policyStatus: 'registry_only',
+  scoreLineCount: 0,
+  majorScoreCount: 0,
+  planCount: 0,
+  requirementCount: 0,
+  dataStatus: fallbackDataStatus(),
+  missingData: ['batch-support接口未返回'],
+  supportNote: supportNote as string,
+  supportReason: supportNote as string,
+  warnings: [supportNote as string],
+}))
+function fallbackBatchSupportItemsForProvince(code: ProvinceCode): BatchSupportItem[] {
+  if (code === 'GZ') return fallbackBatchSupportItems
+  if (code === 'SC') return fallbackBatchSupportItemsSichuan
+  if (code === 'AH') return fallbackBatchSupportItemsAnhui
+  return buildQueryOnlyBatchSupportItemsForProvince(code)
+}
+const batchOptions = computed(() => {
+  if (!candidateType.value) return []
+  const fallback = fallbackBatchSupportItemsForProvince(provinceCode.value)
+  const items = batchSupportItems.value.length ? batchSupportItems.value : fallback
+  const filtered = items.filter((item: BatchSupportItem) => item.candidateType === candidateType.value)
+  return filtered.length ? filtered : fallback.filter(item => item.candidateType === candidateType.value)
+})
+const selectedBatchSupport = computed(() => batchOptions.value.find((item: BatchSupportItem) => item.batchCode === batchCode.value))
+const targetBatchLabel = computed(() => selectedBatchSupport.value?.batchName || '待选择批次')
+const canGenerateForSelectedBatch = computed(() => (
+  isPreOfficialData.value
+  || selectedBatchSupport.value?.supportLevel === 'FULL_RECOMMEND'
+  || selectedBatchSupport.value?.supportLevel === 'TRIAL_RECOMMEND'
+))
+const submitButtonText = computed(() => {
+  if (isGenerateLocked.value) return batchSupportGateText.value || '生成能力暂未开放'
+  if (generating.value) return '方案生成中…'
+  if (!hasCurrentDisclaimer.value) {
+    return selectedBatchSupport.value?.supportLevel === 'QUERY_ONLY'
+      ? '阅读风险告知并生成策略建议'
+      : '阅读风险告知并生成历史估算方案'
+  }
+  return selectedBatchSupport.value?.supportLevel === 'QUERY_ONLY'
+    ? '生成策略建议'
+    : '生成历史估算方案'
+})
+const batchSupportGateText = computed(() => {
+  if (!candidateType.value) return '请选择考生类别'
+  if (!batchCode.value || !selectedBatchSupport.value) return '请选择目标批次'
+  if (canGenerateForSelectedBatch.value) return ''
+  if (selectedBatchSupport.value.supportLevel === 'QUERY_ONLY') {
+    return `${selectedBatchSupport.value.batchName}当前仅支持政策和数据缺口说明，暂不生成完整推荐。`
+  }
+  return `${selectedBatchSupport.value.batchName}当前暂不支持生成完整推荐。`
+})
+const isProvinceGenerateLocked = computed(() => currentProvince.value.status !== 'open')
+const isGenerateLocked = computed(() => isProvinceGenerateLocked.value || Boolean(batchSupportGateText.value))
 const hasRankEstimate = computed(() => Boolean(rankEstimateHigh.value && rankEstimateHigh.value > 0))
 const effectiveRankForPreview = computed(() => (
   provinceRank.value && provinceRank.value > 0
@@ -176,6 +574,8 @@ const canSubmit = computed(() => formReady.value && !isGenerateLocked.value)
 
 const missingItems = computed(() => {
   const items: string[] = []
+  if (!candidateType.value) items.push('考生类别')
+  if (!batchCode.value || !selectedBatchSupport.value) items.push('目标批次')
   if (totalScore.value === undefined || totalScore.value <= 0) items.push('高考总分')
   if ((provinceRank.value === undefined || provinceRank.value <= 0) && !hasRankEstimate.value) {
     items.push('全省位次或官方估算位次')
@@ -186,19 +586,25 @@ const missingItems = computed(() => {
 })
 
 const readinessText = computed(() => (
-  isGenerateLocked.value
+  isProvinceGenerateLocked.value
     ? '生成能力暂未开放'
+    : batchSupportGateText.value ? '当前批次仅展示政策说明'
     : missingItems.value.length ? `还差 ${missingItems.value.length} 项必填信息` : '已满足生成条件'
 ))
 
 const readinessDetail = computed(() => (
-  isGenerateLocked.value
+  isProvinceGenerateLocked.value
     ? currentProvince.value.volunteerLockDescription
+    : batchSupportGateText.value ? batchSupportGateText.value
     : missingItems.value.length
     ? `请继续补全：${missingItems.value.join('、')}`
     : hasCurrentDisclaimer.value
-      ? `可以直接生成 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}草稿，随后继续做 AI 解读、Excel 导出和人工排序。`
-      : `点击生成按钮阅读并确认生成前风险告知后，即可生成 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}草稿。`
+      ? isPreOfficialData.value
+        ? `可以生成 ${activeAdmissionYear.value} 年历史估算方案或策略建议；${trainingYearText.value} 年仅用于历史趋势和模型校准，不会伪装为 ${activeAdmissionYear.value} 官方数据。`
+        : `可以直接生成 ${activeAdmissionYear.value} 年 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}草稿；${historyYearText.value} 年历史数据仅用于后台回测和模型校准。`
+      : isPreOfficialData.value
+        ? `点击按钮阅读并确认风险告知后，可生成 ${activeAdmissionYear.value} 年历史估算方案或策略建议。`
+        : `点击生成按钮阅读并确认生成前风险告知后，即可生成 ${activeAdmissionYear.value} 年 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}草稿。`
 ))
 
 const progressRatio = computed(() => {
@@ -212,7 +618,7 @@ const progressRatio = computed(() => {
 
 const summaryMetrics = computed(() => [
   {
-    label: '高考总分',
+    label: `${admissionYearText.value}高考总分`,
     value: totalScore.value ? `${totalScore.value}分` : '待填写',
     note: '750 分满分口径',
   },
@@ -310,27 +716,162 @@ async function loadHotMajors() {
   }
 }
 
-watch([firstSubject, provinceCode], loadHotMajors)
-onMounted(loadHotMajors)
+async function loadBatchSupport() {
+  batchSupportLoading.value = true
+  try {
+    const res = await getBatchSupportByProvince(provinceCode.value)
+    if (res.data.code === 0) {
+      activeAdmissionYear.value = res.data.data.activeAdmissionYear || res.data.data.year
+      latestOfficialDataYear.value = res.data.data.latestOfficialDataYear
+      historyYears.value = res.data.data.historyYears || []
+      trainingYears.value = res.data.data.trainingYears || res.data.data.historyYears || []
+      recommendationPhase.value = res.data.data.recommendationPhase || ''
+      estimateMode.value = Boolean(res.data.data.estimateMode)
+      batchSupportItems.value = res.data.data.items || []
+      syncSelectedBatch()
+    }
+  } catch {
+    batchSupportItems.value = []
+  } finally {
+    batchSupportLoading.value = false
+  }
+}
 
-watch(() => route.query.provinceCode, (value) => {
-  const next = normalizeProvinceCode(value)
-  if (provinceCode.value !== next) {
+function defaultBatchCodeForProvince(code: ProvinceCode): string {
+  if (code === 'GZ') return 'NORMAL_UNDERGRADUATE'
+  if (code === 'SC') return 'SC_BENKE_B'
+  if (code === 'AH') return 'AH_BENKE'
+  return `${code}_BENKE`
+}
+
+function syncSelectedBatch() {
+  if (!batchOptions.value.some((item: BatchSupportItem) => item.batchCode === batchCode.value)) {
+    // 四川 / 湖北 / 安徽进入时，如果用户没有选过批次，自动选默认主流程批次
+    const fallbackCode = defaultBatchCodeForProvince(provinceCode.value)
+    const hasFallback = batchOptions.value.some((item: BatchSupportItem) => item.batchCode === fallbackCode)
+    batchCode.value = hasFallback ? fallbackCode : ''
+  }
+}
+
+function selectCandidateType(type: CandidateType) {
+  candidateType.value = type
+  syncSelectedBatch()
+}
+
+function selectBatch(code: string) {
+  batchCode.value = code
+}
+
+function toggleQualification(tag: string) {
+  const idx = qualificationTags.value.indexOf(tag)
+  if (idx > -1) {
+    qualificationTags.value.splice(idx, 1)
+  } else {
+    qualificationTags.value.push(tag)
+  }
+}
+
+watch([firstSubject, provinceCode], loadHotMajors)
+watch([candidateType, batchSupportItems], syncSelectedBatch)
+onMounted(() => {
+  // 院校专业组省默认走本省普通类主流程批次，免去用户额外点击
+  if (currentProvince.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45' && !candidateType.value) {
+    candidateType.value = '普通类'
+  }
+  loadHotMajors()
+  loadBatchSupport()
+})
+
+watch(() => route.query.provinceCode, (value: unknown) => {
+  const next = provinceCodeFromRouteQuery(value)
+  lockedProvinceCode.value = next
+  if (next && provinceCode.value !== next) {
     provinceCode.value = next
+  }
+}, { immediate: true })
+
+watch(provinceCode, (code: ProvinceCode) => {
+  void loadBatchSupport()
+  volunteerStore.setFormData({ provinceCode: code })
+  // 院校专业组省默认走本省普通类主流程批次，免去用户额外点击
+  if (getProvinceConfig(code).volunteerUnitType === 'PROFESSIONAL_GROUP_45' && !candidateType.value) {
+    candidateType.value = '普通类'
+  }
+  // 切省时，如果当前艺术统考类别不在新省份的下拉中，重置为新省份的第一个有效项（避免后端 success=false）
+  if (!artCategoryOptions.value.includes(scArtCategory.value)) {
+    scArtCategory.value = artCategoryOptions.value[0] || '美术与设计类'
   }
 })
 
-watch(provinceCode, (code) => {
-  volunteerStore.setFormData({ provinceCode: code })
+/**
+ * 四川 / 安徽艺术 / 体育综合分实时预览：当 candidateType=艺术类/体育类 + 文化分 + 统考分齐备时，
+ * 600ms debounce 调用对应省份 composite-score 接口（SC → /sc/composite-score, AH → /ah/composite-score），
+ * 展示按官方公告公式估算的综合分。
+ * 不进数据库、不影响生成请求；用户最终填的综合分仍以表单中的 comprehensiveScore 字段为准。
+ */
+watch([provinceCode, candidateType, scArtCategory, artProfessionalScore, sportsProfessionalScore, totalScore, firstSubject], () => {
+  if (compositeTimer) clearTimeout(compositeTimer)
+  scCompositeFormula.value = ''
+  scCompositeScore.value = null
+  const isSichuanLike = currentProvince.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45'
+  if (!isSichuanLike) return
+  if (candidateType.value !== '艺术类' && candidateType.value !== '体育类') return
+  const culture = totalScore.value
+  const professional = candidateType.value === '艺术类'
+    ? artProfessionalScore.value
+    : sportsProfessionalScore.value
+  if (!culture || culture <= 0) return
+  if (!professional || professional <= 0) return
+  compositeTimer = setTimeout(async () => {
+    try {
+      const isAh = provinceCode.value === 'AH'
+      const res = isAh
+        ? await getAhCompositeScore({
+            candidateType: candidateType.value as '艺术类' | '体育类',
+            artCategory: candidateType.value === '艺术类' ? scArtCategory.value : undefined,
+            firstSubject: firstSubject.value,
+            cultureScore: culture as number,
+            professionalScore: professional as number,
+          })
+        : await getScCompositeScore({
+            candidateType: candidateType.value as '艺术类' | '体育类',
+            artCategory: candidateType.value === '艺术类' ? scArtCategory.value : undefined,
+            cultureScore: culture as number,
+            professionalScore: professional as number,
+          })
+      const data = res.data?.data
+      if (data?.success) {
+        scCompositeScore.value = data.score
+        scCompositeFormula.value = data.formula
+      } else {
+        scCompositeFormula.value = data?.formula || '考生类别 + 统考类别无法识别'
+      }
+    } catch {
+      scCompositeFormula.value = ''
+    }
+  }, 600)
 })
 
-watch(strategyMode, (mode) => {
+watch([candidateType, batchCode], ([type, batch]: [CandidateType | '', string]) => {
+  if (type) {
+    volunteerStore.setFormData({ candidateType: type, batchCode: batch })
+  } else {
+    volunteerStore.setFormData({ batchCode: batch })
+  }
+})
+
+watch(currentSafetyCode, (value: string) => {
+  setCurrentSafetyCode(normalizeSafetyCodeInput(value))
+})
+
+watch(strategyMode, (mode: '保守型' | '均衡型' | '冲刺型') => {
   if (gradientRangeMode.value === 'preset') {
     gradientRanges.value = presetGradientRanges(mode)
   }
 })
 
-watch([totalScore, provinceRank, firstSubject, provinceCode], ([score, rank, subject, province]) => {
+watch([totalScore, provinceRank, firstSubject, provinceCode], (values: [number | undefined, number | undefined, '物理' | '历史', ProvinceCode]) => {
+  const [score, rank, subject, province] = values
   rankHint.value = ''
   rankConflict.value = ''
   rankEstimateLow.value = null
@@ -421,6 +962,63 @@ function formatOffset(value: number) {
   return value.toLocaleString()
 }
 
+function supportLevelText(level: string) {
+  if (isPreOfficialData.value && (level === 'FULL_RECOMMEND' || level === 'TRIAL_RECOMMEND')) {
+    return '历史估算'
+  }
+  if (isPreOfficialData.value && level === 'QUERY_ONLY') {
+    return '策略建议'
+  }
+  if (isOfficialDataPartial.value && level === 'QUERY_ONLY') {
+    return '准备中/缺口说明'
+  }
+  return ({
+    FULL_RECOMMEND: '历史估算',
+    TRIAL_RECOMMEND: '历史估算',
+    ESTIMATE_RECOMMEND: '历史估算',
+    QUERY_ONLY: '策略建议',
+    UNSUPPORTED: '暂不支持',
+  } as Record<string, string>)[level] || level
+}
+
+function dataStatusText(status: BatchSupportItem['dataStatus'] | string | undefined) {
+  const code = typeof status === 'string' ? status : status?.status || 'UNKNOWN'
+  return ({
+    READY: '数据就绪',
+    POLICY_MISSING: '政策缺失',
+    HISTORY_MISSING: '历史线缺失',
+    PLAN_MISSING: '计划缺失',
+    PRE_OFFICIAL_DATA: '官方数据待发布',
+    OFFICIAL_DATA_PARTIAL: '准备中',
+    UNKNOWN: '待核验',
+  } as Record<string, string>)[code] || code
+}
+
+function publicFacingText(text?: string | string[]) {
+  const raw = Array.isArray(text) ? text.join('；') : String(text || '')
+  return raw
+    .replace(/PRE_OFFICIAL_DATA/g, '官方数据待发布阶段')
+    .replace(/FULL_RECOMMEND/g, '历史估算')
+    .replace(/TRIAL_RECOMMEND/g, '历史估算')
+    .replace(/ESTIMATE_RECOMMEND/g, '历史估算')
+    .replace(/QUERY_ONLY/g, '策略建议')
+    .replace(/QERY_ONLY/g, '策略建议')
+    .replace(/targetYear\s*=\s*2026/g, '目标年份为 2026')
+    .replace(/complete\s*recommendation/gi, '正式推荐')
+    .replace(/完整数据生成/g, '正式推荐能力')
+}
+
+function volunteerModeText(mode: string | undefined, count: number) {
+  const normalized = String(mode || '')
+  if (!count) return '暂不生成院校清单'
+  if (normalized.includes('院校专业组')) return `${count} 个院校专业组`
+  if (normalized.includes('专业')) return `${count} 个专业志愿`
+  if (normalized.includes('专项')) return `${count} 个专项计划`
+  if (normalized.includes('院校顺序')) return `${count} 个院校顺序志愿`
+  if (normalized.includes('特殊')) return `${count} 个特殊计划`
+  return `${count} 个志愿`
+}
+
 function setRangeMode(mode: 'preset' | 'custom') {
   gradientRangeMode.value = mode
   if (mode === 'preset') {
@@ -429,18 +1027,32 @@ function setRangeMode(mode: 'preset' | 'custom') {
 }
 
 function selectProvince(code: ProvinceCode): void {
+  if (lockedProvinceCode.value) return
   if (provinceCode.value !== code) {
     provinceCode.value = code
   }
-  router.replace({
-    query: {
-      ...route.query,
-      provinceCode: code,
-    },
-  })
 }
 
-function updateRange(key: GradientRangeKey, field: keyof GradientRanges[GradientRangeKey], rawValue: string | number) {
+function normalizeSafetyCodeInput(value: string) {
+  return value.trim().replace(/[-\s]/g, '').toUpperCase()
+}
+
+function syncSafetyCodeInput() {
+  const normalized = normalizeSafetyCodeInput(currentSafetyCode.value)
+  currentSafetyCode.value = normalized
+  setCurrentSafetyCode(normalized)
+  return normalized
+}
+
+function createLocalSafetyCode() {
+  const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = new Uint8Array(10)
+  window.crypto.getRandomValues(bytes)
+  currentSafetyCode.value = Array.from(bytes, byte => charset[byte % charset.length]).join('')
+  setCurrentSafetyCode(currentSafetyCode.value)
+}
+
+function updateRange(key: GradientRangeKey, field: keyof GradientRanges[GradientRangeKey], rawValue: unknown) {
   const value = typeof rawValue === 'number' ? rawValue : Number(rawValue)
   gradientRanges.value = {
     ...gradientRanges.value,
@@ -450,6 +1062,14 @@ function updateRange(key: GradientRangeKey, field: keyof GradientRanges[Gradient
     },
   }
   gradientRangeMode.value = 'custom'
+}
+
+function updateRangeMin(key: GradientRangeKey, rawValue: unknown) {
+  updateRange(key, 'rankOffsetMin', rawValue)
+}
+
+function updateRangeMax(key: GradientRangeKey, rawValue: unknown) {
+  updateRange(key, 'rankOffsetMax', rawValue)
 }
 
 function openDisclaimer(continueAfterConfirm = false) {
@@ -477,10 +1097,14 @@ function handleDisclaimerConfirm(version: string) {
 
 async function onSubmit() {
   if (isGenerateLocked.value) {
-    showToast(currentProvince.value.volunteerLockTitle)
+    showToast(batchSupportGateText.value || currentProvince.value.volunteerLockTitle)
     return
   }
   if (!canSubmit.value || generating.value) return
+  if (!syncSafetyCodeInput()) {
+    showToast('请先设置方案查看凭证后再生成志愿方案。')
+    return
+  }
   if (!hasCurrentDisclaimer.value) {
     openDisclaimer(true)
     return
@@ -491,16 +1115,25 @@ async function onSubmit() {
 
 async function submitPlan() {
   if (isGenerateLocked.value) {
-    showToast(currentProvince.value.volunteerLockTitle)
+    showToast(batchSupportGateText.value || currentProvince.value.volunteerLockTitle)
     return
   }
   if (!canSubmit.value || !hasCurrentDisclaimer.value || generating.value) return
+  const safetyCode = syncSafetyCodeInput()
+  if (!safetyCode) {
+    showToast('请先设置方案查看凭证后再生成志愿方案。')
+    return
+  }
 
   generating.value = true
   showLoadingToast({ message: '方案生成中...', forbidClick: true, duration: 0 })
   try {
     const payload = {
       provinceCode: provinceCode.value,
+      province: provinceName.value,
+      year: activeAdmissionYear.value,
+      candidateType: (candidateType.value || '普通类') as CandidateType,
+      batchCode: batchCode.value,
       totalScore: totalScore.value!,
       provinceRank: provinceRank.value && provinceRank.value > 0 ? provinceRank.value : 0,
       firstSubject: firstSubject.value,
@@ -513,9 +1146,14 @@ async function submitPlan() {
       tuitionBudget: tuitionBudget.value,
       acceptPrivate: acceptPrivate.value,
       acceptSinoForeign: acceptSinoForeign.value,
+      safetyCode,
       agreedDisclaimer: true as const,
       disclaimerVersion: disclaimerVersion.value,
       gradientRanges: cloneGradientRanges(gradientRanges.value),
+      qualificationTags: [...qualificationTags.value],
+      artProfessionalScore: artProfessionalScore.value,
+      sportsProfessionalScore: sportsProfessionalScore.value,
+      comprehensiveScore: comprehensiveScore.value,
     }
     const genRes = await generateVolunteerPlan(payload)
     if (genRes.data.code !== 0) {
@@ -552,9 +1190,9 @@ async function submitPlan() {
           <ArrowLeft :size="20" />
         </button>
         <div class="gz-shell-heading">
-          <div class="gz-shell-title">智能志愿填报</div>
+          <div class="gz-shell-title">{{ pageTitle }}</div>
           <div class="gz-shell-subtitle">
-            {{ isGenerateLocked ? '查看地区口径、表单字段和数据准备状态' : `把会影响推荐结果的条件一次性填全，再生成 ${targetVolunteerCount} 个${volunteerUnitLabel}草稿` }}
+            {{ pageSubtitle }}
           </div>
         </div>
         <div class="gz-shell-header-extra">{{ progressRatio }}%</div>
@@ -565,9 +1203,9 @@ async function submitPlan() {
       <section class="gz-shell-hero volunteer-hero">
         <div class="volunteer-hero__copy">
           <span class="gz-shell-kicker">volunteer plan</span>
-          <h1 class="gz-shell-hero-title">主流程只保留真正影响结果的输入项</h1>
+          <h1 class="gz-shell-hero-title">{{ heroTitle }}</h1>
           <p class="gz-shell-hero-desc">
-            {{ isGenerateLocked ? currentProvince.volunteerLockDescription : `系统会综合分数、位次、选科、偏好、预算与风险取向生成 ${targetVolunteerCount} 个${volunteerUnitLabel}。` }}
+            {{ heroDescription }}
           </p>
           <div class="gz-shell-chip-row volunteer-hero__chips">
             <span class="gz-shell-chip is-soft-active">{{ subjectTypeLabel }}</span>
@@ -575,6 +1213,10 @@ async function submitPlan() {
             <span class="gz-shell-chip is-soft-active">{{ strategyMode }}</span>
             <span class="gz-shell-chip is-soft-active">{{ decisionPriority }}</span>
             <span class="gz-shell-chip is-soft-active">{{ careerGoal }}</span>
+            <span class="gz-shell-chip is-soft-active">{{ phaseBadgeText }}</span>
+          </div>
+          <div class="volunteer-note volunteer-note--warning">
+            {{ phaseNoticeText }}
           </div>
         </div>
 
@@ -587,8 +1229,8 @@ async function submitPlan() {
         </div>
       </section>
 
-      <section v-if="isGenerateLocked" class="gz-shell-panel volunteer-lock-panel">
-        <div class="volunteer-lock-panel__badge">数据准备中</div>
+      <section v-if="isProvinceGenerateLocked" class="gz-shell-panel volunteer-lock-panel">
+        <div class="volunteer-lock-panel__badge">查询态开放</div>
         <div>
           <h2>{{ currentProvince.volunteerLockTitle }}</h2>
           <p>{{ currentProvince.volunteerLockDescription }}</p>
@@ -609,7 +1251,15 @@ async function submitPlan() {
 
             <div class="option-group">
               <div class="volunteer-block__label">填报省份</div>
-              <div class="option-grid option-grid--double">
+              <div v-if="isProvinceEntryLocked" class="volunteer-province-lock-card">
+                <div class="volunteer-province-lock-card__badge">已锁定{{ provinceName }}入口</div>
+                <div class="volunteer-province-lock-card__body">
+                  <h3>{{ provinceName }}专区</h3>
+                  <p>当前访问地址携带省份入口参数，填报省份固定为{{ provinceName }}，批次矩阵、位次校验和生成请求均使用 {{ provinceCode }} 口径。</p>
+                  <span>{{ currentProvince.targetBatch }} · {{ currentProvince.volunteerUnit }} · {{ currentProvince.statusLabel }}</span>
+                </div>
+              </div>
+              <div v-else class="option-grid option-grid--double">
                 <button
                   v-for="opt in provinceOptions"
                   :key="opt.key"
@@ -624,6 +1274,125 @@ async function submitPlan() {
               </div>
               <div v-if="currentProvince.volunteerUnitType === 'PROFESSIONAL_GROUP_45'" class="volunteer-note">
                 {{ currentProvince.shortName }}当前按{{ currentProvince.targetBatch }}院校专业组建模；公开可核验数据不足 45 个时，系统会提示补数据，不会伪装完整方案。
+              </div>
+            </div>
+
+            <div class="option-group">
+              <div class="volunteer-block__label">考生类别</div>
+              <div class="option-grid option-grid--triple">
+                <button
+                  v-for="opt in candidateTypeOptions"
+                  :key="opt.key"
+                  type="button"
+                  class="option-card"
+                  :class="{ active: candidateType === opt.key }"
+                  @click="selectCandidateType(opt.key)"
+                >
+                  <span class="option-card__title">{{ opt.title }}</span>
+                  <span class="option-card__desc">{{ opt.desc }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="option-group">
+              <div class="volunteer-block__label">目标批次</div>
+              <details class="batch-help" open>
+                <summary>不知道选哪个批次？</summary>
+                <div class="batch-help__body">
+                  <span>普通考生优先选择「普通类本科批」。</span>
+                  <span>专科考生选择「普通类高职（专科）批」。</span>
+                  <span>艺术/体育类当前主要提供政策查询和缺口说明。</span>
+                </div>
+              </details>
+              <div class="option-grid option-grid--double">
+                <button
+                  v-for="item in batchOptions"
+                  :key="item.batchCode"
+                  type="button"
+                  class="option-card"
+                  :class="{ active: batchCode === item.batchCode }"
+                  @click="selectBatch(item.batchCode)"
+                >
+                  <span class="option-card__title">{{ item.batchName }}</span>
+                  <span class="option-card__desc">{{ supportLevelText(item.supportLevel) }} · {{ dataStatusText(item.dataStatus) }}</span>
+                  <span class="option-card__desc">{{ volunteerModeText(item.volunteerMode, item.maxVolunteerCount || item.targetCount || 0) }}</span>
+                </button>
+              </div>
+              <div class="volunteer-note">
+                {{ batchSupportLoading ? '批次支持矩阵读取中…' : publicFacingText(selectedBatchSupport?.supportReason || selectedBatchSupport?.supportNote || '请选择目标批次，系统不会默认套用普通本科批。') }}
+              </div>
+              <div v-if="shouldShowPhaseNotice" class="volunteer-note volunteer-note--warning">
+                <strong>{{ phaseBadgeText }}</strong>
+                <span>{{ phaseNoticeText }}</span>
+              </div>
+              <div v-if="gzDataScopeText" class="volunteer-note volunteer-note--data">
+                <strong>贵州数据口径</strong>
+                <span>{{ gzDataScopeText }}</span>
+              </div>
+              <div v-if="selectedBatchSupport && !canGenerateForSelectedBatch" class="volunteer-note volunteer-note--warning">
+                <strong>{{ supportLevelText(selectedBatchSupport.supportLevel) }}</strong>
+                <span>{{ publicFacingText(selectedBatchSupport.supportReason || selectedBatchSupport.supportNote) }}</span>
+                <span v-if="selectedBatchSupport.warnings?.length">缺口：{{ publicFacingText(selectedBatchSupport.warnings) }}</span>
+              </div>
+            </div>
+
+            <div v-if="selectedBatchSupport?.category === 'SPECIAL_PROGRAM'" class="option-group">
+              <div class="volunteer-block__label">资格标签</div>
+              <div class="preference-tags">
+                <button
+                  v-for="tag in qualificationOptions"
+                  :key="tag"
+                  type="button"
+                  class="preference-tag"
+                  :class="{ active: qualificationTags.includes(tag) }"
+                  @click="toggleQualification(tag)"
+                >
+                  {{ tag }}
+                </button>
+              </div>
+            </div>
+
+            <div v-if="candidateType !== '普通类'" class="volunteer-form-grid">
+              <div v-if="candidateType === '艺术类' && currentProvince.volunteerUnitType === 'PROFESSIONAL_GROUP_45'" class="field-card field-card--full">
+                <label class="field-card__label">艺术统考类别</label>
+                <div class="field-card__input-wrap">
+                  <select v-model="scArtCategory" class="custom-field" style="width:100%;height:40px;padding:0 12px;border:1px solid #e5e7eb;border-radius:8px;">
+                    <option v-for="cat in artCategoryOptions" :key="cat" :value="cat">{{ cat }}</option>
+                  </select>
+                </div>
+              </div>
+              <div v-if="candidateType === '艺术类'" class="field-card">
+                <label class="field-card__label">艺术专业成绩（统考）</label>
+                <div class="field-card__input-wrap">
+                  <van-field v-model.number="artProfessionalScore" type="digit" placeholder="0-300" class="custom-field" />
+                  <span class="field-card__unit">分</span>
+                </div>
+              </div>
+              <div v-if="candidateType === '体育类'" class="field-card">
+                <label class="field-card__label">体育专业成绩（统考）</label>
+                <div class="field-card__input-wrap">
+                  <van-field v-model.number="sportsProfessionalScore" type="digit" placeholder="0-100" class="custom-field" />
+                  <span class="field-card__unit">分</span>
+                </div>
+              </div>
+              <div class="field-card">
+                <label class="field-card__label">综合分（可选，留空走实时估算）</label>
+                <div class="field-card__input-wrap">
+                  <van-field v-model.number="comprehensiveScore" type="number" placeholder="留空使用实时估算" class="custom-field" />
+                  <span class="field-card__unit">分</span>
+                </div>
+              </div>
+              <div v-if="(scCompositeScore || scCompositeFormula) && currentProvince.volunteerUnitType === 'PROFESSIONAL_GROUP_45'" class="field-card field-card--full volunteer-note">
+                <label class="field-card__label">{{ provinceName }} {{ candidateType }} 综合分实时估算</label>
+                <div v-if="scCompositeScore" style="font-size:18px;font-weight:600;color:#0f172a;margin-top:4px;">
+                  约 {{ scCompositeScore.toFixed(2) }} 分
+                </div>
+                <div style="font-size:12px;color:#64748b;margin-top:4px;line-height:1.5;">
+                  {{ scCompositeFormula }}
+                </div>
+                <div style="font-size:11px;color:#94a3b8;margin-top:4px;">
+                  此值仅作为前端预览，最终以你手填的"综合分"为准；公式按 {{ compositeProvinceSourceLabel }}。
+                </div>
               </div>
             </div>
 
@@ -753,7 +1522,7 @@ async function submitPlan() {
                       type="number"
                       inputmode="numeric"
                       class="custom-field custom-field--compact range-field"
-                      @update:model-value="value => updateRange(row.key, 'rankOffsetMin', value)"
+                      @update:model-value="updateRangeMin(row.key, $event)"
                     />
                     <span>至</span>
                     <van-field
@@ -761,7 +1530,7 @@ async function submitPlan() {
                       type="number"
                       inputmode="numeric"
                       class="custom-field custom-field--compact range-field"
-                      @update:model-value="value => updateRange(row.key, 'rankOffsetMax', value)"
+                      @update:model-value="updateRangeMax(row.key, $event)"
                     />
                   </div>
                 </div>
@@ -885,7 +1654,7 @@ async function submitPlan() {
                     :class="{ active: preferredMajors.includes(major.name) }"
                     @click="toggleMajor(major.name)"
                   >
-                    <div class="hot-major-card__rank" :class="{ 'is-top3': idx < 3 }">{{ idx + 1 }}</div>
+                    <div class="hot-major-card__rank" :class="{ 'is-top3': major.rank <= 3 }">{{ major.rank }}</div>
                     <div class="hot-major-card__body">
                       <div class="hot-major-card__name">{{ major.name }}</div>
                       <div class="hot-major-card__meta">{{ major.schoolCount }} 所院校 · 均分 {{ major.avgScore }}</div>
@@ -1004,13 +1773,34 @@ async function submitPlan() {
           </span>
         </button>
 
+        <div class="safety-code-box">
+          <label class="safety-code-label" for="volunteer-safety-code">方案查看凭证</label>
+          <div class="safety-code-row">
+            <input
+              id="volunteer-safety-code"
+              v-model.trim="currentSafetyCode"
+              class="safety-code-input"
+              type="text"
+              inputmode="text"
+              autocomplete="off"
+              placeholder="请输入或生成查看凭证"
+              @blur="syncSafetyCodeInput"
+            />
+            <button type="button" class="safety-code-create" @click="createLocalSafetyCode">生成</button>
+          </div>
+          <p class="safety-code-hint">查看凭证只随本次生成请求提交，不会写入地址栏；请妥善保存，后续查看方案需要它。</p>
+        </div>
+
         <button class="submit-btn" :class="{ disabled: !canSubmit || generating }" :disabled="!canSubmit || generating" @click="onSubmit">
-          <span>{{ isGenerateLocked ? '生成能力暂未开放' : generating ? '生成中…' : hasCurrentDisclaimer ? `生成 ${targetVolunteerCount} 个${volunteerUnitLabel}` : '阅读风险告知并生成' }}</span>
+          <span>{{ submitButtonText }}</span>
           <ArrowRight :size="18" />
         </button>
         <p class="submit-hint">
-          {{ isGenerateLocked ? currentProvince.volunteerLockDescription : '系统会综合专业数据、院校门槛、位次波动和你的偏好给出可解释结果。' }}
+          {{ isGenerateLocked ? batchSupportGateText || currentProvince.volunteerLockDescription : isPreOfficialData ? phaseNoticeText : `${admissionYearText}公共填报入口已锁定，历史年份仅用于后台回测和模型校准。` }}
         </p>
+        <div class="submit-feedback-row">
+          <UserFeedbackDialog :province-code="provinceCode" compact />
+        </div>
       </section>
     </div>
 
@@ -1147,6 +1937,34 @@ async function submitPlan() {
   line-height: 1.5;
   font-weight: 700;
   color: #334155;
+}
+
+.batch-help {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.batch-help summary {
+  cursor: pointer;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.batch-help__body {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.batch-help__body span {
+  display: block;
 }
 
 .subject-options,
@@ -1392,6 +2210,50 @@ async function submitPlan() {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 
+.volunteer-province-lock-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.06);
+}
+
+.volunteer-province-lock-card__badge {
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 800;
+}
+
+.volunteer-province-lock-card__body h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.volunteer-province-lock-card__body p {
+  margin: 8px 0 0;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.volunteer-province-lock-card__body span {
+  display: inline-flex;
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+  font-weight: 700;
+}
+
 .option-card__title {
   font-size: 14px;
   line-height: 1.4;
@@ -1589,6 +2451,18 @@ async function submitPlan() {
   background: #f8fafc;
 }
 
+.volunteer-note--data {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.volunteer-note--data strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #14532d;
+}
+
 .interest-layout {
   display: grid;
   gap: 18px;
@@ -1747,6 +2621,34 @@ async function submitPlan() {
   color: #1d4ed8;
 }
 
+.preference-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.preference-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.preference-tag.active {
+  border-color: rgba(37, 99, 235, 0.24);
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
 .tag-item--major {
   background: #eff6ff;
   border-color: rgba(37, 99, 235, 0.16);
@@ -1899,6 +2801,59 @@ async function submitPlan() {
   color: #64748b;
 }
 
+.safety-code-box {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.safety-code-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.safety-code-row {
+  display: flex;
+  gap: 10px;
+}
+
+.safety-code-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+  outline: none;
+}
+
+.safety-code-input:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.safety-code-create {
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.safety-code-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #64748b;
+}
+
 .submit-btn {
   display: flex;
   align-items: center;
@@ -1929,6 +2884,12 @@ async function submitPlan() {
 .submit-hint {
   margin-top: 10px;
   text-align: center;
+}
+
+.submit-feedback-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 
 @media (min-width: 768px) {

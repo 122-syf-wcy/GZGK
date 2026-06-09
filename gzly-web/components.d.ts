@@ -26,6 +26,7 @@ declare module 'vue' {
     SkillsChatBox: typeof import('./src/components/ai/SkillsChatBox.vue')['default']
     SkillsServiceCard: typeof import('./src/components/ai/SkillsServiceCard.vue')['default']
     UniversityQa: typeof import('./src/components/UniversityQa.vue')['default']
+    UserFeedbackDialog: typeof import('./src/components/UserFeedbackDialog.vue')['default']
     VanButton: typeof import('vant/es')['Button']
     VanCellGroup: typeof import('vant/es')['CellGroup']
     VanEmpty: typeof import('vant/es')['Empty']

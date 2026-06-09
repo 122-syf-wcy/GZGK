@@ -117,6 +117,19 @@ async function submitFeedbackForm(): Promise<void> {
     </section>
 
     <main class="page-container home-main">
+      <section class="gz-card post-exam-guide" aria-label="高考后使用指引">
+        <div class="post-exam-guide__head">
+          <span>高考后怎么用？</span>
+          <small>当前为 2026 官方数据待发布阶段，结果基于近年历史数据，仅供参考。</small>
+        </div>
+        <ol class="post-exam-guide__steps">
+          <li>选择你的省份</li>
+          <li>填写成绩、位次和选科</li>
+          <li>生成历史估算志愿方案</li>
+          <li>保存方案凭证，导出表格慢慢看</li>
+        </ol>
+      </section>
+
       <section class="province-grid" aria-label="地区选择">
         <router-link
           v-for="province in PROVINCE_LIST"
@@ -140,7 +153,7 @@ async function submitFeedbackForm(): Promise<void> {
             <span>{{ province.officialSource }}</span>
           </span>
           <span class="province-card__action">
-            {{ province.status === 'open' ? '进入工作台' : '查看准备状态' }}
+            {{ province.status === 'open' ? '进入工作台' : '查看政策说明' }}
             <ArrowRight :size="16" />
           </span>
         </router-link>
@@ -376,6 +389,68 @@ async function submitFeedbackForm(): Promise<void> {
 
 .home-main {
   padding-top: 10px;
+}
+
+.post-exam-guide {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 16px;
+  border-color: rgba(37, 99, 235, 0.12);
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(255, 255, 255, 0.96));
+}
+
+.post-exam-guide__head {
+  display: grid;
+  gap: 5px;
+}
+
+.post-exam-guide__head span {
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.post-exam-guide__head small {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.post-exam-guide__steps {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: guide-step;
+}
+
+.post-exam-guide__steps li {
+  counter-increment: guide-step;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.post-exam-guide__steps li::before {
+  content: counter(guide-step);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+  flex-shrink: 0;
 }
 
 .province-grid {
@@ -655,6 +730,16 @@ async function submitFeedbackForm(): Promise<void> {
   .province-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 18px;
+  }
+
+  .post-exam-guide {
+    grid-template-columns: minmax(220px, 0.8fr) 1.4fr;
+    align-items: center;
+    padding: 18px 20px;
+  }
+
+  .post-exam-guide__steps {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .province-card {

@@ -6,6 +6,7 @@ import { fetchVolunteerPlan } from '@/api/volunteer'
 import { useVolunteerStore } from '@/stores/volunteer'
 import RecommendSection from '@/components/RecommendSection.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
+import UserFeedbackDialog from '@/components/UserFeedbackDialog.vue'
 import type { GradientRangeDetail, HistoryRecord, VolunteerItem } from '@/types'
 import { buildPlanModeItems, formDataFromPlan, summarizePlan, type PlanMode } from '@/utils/volunteer-plan'
 import { sanitizeHttpUrl } from '@/utils/markdown'
@@ -163,7 +164,12 @@ const planProvinceConfig = computed(() => getProvinceConfig(planProvinceCode.val
 const isProfessionalGroupPlan = computed(() => planProvinceConfig.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45')
 const planProvinceName = computed(() => planProvinceConfig.value.shortName)
 const planUnitLabel = computed(() => (isProfessionalGroupPlan.value ? '院校专业组' : '志愿'))
-const isStrategyAdvicePlan = computed(() => volunteerStore.planMeta.supportLevel === 'QUERY_ONLY' || volunteerStore.planMeta.recommendMode === 'QUERY_ONLY' || !volunteerStore.planItems.length)
+const isStrategyAdvicePlan = computed(() => (
+  volunteerStore.policy?.supportLevel === 'QUERY_ONLY' ||
+  volunteerStore.policy?.recommendMode === 'QUERY_ONLY' ||
+  volunteerStore.modelInfo?.visibleMetric === 'query_only' ||
+  !volunteerStore.planItems.length
+))
 const planTitle = computed(() => `${planProvinceName.value}${isStrategyAdvicePlan.value ? '策略建议方案' : `${planUnitLabel.value}方案`}`)
 const targetCountText = computed(() => `${volunteerStore.planMetrics?.targetCount || planProvinceConfig.value.targetCount} 个`)
 const rankHeroText = computed(() => {
@@ -190,9 +196,9 @@ function publicFacingText(text?: string) {
     .replace(/PRE_OFFICIAL_DATA/g, '官方数据待发布')
     .replace(/TRIAL_RECOMMEND/g, '历史估算')
     .replace(/ESTIMATE_RECOMMEND/g, '历史估算')
-    .replace(/QUERY_ONLY/g, '只查策略')
+    .replace(/QUERY_ONLY/g, '策略建议')
     .replace(/FULL_RECOMMEND/g, '历史估算')
-    .replace(/QERY_ONLY/g, '只查策略')
+    .replace(/QERY_ONLY/g, '策略建议')
 }
 
 function missingDataText(key: string) {
@@ -208,14 +214,13 @@ function missingDataText(key: string) {
 }
 
 const strategyMissingItems = computed(() => {
-  const diagnosis = volunteerStore.planMeta.diagnosis || {}
-  const missing = diagnosis.missingData
-  return Array.isArray(missing) ? missing.map(item => missingDataText(String(item))) : []
+  const missing = volunteerStore.warnings || []
+  return missing.length ? missing.map(item => publicFacingText(String(item))) : []
 })
 
 const strategyReason = computed(() => publicFacingText(
-  volunteerStore.planMeta.supportReason ||
-  (volunteerStore.planMeta.diagnosis?.supportReason as string | undefined) ||
+  volunteerStore.policy?.supportReason ||
+  volunteerStore.policy?.supportNote ||
   volunteerStore.dataQualityWarning ||
   '当前批次仅开放策略建议和数据缺口说明。',
 ))
@@ -361,7 +366,8 @@ onMounted(async () => {
 
 async function restorePlan() {
   const planId = Number(route.query.planId || volunteerStore.getSavedPlanMeta()?.planId)
-  const accessKey = String(route.query.accessKey || volunteerStore.getSavedPlanMeta()?.accessKey || '')
+  const savedMeta = volunteerStore.getSavedPlanMeta()
+  const accessKey = String(route.query.safetyCode || route.query.accessKey || savedMeta?.safetyCode || savedMeta?.accessKey || '')
   if (!planId || !accessKey) return
   restoring.value = true
   try {
@@ -371,8 +377,8 @@ async function restorePlan() {
     volunteerStore.setPlanFromResponse(plan)
     volunteerStore.setFormData(formData)
     activeMode.value = formData.strategyMode
-    if (route.query.accessKey) {
-      router.replace({ path: route.path, query: { ...route.query, accessKey: undefined } })
+    if (route.query.safetyCode || route.query.accessKey) {
+      router.replace({ path: route.path, query: { ...route.query, safetyCode: undefined, accessKey: undefined } })
     }
   } catch {
     volunteerStore.clearPlan()
@@ -701,7 +707,7 @@ function exportCsv() {
 async function copyPlanSummary() {
   const form = volunteerStore.formData
   const metrics = volunteerStore.planMetrics
-  const sourceYears = volunteerStore.planMeta.dataSourceYears?.length ? volunteerStore.planMeta.dataSourceYears.join('/') : '2024/2025 历史数据'
+  const sourceYears = volunteerStore.trainingYears.length ? volunteerStore.trainingYears.join('/') : '2024/2025 历史数据'
   const batchName = volunteerStore.policy?.batchName || volunteerStore.policy?.batchCode || '当前批次'
   const lines = [
     `${planProvinceName.value}高考${isStrategyAdvicePlan.value ? '策略建议' : '专业志愿表'}方案`,
@@ -890,6 +896,31 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
           <div class="metric-label">专业级数据</div>
           <div class="metric-value">{{ isProfessionalGroupPlan ? summary.total : summary.majorLevel }} 个</div>
         </div>
+      </div>
+    </section>
+
+    <section class="next-step-card">
+      <div class="next-step-card__copy">
+        <span class="next-step-card__kicker">next step</span>
+        <h2>下一步你可以这样看</h2>
+        <ol>
+          <li>先看冲稳保分布，确认方案是否均衡。</li>
+          <li>再看院校和专业是否符合兴趣。</li>
+          <li>导出 Excel，和家长一起筛选。</li>
+          <li>等 2026 官方数据发布后，再做最终复核。</li>
+        </ol>
+      </div>
+      <div class="next-step-card__actions">
+        <button v-if="!isStrategyAdvicePlan" type="button" @click="exportExcel">
+          <FileSpreadsheet :size="15" /> 导出 Excel
+        </button>
+        <button type="button" @click="copyPlanSummary">
+          <ClipboardCheck :size="15" /> 复制方案摘要
+        </button>
+        <button type="button" @click="router.push({ path: '/volunteer', query: { provinceCode: planProvinceCode } })">
+          <ArrowLeft :size="15" /> 返回重新填写
+        </button>
+        <UserFeedbackDialog :province-code="planProvinceCode" :result-id="volunteerStore.planId" compact />
       </div>
     </section>
 
@@ -1377,6 +1408,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 }
 
 .hero-panel,
+.next-step-card,
 .mode-switch,
 .algorithm-card,
 .digest-grid,
@@ -1393,6 +1425,67 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   display: grid;
   gap: 16px;
   padding-top: 20px;
+}
+
+.next-step-card {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.next-step-card__copy {
+  padding: 16px 18px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.next-step-card__kicker {
+  display: inline-flex;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.next-step-card h2 {
+  margin: 4px 0 0;
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.next-step-card ol {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.next-step-card__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.next-step-card__actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .result-warning {
