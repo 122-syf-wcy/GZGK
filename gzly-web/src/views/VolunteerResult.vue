@@ -2,15 +2,24 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showSuccessToast, showToast } from 'vant'
-import { fetchVolunteerPlan } from '@/api/volunteer'
+import {
+  chatZxfSkill,
+  fetchVolunteerPlan,
+  generateAiAnalysis,
+  type AiAnalysisResponse,
+  type ZxfSkillChatMessage,
+} from '@/api/volunteer'
 import { fetchMyPlanDetail } from '@/api/myPlans'
 import { useVolunteerStore } from '@/stores/volunteer'
 import { useAuthStore } from '@/stores/auth'
 import RecommendSection from '@/components/RecommendSection.vue'
+import PlanRestoreDialog from '@/components/PlanRestoreDialog.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import type { GradientRangeDetail, VolunteerItem, VolunteerPlan } from '@/types'
 import { buildPlanModeItems, formDataFromPlan, summarizePlan, type PlanMode } from '@/utils/volunteer-plan'
-import { sanitizeHttpUrl } from '@/utils/markdown'
+import { renderMarkdown, sanitizeHttpUrl } from '@/utils/markdown'
+import DisclaimerNotice from '@/components/DisclaimerNotice.vue'
+import { AI_ANALYSIS_NOTICE, RESULT_NOTICE } from '@/constants/disclaimer'
 import { getProvinceConfig, normalizeProvinceCode } from '@/constants/provinces'
 import {
   AlertTriangle,
@@ -38,8 +47,20 @@ const activeTab = ref<'all' | '冲' | '稳' | '保' | '垫'>('all')
 const activeMode = ref<PlanMode>(volunteerStore.formData.strategyMode || '均衡型')
 const compareIds = ref<string[]>([])
 const restoring = ref(false)
+const visibleCount = ref(12)
+const manualReviewExpanded = ref(false)
 const showAllReview = ref(false)
 const expandedRows = ref<Set<string>>(new Set())
+const aiPanelRef = ref<HTMLElement | null>(null)
+const aiAnalysis = ref<AiAnalysisResponse | null>(null)
+const aiLoading = ref(false)
+const aiError = ref('')
+const aiDeepOpen = ref(false)
+const skillInput = ref('')
+const skillLoading = ref(false)
+const skillError = ref('')
+const skillMessages = ref<ZxfSkillChatMessage[]>([])
+const showPlanRestore = ref(false)
 type PlanRowLike = Pick<VolunteerItem, 'majorName' | 'index'> & Pick<Partial<VolunteerItem>, 'schoolId' | 'groupCode'>
 
 /** 志愿草稿状态：保留 / 待查 / 淘汰 / 默认。本地持久化。 */
@@ -133,8 +154,29 @@ const statusSummary = computed(() => {
 const visibleManualReviews = computed(() => {
   const list = volunteerStore.manualReviewItems
   if (!list || !list.length) return []
-  return showAllReview.value ? list : list.slice(0, 6)
+  if (!manualReviewExpanded.value) return []
+  return showAllReview.value ? list : list.slice(0, 5)
 })
+
+const manualReviewPreview = computed(() => (
+  (volunteerStore.manualReviewItems || []).slice(0, 3)
+))
+
+const highRiskReviewCount = computed(() => (
+  (volunteerStore.manualReviewItems || []).filter((entry) => (
+    /高|红|必须|缺|限制|军警|医学|体检|单科|语种/.test([
+      entry.confidenceLabel,
+      entry.dataSourceType,
+      entry.subjectRequirementSource,
+      ...(entry.reasons || []),
+    ].filter(Boolean).join(' '))
+  )).length
+))
+
+function toggleManualReview() {
+  manualReviewExpanded.value = !manualReviewExpanded.value
+  if (!manualReviewExpanded.value) showAllReview.value = false
+}
 
 const gradientConfig: Record<string, { color: string; bg: string }> = {
   冲: { color: '#dc2626', bg: '#fef2f2' },
@@ -209,8 +251,47 @@ const decisionDraftItems = computed<VolunteerItem[]>(() =>
 )
 
 const summary = computed(() => summarizePlan(modeItems.value))
+const gradientCounts = computed(() => ({
+  冲: modeItems.value.filter((item: VolunteerItem) => item.gradient === '冲').length,
+  稳: modeItems.value.filter((item: VolunteerItem) => item.gradient === '稳').length,
+  保: modeItems.value.filter((item: VolunteerItem) => item.gradient === '保').length,
+  垫: modeItems.value.filter((item: VolunteerItem) => item.gradient === '垫').length,
+}))
 const rangeSummary = computed(() => volunteerStore.gradientRangeSummary)
 const rankEstimateSummary = computed(() => volunteerStore.rankEstimate)
+const topNoticeItems = computed(() => {
+  const items: Array<{ key: string; tone: 'warning' | 'info' | 'credential'; text: string }> = []
+  if (restoring.value) {
+    items.push({ key: 'restoring', tone: 'info', text: '正在恢复已生成的志愿方案...' })
+  }
+  if (volunteerStore.dataQualityWarning) {
+    items.push({ key: 'data-quality', tone: 'warning', text: volunteerStore.dataQualityWarning })
+  }
+  volunteerStore.warnings.forEach((warning, index) => {
+    items.push({ key: `warning-${index}`, tone: 'warning', text: warning })
+  })
+  if (yearPhaseNotice.value) {
+    items.push({ key: 'year-phase', tone: 'warning', text: yearPhaseNotice.value })
+  }
+  if (rankEstimateSummary.value) {
+    items.push({
+      key: 'rank-estimate',
+      tone: rankEstimateSummary.value.rankEstimated ? 'warning' : 'info',
+      text: rankEstimateSummary.value.reminder || rankEstimateSummary.value.note || '位次信息为历史估算参考，请结合官方一分一段复核。',
+    })
+  }
+  if (volunteerStore.referenceProbabilityNotice) {
+    items.push({ key: 'reference-probability', tone: 'info', text: volunteerStore.referenceProbabilityNotice })
+  }
+  if (volunteerStore.planSafetyCode) {
+    items.push({
+      key: 'plan-safety-code',
+      tone: 'credential',
+      text: `方案 ID：${volunteerStore.planId}；方案查看凭证已通过本机验证。结果页不会再次明文展示凭证，跨设备查看请使用生成时保存的凭证。`,
+    })
+  }
+  return items
+})
 const rangeSummaryRows = computed(() => {
   const ranges = rangeSummary.value?.ranges
   if (!ranges) return [] as GradientRangeDetail[]
@@ -280,6 +361,29 @@ const isOfficialDataPartialPlan = computed(() => (
   volunteerStore.recommendationPhase === 'OFFICIAL_DATA_PARTIAL' ||
   volunteerStore.modelInfo?.recommendationPhase === 'OFFICIAL_DATA_PARTIAL'
 ))
+/**
+ * 方案已成功生成/加载（有 planId）但候选为 0 且非“只查策略”。
+ * 用于在结果页展示“候选不足/已放宽”说明卡片，避免静默把用户弹回表单页造成“点了没反应”。
+ */
+const planLoadedButEmpty = computed(() => (
+  !isQueryOnlyPlan.value &&
+  Number(volunteerStore.planId || 0) > 0 &&
+  volunteerStore.planItems.length === 0
+))
+function recommendModeText(mode?: string) {
+  const normalized = String(mode || '').trim()
+  return ({
+    PARALLEL_MAJOR: '历史估算',
+    PARALLEL_MAJOR_60: '历史估算',
+    PARALLEL_GROUP: '历史估算',
+    SEQUENTIAL_COLLEGE: '只查策略',
+    ART_COMPOSITE: '只查策略',
+    SPORTS_COMPOSITE: '只查策略',
+    ELIGIBILITY_QUERY: '只查策略',
+    QUERY_ONLY: '只查策略',
+    historical_estimate: '历史估算',
+  } as Record<string, string>)[normalized] || normalized || '待核验'
+}
 const trainingYearText = computed(() => (
   volunteerStore.trainingYears.length ? volunteerStore.trainingYears.join('、') : '2024、2025'
 ))
@@ -384,8 +488,17 @@ const filteredItems = computed<VolunteerItem[]>(() => {
   return modeItems.value.filter((item: VolunteerItem) => item.gradient === activeTab.value)
 })
 
+const visibleVolunteerItems = computed<VolunteerItem[]>(() => filteredItems.value.slice(0, visibleCount.value))
+const hiddenVolunteerCount = computed(() => Math.max(0, filteredItems.value.length - visibleVolunteerItems.value.length))
+const listSummaryText = computed(() => (
+  `共 ${modeItems.value.length} 条${planUnitLabel.value}，当前展示 ${visibleVolunteerItems.value.length} 条`
+))
+const activeTabLabel = computed(() => tabs.value.find(tab => tab.key === activeTab.value)?.label || '全部')
+const canLoadMore = computed(() => visibleCount.value < filteredItems.value.length)
+
 watch([activeTab, activeMode], () => {
   expandedRows.value = new Set()
+  visibleCount.value = 12
 })
 
 const topKeeps = computed<VolunteerItem[]>(() =>
@@ -406,23 +519,138 @@ const topRisks = computed<VolunteerItem[]>(() =>
     .slice(0, 3),
 )
 
+const contextChips = computed(() => {
+  const form = volunteerStore.formData
+  const chips = [
+    { label: '省份', value: planProvinceName.value },
+    { label: '分数', value: form.totalScore ? `${form.totalScore} 分` : '待核验' },
+    { label: '位次', value: form.provinceRank ? `第 ${form.provinceRank.toLocaleString()} 位` : '待核验' },
+    { label: '选科', value: [form.firstSubject, ...(form.resubjects || [])].filter(Boolean).join(' + ') || '待核验' },
+    { label: '方案类型', value: activeMode.value },
+    { label: planUnitLabel.value, value: `${modeItems.value.length} 条` },
+    { label: '偏好', value: [form.decisionPriority, form.careerGoal, form.tuitionBudget].filter(Boolean).join(' / ') || '待核验' },
+    { label: '分布', value: `冲${gradientCounts.value.冲} / 稳${gradientCounts.value.稳} / 保${gradientCounts.value.保} / 垫${gradientCounts.value.垫}` },
+  ]
+  return chips
+})
+
+const localAiSummaryCards = computed(() => {
+  const advice = volunteerStore.advisorAdvice
+  return [
+    {
+      key: 'position',
+      title: '定位',
+      body: trimForSummary(
+        aiAnalysis.value?.diagnosisSections?.find(section => /定位|分数|位次/.test(section.title || ''))?.content ||
+          advice?.positioning ||
+          `当前以${trainingYearText.value}年历史数据估算，${activeMode.value}方案共 ${modeItems.value.length} 条。`,
+        120,
+      ),
+    },
+    {
+      key: 'tradeoff',
+      title: '取舍',
+      body: trimForSummary(
+        aiAnalysis.value?.diagnosisSections?.find(section => /取舍|优先|城市|专业/.test(section.title || ''))?.content ||
+          advice?.priorityAdvice ||
+          `优先按${volunteerStore.formData.decisionPriority}和${volunteerStore.formData.careerGoal}筛看，再复核不符合家庭预算或城市偏好的条目。`,
+        120,
+      ),
+    },
+    {
+      key: 'risk',
+      title: '风险',
+      body: trimForSummary(
+        (aiAnalysis.value?.topRiskPoints || [])[0] ||
+          advice?.riskChecklist?.[0] ||
+          yearPhaseNotice.value ||
+          '当前为历史估算参考，最终仍需按官方招生计划、章程和专业限制人工复核。',
+        120,
+      ),
+    },
+    {
+      key: 'next',
+      title: '下一步',
+      body: trimForSummary(
+        aiAnalysis.value?.actionSteps?.[0]?.content ||
+          advice?.actionItems?.[0] ||
+          '先看冲稳保分布，再导出表格和家长一起筛选；2026 官方数据发布后再做最终复核。',
+        150,
+      ),
+    },
+  ]
+})
+
+const aiFullSections = computed(() => {
+  if (aiAnalysis.value?.diagnosisSections?.length) return aiAnalysis.value.diagnosisSections
+  const advice = volunteerStore.advisorAdvice
+  return [
+    { title: '定位分析', content: advice?.positioning || localAiSummaryCards.value[0].body },
+    { title: '冲稳保结构', content: advice?.gradientAdvice || `当前分布为冲${gradientCounts.value.冲}、稳${gradientCounts.value.稳}、保${gradientCounts.value.保}、垫${gradientCounts.value.垫}。` },
+    { title: '城市和专业建议', content: [advice?.cityAdvice, advice?.majorAdvice].filter(Boolean).join('；') || localAiSummaryCards.value[1].body },
+    { title: '风险核查', content: (advice?.riskChecklist || []).slice(0, 3).join('；') || localAiSummaryCards.value[2].body },
+    { title: '最终建议', content: (advice?.actionItems || []).slice(0, 3).join('；') || localAiSummaryCards.value[3].body },
+  ]
+})
+
+const aiReportText = computed(() => [
+  aiAnalysis.value?.conclusion,
+  ...aiFullSections.value.map(section => `${section.title}：${section.content}`),
+].filter(Boolean).join('\n'))
+
+const quickQuestions = [
+  '这份方案稳吗？',
+  '帮我删掉民办院校',
+  '优先保留省内院校',
+  '想去大城市怎么调？',
+  '哪些专业就业更好？',
+  '适合保守填报吗？',
+]
+
 onMounted(async () => {
   if (!volunteerStore.planItems.length) {
     await restorePlan()
   }
-  if (!volunteerStore.planItems.length && !isQueryOnlyPlan.value) {
+  // 方案确实生成/加载成功但候选为 0（非只查策略）：留在结果页展示“候选不足/已放宽”说明，
+  // 不再静默弹回表单页（否则用户感知为“点击生成没反应、进不去结果页”）。
+  if (!volunteerStore.planItems.length && !isQueryOnlyPlan.value && !planLoadedButEmpty.value) {
     showToast('暂无志愿数据，请重新生成方案')
     router.push('/volunteer')
   }
 })
 
 function supportLevelText(level?: string) {
-  if (isPreOfficialDataPlan.value && level === 'QUERY_ONLY') return '预估/缺口说明'
-  if (level === 'FULL_RECOMMEND') return '完整推荐'
-  if (level === 'TRIAL_RECOMMEND') return '试推荐'
-  if (level === 'QUERY_ONLY') return '仅规则/缺口展示'
+  if (isPreOfficialDataPlan.value && level === 'TRIAL_RECOMMEND') return '历史估算'
+  if (isPreOfficialDataPlan.value && level === 'QUERY_ONLY') return '只查策略'
+  if (level === 'FULL_RECOMMEND') return '历史估算'
+  if (level === 'TRIAL_RECOMMEND') return '历史估算'
+  if (level === 'QUERY_ONLY') return '只查策略'
   if (level === 'UNSUPPORTED') return '暂不支持'
   return level || '待核验'
+}
+
+function trimForSummary(text?: string, limit = 120) {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim()
+  if (!normalized) return '暂无摘要，请结合志愿表和官方资料继续复核。'
+  return normalized.length > limit ? `${normalized.slice(0, limit)}...` : normalized
+}
+
+function currentSafetyCode() {
+  const saved = volunteerStore.getSavedPlanMeta()
+  return volunteerStore.planSafetyCode || saved?.safetyCode || saved?.accessKey || ''
+}
+
+function loadMoreVolunteers() {
+  visibleCount.value = Math.min(filteredItems.value.length, visibleCount.value + 12)
+}
+
+function showAllVolunteers() {
+  visibleCount.value = filteredItems.value.length
+}
+
+function collapseVolunteers() {
+  visibleCount.value = 12
+  expandedRows.value = new Set()
 }
 
 function displayOrder(index: number | string) {
@@ -456,7 +684,7 @@ async function restorePlan() {
     const res = await fetchVolunteerPlan(planId, safetyCode)
     const plan = res.data.data
     const formData = formDataFromPlan(plan)
-    volunteerStore.setPlanFromResponse(plan)
+    volunteerStore.setPlanFromResponse(plan, safetyCode)
     volunteerStore.setFormData(formData)
     activeMode.value = formData.strategyMode
     if (route.query.safetyCode || route.query.accessKey) {
@@ -546,16 +774,98 @@ function goAi() {
     showToast('当前批次暂不支持 AI 解读')
     return
   }
-  router.push({
-    path: '/volunteer/ai',
-    query: {
-      planId: volunteerStore.planId ? String(volunteerStore.planId) : undefined,
-    },
-  })
+  aiPanelRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  if (!aiAnalysis.value && !aiLoading.value) {
+    void runAiAnalysis()
+  }
+}
+
+async function runAiAnalysis(forceRefresh = false) {
+  if (!volunteerStore.planId) {
+    showToast('缺少当前方案，暂时无法解读')
+    return
+  }
+  const safetyCode = currentSafetyCode()
+  if (!safetyCode) {
+    showToast('缺少方案查看凭证，暂时无法解读')
+    return
+  }
+  aiLoading.value = true
+  aiError.value = ''
+  try {
+    const res = await generateAiAnalysis(volunteerStore.planId, safetyCode, forceRefresh)
+    aiAnalysis.value = res.data.data
+    aiDeepOpen.value = false
+    showSuccessToast('AI 解读已更新')
+  } catch (error) {
+    aiError.value = formatAiError(error)
+  } finally {
+    aiLoading.value = false
+  }
+}
+
+function fillSkillSuggestion(text: string) {
+  skillInput.value = text
+}
+
+function handleAiDeepToggle(event: Event) {
+  aiDeepOpen.value = Boolean((event.target as HTMLDetailsElement).open)
+}
+
+function formatAiError(error: unknown) {
+  const message = error instanceof Error ? error.message : ''
+  if (/timeout|超时|时间较长/i.test(message)) return 'AI 服务响应较慢，请稍后重试。'
+  if (/403|unauthorized|forbidden|凭证|无效/i.test(message)) return '方案凭证校验失败，请用正确凭证重新打开结果页。'
+  return message || 'AI 解读暂时失败，请稍后再试。'
+}
+
+async function sendSkillMessage(preset?: string) {
+  const message = (preset || skillInput.value).trim()
+  if (!message || skillLoading.value) return
+  if (message.length > 800) {
+    skillError.value = '单条问题请控制在 800 字以内。'
+    return
+  }
+  if (!volunteerStore.planId) {
+    skillError.value = '缺少当前志愿方案，暂时无法咨询。'
+    return
+  }
+  const safetyCode = currentSafetyCode()
+  if (!safetyCode) {
+    skillError.value = '缺少方案查看凭证，暂时无法咨询。'
+    return
+  }
+
+  skillError.value = ''
+  skillInput.value = ''
+  skillMessages.value = [...skillMessages.value, { role: 'user', content: message }]
+  skillLoading.value = true
+
+  try {
+    const res = await chatZxfSkill({
+      planId: volunteerStore.planId,
+      safetyCode,
+      message,
+      aiReport: aiReportText.value,
+      messages: skillMessages.value.slice(-8),
+    })
+    const reply = res.data.data.answer || res.data.data.reply || '暂时没有生成有效回复，请稍后再试。'
+    skillMessages.value = [...skillMessages.value, { role: 'assistant', content: reply }]
+  } catch (error: unknown) {
+    skillError.value = formatAiError(error)
+    skillMessages.value = skillMessages.value.filter(item => !(item.role === 'user' && item.content === message))
+    skillInput.value = message
+  } finally {
+    skillLoading.value = false
+  }
 }
 
 function safeUrl(url?: string | null) {
   return sanitizeHttpUrl(url)
+}
+
+function renderedSkillMarkdown(content: string) {
+  return renderMarkdown(content || '', { autoSectionHeadings: true })
 }
 
 function manualReviewLinks(entry: { evidenceLinks?: string[] }) {
@@ -614,6 +924,84 @@ function openUniversity(item: { schoolId?: string | null }) {
 
 async function loadXlsx() {
   return await import('xlsx')
+}
+
+function csvCell(value: unknown) {
+  const text = value === undefined || value === null || value === '' ? '-' : String(value)
+  return `"${text.replace(/"/g, '""')}"`
+}
+
+function exportCsv() {
+  if (!canUsePlanActions.value) {
+    showToast('当前批次暂无可导出的完整推荐')
+    return
+  }
+  const items = modeItems.value
+  if (!items.length) {
+    showToast('暂无志愿数据可导出')
+    return
+  }
+  const headers = [
+    '序号', '梯度', '院校', isProfessionalGroupPlan.value ? '院校专业组/组内专业' : '专业',
+    '地区', '参考年份', '参考分数', '参考位次', '位次差', '计划数', '计划趋势',
+    '参考匹配', '数据参考度', '机会指数', '风险等级', '数据层级', '算法解释', '风险提醒',
+  ]
+  const rows = items.map((item: VolunteerItem) => [
+    item.index,
+    item.gradient,
+    item.universityName,
+    isProfessionalGroupPlan.value ? `${displayUnitName(item)} ${(item.groupMajors || []).join('、')}` : item.majorName,
+    [item.province, item.city].filter(Boolean).join(' / ') || '-',
+    item.referenceYear,
+    item.historyMinScore,
+    item.historyMinRank,
+    typeof item.rankGap === 'number' ? item.rankGap : '-',
+    item.latestPlanCount || '-',
+    item.planTrend || '-',
+    referenceFitText(item),
+    confidenceText(item),
+    item.chanceScore || '-',
+    item.riskLevel || '-',
+    item.dataSourceType || '-',
+    item.algorithmExplanation || item.recommendReason || '-',
+    item.riskReason || '-',
+  ])
+  const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n')
+  const blob = new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' })
+  const file = new File([blob], `${planProvinceName.value}高考${planUnitLabel.value}方案_${activeMode.value}.csv`, {
+    type: 'text/csv;charset=utf-8',
+  })
+  fallbackDownload(file, file.name)
+}
+
+async function copySummary() {
+  const form = volunteerStore.formData
+  const text = [
+    `${planProvinceName.value}${planUnitLabel.value}方案摘要`,
+    `分数：${form.totalScore || '-'} 分`,
+    `位次：${form.provinceRank ? form.provinceRank.toLocaleString() : '-'}`,
+    `批次：${planBatchLabel.value}`,
+    `生成类型：${isQueryOnlyPlan.value ? '策略建议' : '历史估算'}`,
+    `数据来源年份：${trainingYearText.value}`,
+    `志愿数量：${modeItems.value.length}`,
+    `冲稳保分布：冲${gradientCounts.value.冲} / 稳${gradientCounts.value.稳} / 保${gradientCounts.value.保} / 垫${gradientCounts.value.垫}`,
+    yearPhaseNotice.value || '当前结果仅供志愿填报参考，不构成录取承诺。',
+  ].filter(Boolean).join('\n')
+  try {
+    await navigator.clipboard.writeText(text)
+    showSuccessToast('方案摘要已复制')
+  } catch {
+    const area = document.createElement('textarea')
+    area.value = text
+    area.setAttribute('readonly', 'true')
+    area.style.position = 'fixed'
+    area.style.opacity = '0'
+    document.body.appendChild(area)
+    area.select()
+    document.execCommand('copy')
+    area.remove()
+    showSuccessToast('方案摘要已复制')
+  }
 }
 
 async function exportExcel() {
@@ -826,30 +1214,22 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
     </header>
 
     <section class="hero-panel">
-      <div v-if="restoring" class="result-warning">
-        正在恢复已生成的志愿方案...
-      </div>
-      <div v-if="volunteerStore.dataQualityWarning" class="result-warning">
-        {{ volunteerStore.dataQualityWarning }}
-      </div>
-      <div v-for="warning in volunteerStore.warnings" :key="warning" class="result-warning">
-        {{ warning }}
-      </div>
-      <div v-if="yearPhaseNotice" class="result-warning">
-        {{ yearPhaseNotice }}
-      </div>
-      <div v-if="rankEstimateSummary" class="rank-estimate-banner" :class="{ 'rank-estimate-banner--auto': rankEstimateSummary.rankEstimated }">
-        <ShieldAlert :size="16" />
-        <span>{{ rankEstimateSummary.reminder || rankEstimateSummary.note }}</span>
-      </div>
-      <div class="reference-banner">
-        <ShieldAlert :size="16" />
-        <span>{{ volunteerStore.referenceProbabilityNotice }}</span>
-      </div>
-      <div v-if="volunteerStore.planSafetyCode" class="result-warning">
-        方案 ID：{{ volunteerStore.planId }}；安全码：{{ volunteerStore.planSafetyCode }}。请立即保存，后续跨设备查看需要它。
-      </div>
       <div class="hero-main">
+        <div v-if="topNoticeItems.length" class="top-notice-panel">
+          <div class="top-notice-panel__title">
+            <ShieldAlert :size="15" />
+            <span>数据与凭证提醒</span>
+          </div>
+          <ul class="top-notice-list">
+            <li
+              v-for="notice in topNoticeItems"
+              :key="notice.key"
+              :class="`top-notice-list__item top-notice-list__item--${notice.tone}`"
+            >
+              {{ notice.text }}
+            </li>
+          </ul>
+        </div>
         <div class="hero-metrics">
           <span class="hero-tag">{{ volunteerStore.formData.totalScore }}分</span>
           <span class="hero-tag">{{ planProvinceName }} · {{ targetCountText }}</span>
@@ -907,7 +1287,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       <p>{{ yearPhaseNotice || volunteerStore.dataQualityWarning || volunteerStore.policy?.supportNote || '当前批次需要按专项政策、专业成绩或单独投档规则人工复核。' }}</p>
       <div class="query-only-card__grid">
         <span><em>考生类别</em><strong>{{ volunteerStore.formData.candidateType || volunteerStore.policy?.candidateType || '待核验' }}</strong></span>
-        <span><em>推荐模式</em><strong>{{ volunteerStore.policy?.recommendMode || volunteerStore.modelInfo?.visibleMetric || '待核验' }}</strong></span>
+        <span><em>推荐模式</em><strong>{{ recommendModeText(volunteerStore.policy?.recommendMode || volunteerStore.modelInfo?.visibleMetric) }}</strong></span>
         <span><em>目标年份</em><strong>{{ volunteerStore.activeAdmissionYear || volunteerStore.policy?.year || '待核验' }}</strong></span>
         <span><em>数据年份</em><strong>{{ trainingYearText }}</strong></span>
       </div>
@@ -919,7 +1299,28 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </button>
     </section>
 
-    <section v-if="!isQueryOnlyPlan" class="mode-switch">
+    <section v-if="planLoadedButEmpty" class="query-only-card empty-plan-card">
+      <div class="query-only-card__badge">候选不足</div>
+      <h2>{{ planBatchLabel }}当前条件下未匹配到可用志愿</h2>
+      <p>{{ volunteerStore.dataQualityWarning || '当前分数、位次或专业/地区偏好较窄，未匹配到候选。常见原因是分数与位次填写不一致，或偏好条件过窄。可调整后重试。' }}</p>
+      <ul v-if="volunteerStore.warnings.length" class="query-only-card__warnings">
+        <li v-for="warning in volunteerStore.warnings" :key="warning">{{ warning }}</li>
+      </ul>
+      <div class="empty-plan-card__actions">
+        <button class="query-only-card__action" type="button" @click="router.push('/volunteer')">
+          返回修改分数 / 位次或偏好
+        </button>
+        <button class="query-only-card__action query-only-card__action--ghost" type="button" @click="showPlanRestore = true">
+          找回历史方案
+        </button>
+      </div>
+    </section>
+
+    <div v-if="!isQueryOnlyPlan && !planLoadedButEmpty" class="result-workbench">
+      <main class="result-main">
+    <DisclaimerNotice :text="RESULT_NOTICE" tone="warn" class="result-disclaimer" />
+
+    <section class="mode-switch">
       <button
         v-for="mode in ['保守型', '均衡型', '冲刺型']"
         :key="mode"
@@ -1104,13 +1505,24 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
             <ClipboardCheck :size="16" /> 强制人工复核清单
           </h3>
           <p class="manual-review-card__desc">
-            以下条目自动识别出潜在风险（缺官方选科要求、院校级回退、合作办学、医学/军警/艺术等），
-            最终结果以学校招生章程与考试院公告为准。
+            默认只显示摘要，完整条目展开后再逐条核对。
           </p>
         </div>
-        <span class="manual-review-card__count">{{ volunteerStore.manualReviewItems.length }} 条</span>
+        <div class="manual-review-card__summary">
+          <span class="manual-review-card__count">共 {{ volunteerStore.manualReviewItems.length }} 条</span>
+          <span class="manual-review-card__count manual-review-card__count--risk">高风险 {{ highRiskReviewCount }} 条</span>
+          <button class="manual-review-card__toggle" type="button" @click="toggleManualReview">
+            {{ manualReviewExpanded ? '收起' : '展开复核清单' }}
+          </button>
+        </div>
       </header>
-      <ul class="manual-review-list">
+      <ul v-if="!manualReviewExpanded" class="manual-review-preview">
+        <li v-for="entry in manualReviewPreview" :key="`mr-preview-${entry.index}`">
+          <strong>{{ entry.universityName }} · {{ entry.majorName }}</strong>
+          <span>{{ (entry.reasons || []).slice(0, 1).join('') || '建议人工复核招生章程。' }}</span>
+        </li>
+      </ul>
+      <ul v-if="manualReviewExpanded" class="manual-review-list">
         <li v-for="entry in visibleManualReviews" :key="`mr-${entry.index}`" class="manual-review-list__item">
           <div class="manual-review-list__row">
             <span class="manual-review-list__index">{{ entry.index }}</span>
@@ -1131,14 +1543,16 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
           </div>
         </li>
       </ul>
-      <button
-        v-if="volunteerStore.manualReviewItems.length > 6"
+      <div v-if="manualReviewExpanded && volunteerStore.manualReviewItems.length > 5" class="manual-review-card__actions">
+        <button
         class="manual-review-card__toggle"
         type="button"
         @click="showAllReview = !showAllReview"
       >
-        {{ showAllReview ? '收起' : `展开剩余 ${volunteerStore.manualReviewItems.length - 6} 条` }}
+          {{ showAllReview ? '只看前 5 条' : `查看全部 ${volunteerStore.manualReviewItems.length} 条` }}
       </button>
+        <button class="manual-review-card__toggle" type="button" @click="toggleManualReview">收起</button>
+      </div>
     </section>
 
     <section v-if="!isQueryOnlyPlan" class="digest-grid">
@@ -1187,6 +1601,12 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       </button>
     </section>
 
+    <div v-if="!isQueryOnlyPlan" class="list-status">
+      <span>{{ listSummaryText }}</span>
+      <strong>{{ activeTabLabel }}筛选</strong>
+      <small v-if="hiddenVolunteerCount">还有 {{ hiddenVolunteerCount }} 条未展开</small>
+    </div>
+
     <section v-if="!isQueryOnlyPlan" class="compare-bar" :class="{ 'compare-bar--active': compareIds.length > 0 }">
       <div class="compare-copy">
         <div class="compare-title">院校对比</div>
@@ -1200,7 +1620,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
     <section v-if="!isQueryOnlyPlan" class="plan-list">
       <article
-        v-for="item in filteredItems"
+        v-for="item in visibleVolunteerItems"
         :key="`${activeMode}-${item.index}-${item.schoolId}`"
         :class="[
           'plan-row',
@@ -1400,31 +1820,138 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
           </div>
         </transition>
       </article>
+      <div v-if="filteredItems.length > 12" class="plan-list-controls">
+        <button v-if="canLoadMore" type="button" @click="loadMoreVolunteers">展开更多</button>
+        <button v-if="canLoadMore" type="button" @click="showAllVolunteers">查看全部</button>
+        <button v-if="visibleCount > 12" type="button" @click="collapseVolunteers">收起</button>
+      </div>
     </section>
 
     <RecommendSection v-if="!isQueryOnlyPlan" />
 
-    <div v-if="canUsePlanActions" class="bottom-actions">
-      <button class="action-btn action-btn--secondary" @click="goAi">
-        AI 深度解读
-        <ArrowRight :size="16" />
-      </button>
-      <button class="action-btn action-btn--secondary" @click="exportDecisionDraft">
-        <ClipboardCheck :size="16" />
-        导出草稿
-      </button>
-      <button class="action-btn action-btn--primary" @click="exportExcel">
-        <Download :size="16" />
-        导出 Excel
-      </button>
+    <section ref="aiPanelRef" class="ai-workbench-card">
+      <div class="ai-workbench-card__head">
+        <div>
+          <span class="ai-workbench-card__eyebrow">已继承当前方案上下文</span>
+          <h3>AI 志愿解读助手</h3>
+        </div>
+        <button class="ai-workbench-card__refresh" type="button" :disabled="aiLoading" @click="runAiAnalysis(true)">
+          {{ aiLoading ? '解读中...' : '刷新解读' }}
+        </button>
+      </div>
+
+      <div class="ai-context-grid">
+        <div v-for="chip in contextChips" :key="chip.label" class="ai-context-chip">
+          <span>{{ chip.label }}</span>
+          <strong>{{ chip.value }}</strong>
+        </div>
+      </div>
+
+      <div v-if="aiError" class="ai-error">{{ aiError }}</div>
+      <div class="ai-summary-grid">
+        <article v-for="card in localAiSummaryCards" :key="card.key" class="ai-summary-card">
+          <strong>{{ card.title }}</strong>
+          <p>{{ card.body }}</p>
+        </article>
+      </div>
+
+      <details class="ai-deep-details" :open="aiDeepOpen" @toggle="handleAiDeepToggle">
+        <summary>展开完整解读</summary>
+        <div class="ai-deep-sections">
+          <article v-for="section in aiFullSections" :key="section.title">
+            <h4>{{ section.title }}</h4>
+            <p>{{ section.content }}</p>
+          </article>
+        </div>
+      </details>
+
+      <div class="skill-chat-box">
+        <div class="skill-chat-box__head">
+          <h4>继续追问这个方案</h4>
+          <p>追问会携带当前 resultId 和方案凭证，由后端读取本次志愿方案上下文。</p>
+        </div>
+        <div class="quick-question-row">
+          <button
+            v-for="question in quickQuestions"
+            :key="question"
+            type="button"
+            @click="fillSkillSuggestion(question)"
+          >
+            {{ question }}
+          </button>
+        </div>
+        <div v-if="skillMessages.length" class="skill-message-list">
+          <div
+            v-for="(message, index) in skillMessages"
+            :key="`skill-${index}`"
+            :class="['skill-message', `skill-message--${message.role}`]"
+          >
+            <div
+              v-if="message.role === 'assistant'"
+              class="skill-message__markdown"
+              v-html="renderedSkillMarkdown(message.content)"
+            />
+            <p v-if="message.role === 'assistant'" class="ai-reply-notice">{{ AI_ANALYSIS_NOTICE }}</p>
+            <template v-else>{{ message.content }}</template>
+          </div>
+        </div>
+        <div v-if="skillError" class="ai-error">{{ skillError }}</div>
+        <form class="skill-input-row" @submit.prevent="sendSkillMessage()">
+          <input
+            v-model="skillInput"
+            type="text"
+            placeholder="例如：帮我把学校优先的志愿再筛一版"
+            autocomplete="off"
+            maxlength="800"
+          >
+          <button type="submit" :disabled="skillLoading || !skillInput.trim()">
+            {{ skillLoading ? '生成中...' : '发送' }}
+          </button>
+        </form>
+      </div>
+    </section>
+      </main>
+
+      <aside v-if="canUsePlanActions" class="result-tools" aria-label="方案操作">
+        <button class="result-tool result-tool--primary" type="button" @click="goAi">
+          <Sparkles :size="16" />
+          AI 深度解读
+        </button>
+        <button class="result-tool" type="button" @click="exportDecisionDraft">
+          <ClipboardCheck :size="16" />
+          导出草稿
+        </button>
+        <button class="result-tool" type="button" @click="exportCsv">
+          <Download :size="16" />
+          导出 CSV
+        </button>
+        <button class="result-tool" type="button" @click="exportExcel">
+          <FileSpreadsheet :size="16" />
+          导出 Excel
+        </button>
+        <button class="result-tool" type="button" @click="copySummary">
+          <ClipboardCheck :size="16" />
+          复制摘要
+        </button>
+        <button class="result-tool" type="button" @click="showPlanRestore = true">
+          <ShieldCheck :size="16" />
+          找回方案
+        </button>
+        <button class="result-tool result-tool--muted" type="button" @click="router.push('/volunteer')">
+          <ArrowLeft :size="16" />
+          返回修改
+        </button>
+      </aside>
     </div>
+
+    <PlanRestoreDialog v-model="showPlanRestore" :initial-plan-id="volunteerStore.planId" />
   </div>
 </template>
 
 <style scoped>
 .result-page {
   min-height: 100dvh;
-  padding-bottom: 96px;
+  padding-bottom: 40px;
   background: #f8fafc;
 }
 
@@ -1467,22 +1994,82 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 }
 
 .hero-panel,
-.mode-switch,
-.algorithm-card,
-.digest-grid,
-.tabs-bar,
-.compare-bar,
-.plan-list {
+.result-workbench {
   max-width: 1200px;
   margin: 0 auto;
   padding-left: 16px;
   padding-right: 16px;
 }
 
+.mode-switch,
+.algorithm-card,
+.advisor-card,
+.digest-grid,
+.tabs-bar,
+.compare-bar,
+.plan-list,
+.list-status,
+.draft-status-bar,
+.manual-review-card,
+.ai-workbench-card {
+  width: 100%;
+}
+
+.result-workbench {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+  padding-top: 18px;
+}
+
+.result-main {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.result-tools {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.result-tool {
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.result-tool--primary {
+  background: #0f172a;
+  color: #fff;
+  border-color: #0f172a;
+}
+
+.result-tool--muted {
+  background: #fff;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
 .hero-panel {
   display: grid;
   gap: 16px;
   padding-top: 20px;
+  align-items: stretch;
 }
 
 .result-warning {
@@ -1514,7 +2101,69 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   color: #9a3412;
 }
 
+.top-notice-panel {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid #dbeafe;
+  background: #f8fbff;
+}
+
+.top-notice-panel__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.top-notice-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.top-notice-list__item {
+  position: relative;
+  padding-left: 14px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.top-notice-list__item::before {
+  content: '';
+  position: absolute;
+  top: 0.68em;
+  left: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #60a5fa;
+}
+
+.top-notice-list__item--warning {
+  color: #92400e;
+}
+
+.top-notice-list__item--warning::before {
+  background: #f59e0b;
+}
+
+.top-notice-list__item--credential {
+  color: #065f46;
+  font-weight: 800;
+}
+
+.top-notice-list__item--credential::before {
+  background: #10b981;
+}
+
 .hero-main {
+  min-width: 0;
   padding: 22px;
   border-radius: 24px;
   background: linear-gradient(145deg, #ffffff, #eef4ff);
@@ -1566,6 +2215,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  min-width: 0;
 }
 
 .metric-card {
@@ -1574,6 +2224,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   background: #fff;
   border: 1px solid rgba(15, 23, 42, 0.06);
   position: relative;
+  min-width: 0;
 }
 
 .metric-card--accent {
@@ -1907,6 +2558,18 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   font-weight: 800;
 }
 
+.empty-plan-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.query-only-card__action--ghost {
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+}
+
 .advisor-card {
   margin-top: 12px;
   padding: 18px;
@@ -2158,11 +2821,53 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   opacity: 0.45;
 }
 
+.list-status {
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.list-status strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.list-status small {
+  color: #2563eb;
+  font-weight: 800;
+}
+
 .plan-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding-top: 8px;
+}
+
+.plan-list-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 0 2px;
+}
+
+.plan-list-controls button {
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .plan-row {
@@ -2848,18 +3553,432 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   transform: translateY(-4px);
 }
 
-.bottom-actions {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 12px 16px calc(env(safe-area-inset-bottom, 0px) + 12px);
+.ai-workbench-card {
+  scroll-margin-top: 78px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid #dbeafe;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(37, 99, 235, 0.08);
+}
+
+.ai-workbench-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-workbench-card__eyebrow {
+  display: inline-flex;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.ai-workbench-card h3 {
+  margin: 4px 0 0;
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.ai-workbench-card__refresh {
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ai-workbench-card__refresh:disabled {
+  opacity: 0.65;
+}
+
+.ai-context-grid {
+  margin-top: 14px;
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.ai-context-chip {
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: grid;
+  gap: 3px;
+}
+
+.ai-context-chip span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.ai-context-chip strong {
+  color: #0f172a;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ai-summary-grid {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.ai-summary-card {
+  min-height: 96px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+}
+
+.ai-summary-card strong {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.ai-summary-card p {
+  margin: 7px 0 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.65;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.ai-deep-details {
+  margin-top: 12px;
+  border-radius: 14px;
+  border: 1px solid #dbeafe;
+  background: #f8fbff;
+  padding: 10px 12px;
+}
+
+.ai-deep-details summary {
+  cursor: pointer;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.ai-deep-sections {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.ai-deep-sections article {
+  padding: 10px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+.ai-deep-sections h4 {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.ai-deep-sections p {
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.skill-chat-box {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.skill-chat-box__head h4 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.skill-chat-box__head p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.quick-question-row {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quick-question-row button {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.skill-message-list {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.skill-message {
+  max-width: 86%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.skill-message--user {
+  justify-self: end;
+  background: #0f172a;
+  color: #ffffff;
+  white-space: pre-wrap;
+}
+
+.skill-message--assistant {
+  justify-self: start;
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.result-disclaimer {
+  margin-bottom: 14px;
+}
+
+.ai-reply-notice {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
+.skill-message__markdown {
+  display: grid;
+  gap: 10px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.skill-message__markdown :deep(p),
+.skill-message__markdown :deep(ul),
+.skill-message__markdown :deep(ol),
+.skill-message__markdown :deep(blockquote),
+.skill-message__markdown :deep(pre),
+.skill-message__markdown :deep(hr) {
+  margin: 0;
+}
+
+.skill-message__markdown :deep(p + p) {
+  margin-top: 2px;
+}
+
+.skill-message__markdown :deep(h2),
+.skill-message__markdown :deep(h3),
+.skill-message__markdown :deep(h4) {
+  margin: 8px 0 0;
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 900;
+}
+
+.skill-message__markdown :deep(.markdown-section-title) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin-top: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 900;
+}
+
+.skill-message__markdown :deep(.markdown-section-title::before) {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #0284c7;
+}
+
+.skill-message__markdown :deep(ul),
+.skill-message__markdown :deep(ol) {
+  padding-left: 18px;
+}
+
+.skill-message__markdown :deep(li + li) {
+  margin-top: 4px;
+}
+
+.skill-message__markdown :deep(blockquote) {
+  padding-left: 10px;
+  border-left: 3px solid #bfdbfe;
+  color: #475569;
+}
+
+.skill-message__markdown :deep(a) {
+  color: #1d4ed8;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.skill-message__markdown :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.skill-message__markdown :deep(code) {
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.92em;
+}
+
+.skill-message__markdown :deep(pre) {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  line-height: 1.55;
+}
+
+.skill-message__markdown :deep(pre code) {
+  display: block;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  white-space: pre;
+}
+
+.skill-message__markdown :deep(hr) {
+  height: 1px;
+  border: 0;
+  background: #cbd5e1;
+}
+
+.skill-message__markdown :deep(.markdown-table-wrap) {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 2px 0 6px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+}
+
+.skill-message__markdown :deep(table) {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.skill-message__markdown :deep(th),
+.skill-message__markdown :deep(td) {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.skill-message__markdown :deep(th) {
+  position: sticky;
+  top: 0;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.skill-message__markdown :deep(td) {
+  color: #334155;
+}
+
+.skill-message__markdown :deep(tr:last-child td) {
+  border-bottom: 0;
+}
+
+.skill-input-row {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.skill-input-row input {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.skill-input-row button {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: none;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.skill-input-row button:disabled {
+  opacity: 0.5;
+}
+
+.ai-error {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.bottom-actions {
+  display: none;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(14px);
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .action-btn {
@@ -2887,7 +4006,18 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
 @media (min-width: 1024px) {
   .hero-panel {
-    grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+    grid-template-columns: minmax(0, 1.72fr) minmax(300px, 0.88fr);
+  }
+
+  .result-workbench {
+    max-width: 1240px;
+    grid-template-columns: minmax(0, 1fr) 216px;
+    gap: 18px;
+  }
+
+  .result-tools {
+    position: sticky;
+    top: 76px;
   }
 
   .digest-grid {
@@ -2900,6 +4030,14 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
   .advisor-card__grid,
   .advisor-card__lists {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ai-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ai-deep-sections {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2934,14 +4072,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   }
 
   .bottom-actions {
-    left: auto;
-    right: 24px;
-    bottom: 24px;
-    width: 540px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    border-radius: 18px;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.12);
   }
 
   .action-btn--primary {
@@ -2950,15 +4081,15 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 }
 
 @media (min-width: 1280px) {
-  .hero-panel,
-  .mode-switch,
-  .algorithm-card,
-  .advisor-card,
-  .digest-grid,
-  .tabs-bar,
-  .compare-bar,
-  .plan-list {
-    max-width: 1360px;
+  .hero-panel {
+    max-width: 1240px;
+    grid-template-columns: minmax(0, 1.85fr) minmax(340px, 0.9fr);
+  }
+
+  .result-workbench {
+    max-width: 1240px;
+    grid-template-columns: minmax(0, 1fr) 236px;
+    gap: 20px;
   }
 
   .hero-main {
@@ -3145,6 +4276,54 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   border: 1px solid #fcd9b6;
   border-radius: 999px;
   padding: 4px 10px;
+}
+
+.manual-review-card__summary,
+.manual-review-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.manual-review-card__count--risk {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.manual-review-preview {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.manual-review-preview li {
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #fcd9b6;
+  display: grid;
+  gap: 4px;
+}
+
+.manual-review-preview strong {
+  color: #78350f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.manual-review-preview span {
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.55;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .manual-review-list {
@@ -3339,5 +4518,84 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
 .plan-row--status-drop {
   opacity: 0.55;
+}
+
+@media (max-width: 767px) {
+  .result-page {
+    padding-bottom: 28px;
+  }
+
+  .hero-panel,
+  .result-workbench {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .hero-main {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .hero-title {
+    font-size: 24px;
+  }
+
+  .hero-side {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .result-tools {
+    order: -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  .result-tool {
+    justify-content: center;
+    min-width: 0;
+    padding: 0 8px;
+  }
+
+  .result-tool--primary {
+    grid-column: 1 / -1;
+  }
+
+  .manual-review-card,
+  .ai-workbench-card {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .manual-review-card__head,
+  .ai-workbench-card__head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .manual-review-card__summary,
+  .manual-review-card__actions {
+    justify-content: flex-start;
+  }
+
+  .ai-context-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .skill-input-row {
+    grid-template-columns: 1fr;
+  }
+
+  .skill-message {
+    max-width: 100%;
+  }
+
+  .history-record {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .history-record__year {
+    width: auto;
+  }
 }
 </style>

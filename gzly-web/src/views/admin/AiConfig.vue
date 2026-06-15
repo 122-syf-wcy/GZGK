@@ -1,9 +1,110 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { fetchAdminAiConfig, fetchAdminAiModels, saveAdminAiConfig, testAdminAiConfig } from '@/api/admin'
+import {
+  fetchAdminAiConfig,
+  fetchAdminAiModels,
+  fetchAdminAiOpsStatus,
+  saveAdminAiConfig,
+  testAdminAiConfig,
+  testAdminAiQa,
+  testAdminAiVolunteer,
+} from '@/api/admin'
 import type { AdminAiConfigTestResult, SaveAdminAiConfigRequest } from '@/types'
 import { showSuccessToast, showToast } from 'vant'
-import { Bot, KeyRound, Save, Search, ShieldCheck, Wifi } from 'lucide-vue-next'
+import { Activity, Bot, KeyRound, Save, Search, ShieldCheck, Wifi } from 'lucide-vue-next'
+
+interface AiOpsLog {
+  scene: string
+  success: boolean
+  httpStatus?: number
+  errorCode?: string
+  model?: string
+  latencyMs?: number
+  message?: string
+  createdAt: string
+}
+interface AiOpsStatus {
+  configured: boolean
+  enabled: boolean
+  hasApiKey: boolean
+  chatModel?: string
+  configSource?: string
+  status?: { overall: string; detail: string; recentFailCount?: number }
+  recentLogs?: AiOpsLog[]
+}
+
+const aiStatus = ref<AiOpsStatus | null>(null)
+const loadingStatus = ref(false)
+const testingVolunteer = ref(false)
+const testingAiQa = ref(false)
+
+const STATUS_TEXT: Record<string, string> = {
+  ok: '正常',
+  insufficient_balance: '余额不足',
+  key_error: 'Key 无效/无权限',
+  model_unavailable: '模型不可用',
+  timeout: '响应超时',
+  error: '调用失败',
+  unknown: '暂无记录',
+}
+
+const SCENE_TEXT: Record<string, string> = {
+  ai_qa: '未上线问答',
+  volunteer_analysis: '志愿解读',
+  advisor_chat: '顾问对话',
+  test_connection: '测试连接',
+  test_volunteer: '测试-志愿解读',
+  test_ai_qa: '测试-未上线问答',
+}
+
+async function loadAiStatus() {
+  loadingStatus.value = true
+  try {
+    const res = await fetchAdminAiOpsStatus()
+    aiStatus.value = res.data?.data || null
+  } catch (error: any) {
+    showToast(error?.message || 'AI 状态加载失败')
+  } finally {
+    loadingStatus.value = false
+  }
+}
+
+async function runTestVolunteer() {
+  testingVolunteer.value = true
+  try {
+    const res = await testAdminAiVolunteer()
+    const r = res.data?.data
+    if (r?.success) showSuccessToast('志愿解读通道测试成功')
+    else showToast(r?.message || '志愿解读通道测试失败')
+    await loadAiStatus()
+  } catch (error: any) {
+    showToast(error?.message || '测试失败')
+  } finally {
+    testingVolunteer.value = false
+  }
+}
+
+async function runTestAiQa() {
+  testingAiQa.value = true
+  try {
+    const res = await testAdminAiQa()
+    const r = res.data?.data
+    if (r?.success) showSuccessToast('未上线问答通道测试成功')
+    else showToast(r?.message || '未上线问答通道测试失败')
+    await loadAiStatus()
+  } catch (error: any) {
+    showToast(error?.message || '测试失败')
+  } finally {
+    testingAiQa.value = false
+  }
+}
+
+function statusText(overall?: string) {
+  return STATUS_TEXT[overall || 'unknown'] || overall || '未知'
+}
+function sceneText(scene?: string) {
+  return SCENE_TEXT[scene || ''] || scene || '-'
+}
 
 defineOptions({ name: 'AdminAiConfig' })
 
@@ -165,7 +266,10 @@ async function queryModels() {
   }
 }
 
-onMounted(loadData)
+onMounted(() => {
+  loadData()
+  loadAiStatus()
+})
 </script>
 
 <template>
@@ -210,6 +314,67 @@ onMounted(loadData)
         </div>
       </section>
 
+      <section class="ai-ops-card gz-card">
+        <div class="ai-ops-head">
+          <div class="ai-ops-title">
+            <Activity :size="18" />
+            <h2>AI 通道状态检测</h2>
+          </div>
+          <div class="ai-ops-actions">
+            <button class="secondary-btn" :disabled="testingVolunteer" @click="runTestVolunteer">
+              {{ testingVolunteer ? '测试中…' : '测试 AI 志愿解读' }}
+            </button>
+            <button class="secondary-btn" :disabled="testingAiQa" @click="runTestAiQa">
+              {{ testingAiQa ? '测试中…' : '测试未上线地区 AI 问答' }}
+            </button>
+            <button class="secondary-btn" :disabled="loadingStatus" @click="loadAiStatus">刷新状态</button>
+          </div>
+        </div>
+
+        <div v-if="aiStatus" class="ai-ops-status">
+          <span class="ops-pill" :class="`ops-pill--${aiStatus.status?.overall || 'unknown'}`">
+            {{ statusText(aiStatus.status?.overall) }}
+          </span>
+          <span class="ops-detail">{{ aiStatus.status?.detail || '暂无 AI 调用记录' }}</span>
+          <span class="ops-meta">配置：{{ aiStatus.configured ? '已启用' : '未完成' }} · 模型 {{ aiStatus.chatModel || '-' }}</span>
+        </div>
+
+        <div class="ai-ops-logs">
+          <div class="ai-ops-logs__title">最近 AI 调用日志（最多 20 条，不含 API Key）</div>
+          <div class="table-wrap">
+            <table class="ops-table">
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>场景</th>
+                  <th>结果</th>
+                  <th>HTTP</th>
+                  <th>错误码</th>
+                  <th>耗时</th>
+                  <th>信息</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(log, idx) in (aiStatus?.recentLogs || [])" :key="idx">
+                  <td class="ops-time">{{ (log.createdAt || '').replace('T', ' ').slice(0, 19) }}</td>
+                  <td>{{ sceneText(log.scene) }}</td>
+                  <td>
+                    <span class="ops-result" :class="log.success ? 'is-ok' : 'is-fail'">{{ log.success ? '成功' : '失败' }}</span>
+                  </td>
+                  <td>{{ log.httpStatus ?? '-' }}</td>
+                  <td>{{ log.errorCode || '-' }}</td>
+                  <td>{{ log.latencyMs != null ? log.latencyMs + 'ms' : '-' }}</td>
+                  <td class="ops-msg" :title="log.message">{{ log.message || '-' }}</td>
+                </tr>
+                <tr v-if="!aiStatus?.recentLogs?.length">
+                  <td colspan="7" class="ops-empty">{{ loadingStatus ? '加载中…' : '暂无 AI 调用记录' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section class="config-grid">
         <div class="editor-panel gz-card">
           <div class="panel-head">
@@ -228,7 +393,7 @@ onMounted(loadData)
             <div class="field-block">
               <label>Base URL</label>
               <input v-model="form.baseUrl" class="text-input" placeholder="https://example.com/v1" />
-              <small>支持填写到域名根路径或 `/v1`，后端会自动拼接 `/chat/completions`。</small>
+              <small>请填写 OpenAI-Compatible API 地址，建议以 `/v1` 结尾；后端会自动兼容 `/responses` 和 `/chat/completions`。</small>
             </div>
 
             <div class="field-block">
@@ -468,6 +633,62 @@ onMounted(loadData)
   color: #991b1b;
   background: #fee2e2;
 }
+
+.ai-ops-card {
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+.ai-ops-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ai-ops-title { display: inline-flex; align-items: center; gap: 8px; color: #1d4ed8; }
+.ai-ops-title h2 { margin: 0; font-size: 18px; color: #0f172a; }
+.ai-ops-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+.ai-ops-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: #475569;
+}
+.ops-pill { padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.ops-pill--ok { background: #dcfce7; color: #166534; }
+.ops-pill--insufficient_balance { background: #fef3c7; color: #92400e; }
+.ops-pill--key_error { background: #fee2e2; color: #991b1b; }
+.ops-pill--model_unavailable { background: #fde68a; color: #92400e; }
+.ops-pill--error { background: #fee2e2; color: #991b1b; }
+.ops-pill--unknown { background: #f1f5f9; color: #64748b; }
+.ops-detail { font-weight: 700; color: #334155; }
+.ops-meta { color: #94a3b8; }
+.ai-ops-logs { margin-top: 16px; }
+.ai-ops-logs__title { font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 8px; }
+.ops-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 720px; }
+.ops-table th {
+  padding: 8px 10px;
+  text-align: left;
+  color: #64748b;
+  background: rgba(0,0,0,0.015);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  white-space: nowrap;
+}
+.ops-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  color: #1f2937;
+  white-space: nowrap;
+}
+.ops-time { color: #64748b; }
+.ops-result { padding: 1px 7px; border-radius: 999px; font-weight: 800; }
+.ops-result.is-ok { background: #dcfce7; color: #166534; }
+.ops-result.is-fail { background: #fee2e2; color: #991b1b; }
+.ops-msg { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.ops-empty { text-align: center; padding: 24px !important; color: #94a3b8; }
 
 .config-grid {
   display: grid;

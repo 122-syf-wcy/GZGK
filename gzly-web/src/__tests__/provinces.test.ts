@@ -4,7 +4,7 @@
  * 覆盖：
  * - normalizeProvinceCode 大小写 / null / 未知 → 兜底 GZ
  * - getProvinceConfig 返回的 status / volunteerUnitType / targetCount
- * - PROVINCE_LIST 4 省全部 status=open（v7.54 全部上线后）
+ * - PROVINCE_LIST 8 省入口与查询态工作台
  * - provinceQuery routeQuery 形态
  *
  * 这些是 VolunteerForm + UI 路由的核心依赖；任何切省 / 默认批次 / 文案
@@ -37,6 +37,10 @@ describe('provinces.ts', () => {
       expect(normalizeProvinceCode('sc')).toBe('SC')
       expect(normalizeProvinceCode('ah')).toBe('AH')
       expect(normalizeProvinceCode('hb')).toBe('HB')
+      expect(normalizeProvinceCode('gx')).toBe('GX')
+      expect(normalizeProvinceCode('hi')).toBe('HI')
+      expect(normalizeProvinceCode('yn')).toBe('YN')
+      expect(normalizeProvinceCode('ha')).toBe('HA')
     })
 
     it('returns GZ for unknown codes', () => {
@@ -51,8 +55,8 @@ describe('provinces.ts', () => {
   })
 
   describe('PROVINCE_CONFIGS', () => {
-    it('contains GZ / SC / HB / AH', () => {
-      expect(Object.keys(PROVINCE_CONFIGS)).toEqual(['GZ', 'SC', 'HB', 'AH'])
+    it('contains GZ / SC / HB / AH / GX / HI / YN / HA', () => {
+      expect(Object.keys(PROVINCE_CONFIGS)).toEqual(['GZ', 'SC', 'HB', 'AH', 'GX', 'HI', 'YN', 'HA'])
     })
 
     it('GZ has 96 平行 unit type', () => {
@@ -77,18 +81,29 @@ describe('provinces.ts', () => {
       expect(ah.targetBatch).toBe('普通本科批')
     })
 
-    it('HB has 45 院校专业组 unit type (preparing 状态保留)', () => {
+    it('HB has 45 院校专业组 unit type and query-only workspace', () => {
       const hb = PROVINCE_CONFIGS.HB
       expect(hb.volunteerUnitType).toBe('PROFESSIONAL_GROUP_45')
       expect(hb.targetCount).toBe(45)
-      // HB 暂未数据完整核验，应该仍是 preparing
-      expect(hb.status).toBe('preparing')
+      expect(hb.status).toBe('open')
+      expect(hb.workspaceMode).toBe('query-only')
+    })
+
+    it('GX / HI / YN / HA enter open query-only workspaces with isolated routeQuery', () => {
+      for (const code of ['GX', 'HI', 'YN', 'HA'] as const) {
+        const province = PROVINCE_CONFIGS[code]
+        expect(province.status).toBe('open')
+        expect(province.workspaceMode).toBe('query-only')
+        expect(province.volunteerUnitType).toBe('PROFESSIONAL_GROUP_45')
+        expect(province.routeQuery).toEqual({ provinceCode: code })
+        expect(province.heroDescription).not.toMatch(/FULL_RECOMMEND|安全码|卡密|不能进入/)
+      }
     })
   })
 
   describe('PROVINCE_LIST', () => {
-    it('has 4 provinces', () => {
-      expect(PROVINCE_LIST).toHaveLength(4)
+    it('has 8 provinces', () => {
+      expect(PROVINCE_LIST).toHaveLength(8)
     })
 
     it('每个 config 都有必需字段', () => {
@@ -99,12 +114,21 @@ describe('provinces.ts', () => {
         expect(p.targetCount).toBeGreaterThan(0)
         expect(p.officialSource).toBeTruthy()
         expect(p.status).toMatch(/^(open|preparing|locked)$/)
+        expect(p.workspaceMode).toMatch(/^(full|query-only)$/)
+        expect(p.routeQuery).toEqual({ provinceCode: p.code })
       }
     })
 
-    it('open 状态的省份 (GZ + SC + AH) 至少有 3 个', () => {
+    it('all configured provinces are open entry workspaces', () => {
       const open = PROVINCE_LIST.filter((p) => p.status === 'open')
-      expect(open.length).toBeGreaterThanOrEqual(3)
+      expect(open).toHaveLength(8)
+    })
+
+    it('full recommendation workspace state is separate from open entry state', () => {
+      const full = PROVINCE_LIST.filter((p) => p.workspaceMode === 'full').map(p => p.code)
+      const queryOnly = PROVINCE_LIST.filter((p) => p.workspaceMode === 'query-only').map(p => p.code)
+      expect(full).toEqual(['GZ', 'SC', 'AH'])
+      expect(queryOnly).toEqual(['HB', 'GX', 'HI', 'YN', 'HA'])
     })
   })
 
@@ -112,6 +136,7 @@ describe('provinces.ts', () => {
     it('returns config for normalized code', () => {
       expect(getProvinceConfig('sc').code).toBe('SC')
       expect(getProvinceConfig('AH').code).toBe('AH')
+      expect(getProvinceConfig('gx').code).toBe('GX')
     })
 
     it('returns GZ config for unknown', () => {
@@ -122,6 +147,7 @@ describe('provinces.ts', () => {
   describe('provinceQuery', () => {
     it('returns object with provinceCode', () => {
       expect(provinceQuery('SC')).toEqual({ provinceCode: 'SC' })
+      expect(provinceQuery('GX')).toEqual({ provinceCode: 'GX' })
       expect(provinceQuery(null)).toEqual({ provinceCode: 'GZ' })
     })
   })

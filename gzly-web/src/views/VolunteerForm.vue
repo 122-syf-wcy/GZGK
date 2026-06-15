@@ -5,6 +5,7 @@ import { getCurrentSafetyCode, setCurrentSafetyCode, useVolunteerStore } from '@
 import { generateVolunteerPlan, getAhCompositeScore, getBatchSupportByProvince, getScCompositeScore, rankCheck } from '@/api/volunteer'
 import { getHotMajors, type HotMajor } from '@/api/scoreLine'
 import DisclaimerDialog from '@/components/DisclaimerDialog.vue'
+import PlanRestoreDialog from '@/components/PlanRestoreDialog.vue'
 import type { BatchSupportItem, CandidateType, GradientRangeKey, GradientRanges } from '@/types'
 import {
   getProvinceConfig,
@@ -16,6 +17,7 @@ import {
   DISCLAIMER_CONFIRM_TEXT,
   DISCLAIMER_VERSION,
 } from '@/constants/compliance'
+import { VOLUNTEER_RISK_POINTS } from '@/constants/disclaimer'
 import { cloneGradientRanges, presetGradientRanges } from '@/utils/volunteer-plan'
 import { closeToast, showLoadingToast, showToast } from 'vant'
 import {
@@ -70,6 +72,7 @@ const customMajor = ref('')
 const agreedDisclaimer = ref(volunteerStore.formData.agreedDisclaimer)
 const disclaimerVersion = ref(volunteerStore.formData.disclaimerVersion || '')
 const disclaimerRef = ref<InstanceType<typeof DisclaimerDialog> | null>(null)
+const showPlanRestore = ref(false)
 const qualificationTags = ref<string[]>([...(volunteerStore.formData.qualificationTags || [])])
 const artProfessionalScore = ref<number | undefined>(volunteerStore.formData.artProfessionalScore)
 const sportsProfessionalScore = ref<number | undefined>(volunteerStore.formData.sportsProfessionalScore)
@@ -263,6 +266,102 @@ function fallbackDataStatus(status = 'UNKNOWN') {
     detail: '待接口返回批次支持矩阵',
   }
 }
+
+function buildFallbackBatchSupportItem(
+  province: ProvinceCode,
+  batchCode: string,
+  batchName: string,
+  candidateTypeValue: CandidateType,
+  category: string,
+  targetCount: number,
+  volunteerMode: string,
+  supportNote: string,
+): BatchSupportItem {
+  return {
+    batchCode,
+    batchName,
+    candidateType: candidateTypeValue,
+    category,
+    supportLevel: 'QUERY_ONLY',
+    recommendMode: 'QUERY_ONLY',
+    engine: 'QueryOnlyRecommendEngine',
+    engineName: 'QueryOnlyRecommendEngine',
+    targetCount,
+    maxVolunteerCount: targetCount,
+    majorPerSchoolCount: 6,
+    hasAdjustment: category === 'ORDINARY' || category === 'EARLY' || category === 'SPECIAL_PROGRAM',
+    volunteerMode,
+    policyConfigured: false,
+    policyStatus: 'frontend_query_only',
+    scoreLineCount: 0,
+    majorScoreCount: 0,
+    planCount: 0,
+    requirementCount: 0,
+    dataStatus: fallbackDataStatus('PRE_OFFICIAL_DATA'),
+    missingData: [`${getProvinceConfig(province).shortName}官方完整数据窗口未补齐`],
+    supportNote,
+    supportReason: supportNote,
+    warnings: [supportNote],
+  }
+}
+
+function buildQueryOnlyBatchSupportItemsForProvince(code: ProvinceCode): BatchSupportItem[] {
+  const province = getProvinceConfig(code)
+  const prefix = code
+  return [
+    buildFallbackBatchSupportItem(
+      code,
+      `${prefix}_BENKE`,
+      province.targetBatch,
+      '普通类',
+      'ORDINARY',
+      province.targetCount,
+      `${province.volunteerUnit}（查询态）`,
+      `${province.shortName}${province.targetBatch}当前开放规则查询和历史估算；批次与生成请求保持 ${code} 口径，不套用其他省份规则。`,
+    ),
+    buildFallbackBatchSupportItem(
+      code,
+      `${prefix}_EARLY`,
+      '普通类提前批',
+      '普通类',
+      'EARLY',
+      Math.min(province.targetCount, 20),
+      '提前批志愿（查询态）',
+      `${province.shortName}提前批当前仅展示规则、资格和官方来源线索。`,
+    ),
+    buildFallbackBatchSupportItem(
+      code,
+      `${prefix}_SPECIAL`,
+      '专项计划',
+      '普通类',
+      'SPECIAL_PROGRAM',
+      Math.min(province.targetCount, 20),
+      '专项计划（查询态）',
+      `${province.shortName}专项计划需按本省户籍、学籍和资格审核口径复核。`,
+    ),
+    buildFallbackBatchSupportItem(
+      code,
+      `${prefix}_ART`,
+      '艺术类批次',
+      '艺术类',
+      'ART',
+      province.targetCount,
+      `${province.volunteerUnit}（综合分查询态）`,
+      `${province.shortName}艺术类批次当前仅保留统考、综合分和院校章程复核入口，不套普通位次模型。`,
+    ),
+    buildFallbackBatchSupportItem(
+      code,
+      `${prefix}_SPORTS`,
+      '体育类批次',
+      '体育类',
+      'SPORTS',
+      province.targetCount,
+      `${province.volunteerUnit}（体育查询态）`,
+      `${province.shortName}体育类批次当前仅保留专业成绩、综合分和官方规则复核入口。`,
+    ),
+  ]
+}
+
 const fallbackBatchSupportItems: BatchSupportItem[] = [
   ['NORMAL_UNDERGRADUATE', '普通本科批', '普通类', 'ORDINARY', 'QUERY_ONLY', 'QUERY_ONLY', 96, '专业（类）+ 院校', 'QueryOnlyRecommendEngine', '批次支持矩阵未返回，先按查询说明处理，不展示完整推荐'],
   ['NORMAL_SPECIALTY', '普通类高职专科批', '普通类', 'ORDINARY', 'TRIAL_RECOMMEND', 'PARALLEL_MAJOR', 96, '专业（类）+ 院校', 'OrdinaryParallelMajorEngine', '普通类高职专科批按96个专业（类）+院校推荐，专科梯度窗口采用更宽口径并保留保档自动扩展'],
@@ -396,8 +495,9 @@ const fallbackBatchSupportItemsAnhui: BatchSupportItem[] = [
 }))
 function fallbackBatchSupportItemsForProvince(code: ProvinceCode): BatchSupportItem[] {
   if (code === 'GZ') return fallbackBatchSupportItems
+  if (code === 'SC') return fallbackBatchSupportItemsSichuan
   if (code === 'AH') return fallbackBatchSupportItemsAnhui
-  return fallbackBatchSupportItemsSichuan
+  return buildQueryOnlyBatchSupportItemsForProvince(code)
 }
 const batchOptions = computed(() => {
   if (!candidateType.value) return []
@@ -637,8 +737,9 @@ async function loadBatchSupport() {
 
 function defaultBatchCodeForProvince(code: ProvinceCode): string {
   if (code === 'GZ') return 'NORMAL_UNDERGRADUATE'
+  if (code === 'SC') return 'SC_BENKE_B'
   if (code === 'AH') return 'AH_BENKE'
-  return 'SC_BENKE_B'
+  return `${code}_BENKE`
 }
 
 function syncSelectedBatch() {
@@ -671,7 +772,7 @@ function toggleQualification(tag: string) {
 watch([firstSubject, provinceCode], loadHotMajors)
 watch([candidateType, batchSupportItems], syncSelectedBatch)
 onMounted(() => {
-  // 院校专业组省（SC/HB/AH）默认走普通类主流程批次，免去用户额外点击
+  // 院校专业组省默认走本省普通类主流程批次，免去用户额外点击
   if (currentProvince.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45' && !candidateType.value) {
     candidateType.value = '普通类'
   }
@@ -690,7 +791,7 @@ watch(() => route.query.provinceCode, (value: unknown) => {
 watch(provinceCode, (code: ProvinceCode) => {
   void loadBatchSupport()
   volunteerStore.setFormData({ provinceCode: code })
-  // 院校专业组省（SC/HB/AH）默认走普通类主流程批次（SC_BENKE_B 等），免去用户额外点击
+  // 院校专业组省默认走本省普通类主流程批次，免去用户额外点击
   if (getProvinceConfig(code).volunteerUnitType === 'PROFESSIONAL_GROUP_45' && !candidateType.value) {
     candidateType.value = '普通类'
   }
@@ -860,16 +961,19 @@ function formatOffset(value: number) {
 }
 
 function supportLevelText(level: string) {
-  if (isPreOfficialData.value && (level === 'FULL_RECOMMEND' || level === 'TRIAL_RECOMMEND' || level === 'QUERY_ONLY')) {
-    return '预估/缺口说明'
+  if (isPreOfficialData.value && (level === 'FULL_RECOMMEND' || level === 'TRIAL_RECOMMEND')) {
+    return '历史估算'
+  }
+  if (isPreOfficialData.value && level === 'QUERY_ONLY') {
+    return '只查策略'
   }
   if (isOfficialDataPartial.value && level === 'QUERY_ONLY') {
     return '准备中/缺口说明'
   }
   return ({
-    FULL_RECOMMEND: '完整推荐',
-    TRIAL_RECOMMEND: '试推荐',
-    QUERY_ONLY: '仅规则/缺口展示',
+    FULL_RECOMMEND: '完整数据生成',
+    TRIAL_RECOMMEND: '历史估算',
+    QUERY_ONLY: '只查策略',
     UNSUPPORTED: '暂不支持',
   } as Record<string, string>)[level] || level
 }
@@ -918,6 +1022,17 @@ function createLocalSafetyCode() {
   window.crypto.getRandomValues(bytes)
   currentSafetyCode.value = Array.from(bytes, byte => charset[byte % charset.length]).join('')
   setCurrentSafetyCode(currentSafetyCode.value)
+}
+
+/**
+ * 生成新方案时确保有“方案查看凭证”：用户没填则自动生成一个，不再因为空凭证拦截生成。
+ * 手填凭证用于“找回历史方案”（独立弹窗），与生成新方案互不影响。
+ */
+function ensureSafetyCode() {
+  const normalized = syncSafetyCodeInput()
+  if (normalized) return normalized
+  createLocalSafetyCode()
+  return syncSafetyCodeInput()
 }
 
 function updateRange(key: GradientRangeKey, field: keyof GradientRanges[GradientRangeKey], rawValue: unknown) {
@@ -969,10 +1084,7 @@ async function onSubmit() {
     return
   }
   if (!canSubmit.value || generating.value) return
-  if (!syncSafetyCodeInput()) {
-    showToast('请先输入安全码后再生成志愿方案。')
-    return
-  }
+  ensureSafetyCode()
   if (!hasCurrentDisclaimer.value) {
     openDisclaimer(true)
     return
@@ -987,11 +1099,7 @@ async function submitPlan() {
     return
   }
   if (!canSubmit.value || !hasCurrentDisclaimer.value || generating.value) return
-  const safetyCode = syncSafetyCodeInput()
-  if (!safetyCode) {
-    showToast('请先输入安全码后再生成志愿方案。')
-    return
-  }
+  const safetyCode = ensureSafetyCode()
 
   generating.value = true
   showLoadingToast({ message: '方案生成中...', forbidClick: true, duration: 0 })
@@ -1098,7 +1206,7 @@ async function submitPlan() {
       </section>
 
       <section v-if="isProvinceGenerateLocked" class="gz-shell-panel volunteer-lock-panel">
-        <div class="volunteer-lock-panel__badge">数据准备中</div>
+        <div class="volunteer-lock-panel__badge">查询态开放</div>
         <div>
           <h2>{{ currentProvince.volunteerLockTitle }}</h2>
           <p>{{ currentProvince.volunteerLockDescription }}</p>
@@ -1623,6 +1731,10 @@ async function submitPlan() {
           <div class="gz-shell-panel-desc">确认风险提示后生成志愿方案，生成完成后可继续进行 AI 解读、结果复核和 Excel 导出。</div>
         </div>
 
+        <ul class="risk-points">
+          <li v-for="(point, idx) in VOLUNTEER_RISK_POINTS" :key="idx">{{ point }}</li>
+        </ul>
+
         <button type="button" class="agreement-box" :class="{ confirmed: hasCurrentDisclaimer }" @click="openDisclaimer()">
           <span class="agreement-check" :class="{ confirmed: hasCurrentDisclaimer }">
             <CheckCircle v-if="hasCurrentDisclaimer" :size="15" />
@@ -1634,7 +1746,7 @@ async function submitPlan() {
         </button>
 
         <div class="safety-code-box">
-          <label class="safety-code-label" for="volunteer-safety-code">安全码</label>
+          <label class="safety-code-label" for="volunteer-safety-code">本次新方案的查看凭证</label>
           <div class="safety-code-row">
             <input
               id="volunteer-safety-code"
@@ -1643,12 +1755,15 @@ async function submitPlan() {
               type="text"
               inputmode="text"
               autocomplete="off"
-              placeholder="请输入或生成安全码"
+              placeholder="留空将自动生成，也可自定义"
               @blur="syncSafetyCodeInput"
             />
             <button type="button" class="safety-code-create" @click="createLocalSafetyCode">生成</button>
           </div>
-          <p class="safety-code-hint">安全码只随本次生成请求提交，不会写入地址栏；请妥善保存，后续查看方案需要它。</p>
+          <p class="safety-code-hint">这是“生成新方案”用的凭证：留空点生成会自动创建，只随本次请求提交、不写入地址栏；请妥善保存，后续查看方案需要它。</p>
+          <button type="button" class="restore-plan-link" @click="showPlanRestore = true">
+            已经有方案 ID 和访问码？找回历史方案
+          </button>
         </div>
 
         <button class="submit-btn" :class="{ disabled: !canSubmit || generating }" :disabled="!canSubmit || generating" @click="onSubmit">
@@ -1662,6 +1777,7 @@ async function submitPlan() {
     </div>
 
     <DisclaimerDialog ref="disclaimerRef" v-model="agreedDisclaimer" @confirm="handleDisclaimerConfirm" />
+    <PlanRestoreDialog v-model="showPlanRestore" />
   </div>
 </template>
 
@@ -2572,6 +2688,23 @@ async function submitPlan() {
   background: #f8fafc;
 }
 
+.risk-points {
+  margin: 0 0 12px;
+  padding: 12px 14px 12px 30px;
+  border-radius: 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.risk-points li {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #92400e;
+}
+
 .agreement-box {
   display: flex;
   align-items: center;
@@ -2681,6 +2814,22 @@ async function submitPlan() {
   font-size: 12px;
   line-height: 1.6;
   color: #64748b;
+}
+
+.restore-plan-link {
+  width: fit-content;
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  padding: 0;
+}
+
+.restore-plan-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
 }
 
 .submit-btn {

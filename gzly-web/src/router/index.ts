@@ -40,6 +40,18 @@ const router = createRouter({
       meta: { title: '特殊类型招生' },
     },
     {
+      path: '/major-planner',
+      name: 'MajorPlanner',
+      component: () => import('@/views/MajorPlanner.vue'),
+      meta: { title: '专业选择规划' },
+    },
+    {
+      path: '/major-planner/result',
+      name: 'MajorPlannerResult',
+      component: () => import('@/views/MajorPlannerResult.vue'),
+      meta: { title: '专业规划结果' },
+    },
+    {
       path: '/encouragement',
       name: 'EncouragementWall',
       component: () => import('@/views/EncouragementWall.vue'),
@@ -68,6 +80,18 @@ const router = createRouter({
       name: 'AiAnalysis',
       component: () => import('@/views/AiAnalysis.vue'),
       meta: { title: 'AI深度解读' },
+    },
+    {
+      path: '/ai-chat',
+      name: 'AiChat',
+      component: () => import('@/views/AiChat.vue'),
+      meta: { title: '未上线地区 AI 志愿问答' },
+    },
+    {
+      path: '/ai-chat/drafts',
+      name: 'AiChatDrafts',
+      component: () => import('@/views/AiChatDrafts.vue'),
+      meta: { title: '找回 AI 问答对话' },
     },
     {
       path: '/disclaimer',
@@ -171,6 +195,18 @@ const router = createRouter({
           name: 'AdminAiConfig',
           component: () => import('@/views/admin/AiConfig.vue'),
           meta: { title: 'AI配置 - 管理后台' },
+        },
+        {
+          path: 'ai-qa',
+          name: 'AdminAiQaSessions',
+          component: () => import('@/views/admin/AiQaSessions.vue'),
+          meta: { title: 'AI问答会话 - 管理后台' },
+        },
+        {
+          path: 'ops',
+          name: 'AdminOps',
+          component: () => import('@/views/admin/Ops.vue'),
+          meta: { title: '巡检状态 - 管理后台' },
         },
         {
           path: 'data-year-readiness',

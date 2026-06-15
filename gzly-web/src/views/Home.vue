@@ -4,13 +4,18 @@ import { useRoute, useRouter } from 'vue-router'
 import { submitFeedback } from '@/api/feedback'
 import { PROVINCE_LIST, type ProvinceConfig } from '@/constants/provinces'
 import OnlineCounter from '@/components/OnlineCounter.vue'
+import PlanRestoreDialog from '@/components/PlanRestoreDialog.vue'
 import { showSuccessToast, showToast } from 'vant'
 import {
   ArrowRight,
+  BarChart3,
   CheckCircle2,
   Clock3,
+  Compass,
   MessageSquare,
+  School,
   ShieldAlert,
+  Sparkles,
   User,
   X,
 } from 'lucide-vue-next'
@@ -22,11 +27,14 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const showFeedbackPopup = ref(false)
+const showPlanRestore = ref(false)
+const showRestoreChooser = ref(false)
 const feedbackContent = ref('')
 const feedbackSubmitting = ref(false)
 
 const feedbackLength = computed(() => feedbackContent.value.trim().length)
 const openCount = computed(() => PROVINCE_LIST.filter(item => item.status === 'open').length)
+const fullWorkspaceCount = computed(() => PROVINCE_LIST.filter(item => item.workspaceMode === 'full').length)
 
 function provinceRoute(province: ProvinceConfig): { path: string; query: ProvinceConfig['routeQuery'] } {
   return {
@@ -37,6 +45,20 @@ function provinceRoute(province: ProvinceConfig): { path: string; query: Provinc
 
 function openFeedbackPopup(): void {
   showFeedbackPopup.value = true
+}
+
+function openRestoreChooser(): void {
+  showRestoreChooser.value = true
+}
+
+function choosePlanRestore(): void {
+  showRestoreChooser.value = false
+  showPlanRestore.value = true
+}
+
+function chooseAiRestore(): void {
+  showRestoreChooser.value = false
+  router.push('/ai-chat/drafts')
 }
 
 function closeFeedbackPopup(): void {
@@ -120,17 +142,71 @@ async function submitFeedbackForm(): Promise<void> {
           </div>
           <div class="home-hero__metric">
             <strong>{{ openCount }}</strong>
-            <span>个生成开放</span>
+            <span>个工作台开放</span>
           </div>
           <div class="home-hero__metric">
-            <strong>0</strong>
-            <span>套重复页面</span>
+            <strong>{{ fullWorkspaceCount }}</strong>
+            <span>个智能草稿入口</span>
           </div>
         </div>
       </div>
     </section>
 
     <main class="page-container home-main">
+      <section class="home-groups" aria-label="功能入口">
+        <div class="home-group home-group--core">
+          <h2 class="home-group__title">核心功能</h2>
+          <div class="home-group__grid">
+            <router-link to="/volunteer" class="entry-card entry-card--primary" data-testid="entry-volunteer">
+              <Sparkles :size="20" />
+              <span class="entry-card__title">AI 志愿填报</span>
+              <span class="entry-card__desc">按地区与分数生成志愿草稿与 AI 解读</span>
+              <span class="entry-card__go">去填报 <ArrowRight :size="15" /></span>
+            </router-link>
+            <router-link to="/score-line" class="entry-card entry-card--primary" data-testid="entry-scoreline">
+              <BarChart3 :size="20" />
+              <span class="entry-card__title">分数线查询</span>
+              <span class="entry-card__desc">查询院校历年分数线与位次</span>
+              <span class="entry-card__go">去查询 <ArrowRight :size="15" /></span>
+            </router-link>
+            <router-link to="/major-planner" class="entry-card entry-card--primary" data-testid="entry-major-planner">
+              <Compass :size="20" />
+              <span class="entry-card__title">专业选择规划</span>
+              <span class="entry-card__desc">从兴趣、学科优势和职业期待出发，找到更适合自己的专业方向</span>
+              <span class="entry-card__go">开始规划 <ArrowRight :size="15" /></span>
+            </router-link>
+          </div>
+        </div>
+
+        <div class="home-group">
+          <h2 class="home-group__title">辅助功能</h2>
+          <div class="home-group__grid">
+            <router-link to="/university" class="entry-card" data-testid="entry-university">
+              <School :size="18" />
+              <span class="entry-card__title">院校查询</span>
+              <span class="entry-card__desc">查询院校信息与专业</span>
+            </router-link>
+            <router-link to="/ai-chat" class="entry-card" data-testid="home-aiqa-entry">
+              <Sparkles :size="18" />
+              <span class="entry-card__title">未上线地区 AI 问答</span>
+              <span class="entry-card__desc">其他省份联网问答与方向参考</span>
+            </router-link>
+          </div>
+        </div>
+
+        <div class="home-group">
+          <h2 class="home-group__title">活动功能</h2>
+          <div class="home-group__grid">
+            <a href="/CQ/" class="entry-card" target="_blank" rel="noopener noreferrer" data-testid="entry-cq">
+              <Sparkles :size="18" />
+              <span class="entry-card__title">高考好运签</span>
+              <span class="entry-card__desc">趣味抽签，为考生加油</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <h2 class="home-section-title">选择地区</h2>
       <section class="province-grid" aria-label="地区选择">
         <router-link
           v-for="province in PROVINCE_LIST"
@@ -154,7 +230,7 @@ async function submitFeedbackForm(): Promise<void> {
             <span>{{ province.officialSource }}</span>
           </span>
           <span class="province-card__action">
-            {{ province.status === 'open' ? '进入工作台' : '查看准备状态' }}
+            {{ province.status === 'open' ? '进入工作台' : '查看核验状态' }}
             <ArrowRight :size="16" />
           </span>
         </router-link>
@@ -166,14 +242,16 @@ async function submitFeedbackForm(): Promise<void> {
           <h2>使用边界</h2>
           <p>系统仅提供公益辅助参考，不替代考试院、高校招生章程、招生专业目录和考生本人正式决策。</p>
         </div>
+        <button class="home-notice__restore" type="button" @click="openRestoreChooser">
+          找回记录
+          <ArrowRight :size="15" />
+        </button>
       </section>
     </main>
 
     <footer class="home-footer">
       <div class="page-container">
         <div class="footer-inner">
-          <ShieldAlert :size="14" />
-          <span>数据与建议仅供参考，请以对应省级考试院和高校官方信息为准</span>
           <span class="footer-link" @click="router.push('/disclaimer')">查看《免责声明》</span>
           <span class="footer-link footer-link--feedback" @click="openFeedbackPopup">
             <MessageSquare :size="13" />
@@ -226,6 +304,29 @@ async function submitFeedbackForm(): Promise<void> {
             {{ feedbackSubmitting ? '提交中…' : '提交反馈' }}
           </button>
         </div>
+      </div>
+    </van-popup>
+
+    <PlanRestoreDialog v-model="showPlanRestore" />
+
+    <van-popup
+      v-model:show="showRestoreChooser"
+      position="bottom"
+      round
+      :style="{ background: '#fffdfa' }"
+    >
+      <div class="restore-chooser">
+        <h3 class="restore-chooser__title">找回记录</h3>
+        <p class="restore-chooser__desc">请选择要找回的类型，避免混淆志愿方案码与 AI 对话码。</p>
+        <button class="restore-chooser__item" type="button" @click="choosePlanRestore">
+          <span class="restore-chooser__item-title">找回志愿方案</span>
+          <span class="restore-chooser__item-desc">使用「志愿方案码」（方案 ID + 安全码）找回已生成的志愿方案</span>
+        </button>
+        <button class="restore-chooser__item" type="button" @click="chooseAiRestore">
+          <span class="restore-chooser__item-title">找回 AI 对话</span>
+          <span class="restore-chooser__item-desc">使用「AI 对话码」找回未上线地区的 AI 问答历史</span>
+        </button>
+        <button class="restore-chooser__cancel" type="button" @click="showRestoreChooser = false">取消</button>
       </div>
     </van-popup>
   </div>
@@ -533,11 +634,145 @@ async function submitFeedbackForm(): Promise<void> {
   font-weight: 800;
 }
 
+.home-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.home-group__title,
+.home-section-title {
+  font-size: 16px;
+  font-weight: 850;
+  color: #0f172a;
+  margin: 0 0 10px;
+}
+
+.home-section-title {
+  margin-top: 22px;
+}
+
+.home-disclaimer {
+  margin-top: 16px;
+}
+
+.home-group__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.entry-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fffdf7;
+  color: inherit;
+  text-decoration: none;
+}
+
+.entry-card--primary {
+  border-color: rgba(29, 78, 216, 0.2);
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(236, 254, 255, 0.96));
+  color: #1d4ed8;
+}
+
+.entry-card__title {
+  font-size: 16px;
+  font-weight: 850;
+  color: #0f172a;
+}
+
+.entry-card__desc {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #64748b;
+}
+
+.entry-card__go {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1d4ed8;
+}
+
+.restore-chooser {
+  padding: 22px 18px calc(env(safe-area-inset-bottom, 0px) + 18px);
+}
+
+.restore-chooser__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 850;
+  color: #0f172a;
+}
+
+.restore-chooser__desc {
+  margin: 8px 0 16px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #64748b;
+}
+
+.restore-chooser__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.restore-chooser__item-title {
+  font-size: 15px;
+  font-weight: 850;
+  color: #0f172a;
+}
+
+.restore-chooser__item-desc {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #64748b;
+}
+
+.restore-chooser__cancel {
+  width: 100%;
+  min-height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+@media (min-width: 768px) {
+  .home-group__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .home-notice {
   display: flex;
   gap: 12px;
   align-items: flex-start;
+  flex-wrap: wrap;
   margin-top: 14px;
+}
+
+.home-notice > div {
+  flex: 1;
+  min-width: 220px;
 }
 
 .home-notice svg {
@@ -558,6 +793,21 @@ async function submitFeedbackForm(): Promise<void> {
   font-size: 13px;
   line-height: 1.75;
   color: #64748b;
+}
+
+.home-notice__restore {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 850;
+  white-space: nowrap;
 }
 
 .home-footer {

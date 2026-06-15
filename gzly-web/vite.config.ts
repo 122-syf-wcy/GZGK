@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import legacy from '@vitejs/plugin-legacy'
 import Components from 'unplugin-vue-components/vite'
 import { VantResolver } from '@vant/auto-import-resolver'
 import { fileURLToPath, URL } from 'node:url'
@@ -7,6 +8,17 @@ import { fileURLToPath, URL } from 'node:url'
 export default defineConfig({
   plugins: [
     vue(),
+    legacy({
+      targets: ['iOS >= 13', 'Safari >= 13', 'Android >= 7', 'Chrome >= 80'],
+      modernPolyfills: [
+        'es.array.at',
+        'es.array.to-reversed',
+        'es.array.to-sorted',
+        'es.array.to-spliced',
+        'es.object.has-own',
+        'es.string.replace-all',
+      ],
+    }),
     Components({
       resolvers: [VantResolver()],
     }),

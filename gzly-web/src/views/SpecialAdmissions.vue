@@ -16,7 +16,7 @@ import {
   fetchSpecialAdmissionCategories,
   fetchSpecialAdmissionPolicies,
 } from '@/api/specialAdmission'
-import { getProvinceConfig } from '@/constants/provinces'
+import { getProvinceConfig, normalizeProvinceCode, type ProvinceCode } from '@/constants/provinces'
 import type { SpecialAdmissionCategory, SpecialAdmissionPolicy } from '@/types'
 import { renderMarkdown, sanitizeHttpUrl } from '@/utils/markdown'
 import { showToast } from 'vant'
@@ -31,8 +31,10 @@ const categories = ref<SpecialAdmissionCategory[]>([])
 const policies = ref<SpecialAdmissionPolicy[]>([])
 const selectedCategory = ref('')
 const expandedId = ref<number | null>(null)
-const currentProvince = computed(() => getProvinceConfig(route.query.provinceCode))
+const provinceCode = ref<ProvinceCode>(normalizeProvinceCode(route.query.provinceCode))
+const currentProvince = computed(() => getProvinceConfig(provinceCode.value))
 const isPreparingProvince = computed(() => currentProvince.value.status !== 'open')
+const hasStructuredPolicyList = computed(() => ['GZ', 'SC', 'AH'].includes(currentProvince.value.code))
 
 const selectedCategoryName = computed(() => {
   if (!selectedCategory.value) return '全部政策'
@@ -106,7 +108,7 @@ function openOfficial(policy: SpecialAdmissionPolicy) {
 }
 
 async function loadCategories() {
-  if (isPreparingProvince.value) {
+  if (isPreparingProvince.value || !hasStructuredPolicyList.value) {
     categories.value = []
     return
   }
@@ -115,7 +117,7 @@ async function loadCategories() {
 }
 
 async function loadPolicies() {
-  if (isPreparingProvince.value) {
+  if (isPreparingProvince.value || !hasStructuredPolicyList.value) {
     policies.value = []
     expandedId.value = null
     return
@@ -138,8 +140,8 @@ async function loadPolicies() {
 }
 
 async function selectCategory(category: string) {
-  if (isPreparingProvince.value) {
-    showToast(`${currentProvince.value.shortName}特殊类型招生资料仍需复核，暂不开放结构化列表`)
+  if (isPreparingProvince.value || !hasStructuredPolicyList.value) {
+    showToast(`${currentProvince.value.shortName}特殊类型招生当前保留官方入口和规则提醒，暂不展示未按省份核验的结构化列表`)
     return
   }
   if (selectedCategory.value === category) return
@@ -159,6 +161,7 @@ async function loadForCurrentProvince() {
 onMounted(loadForCurrentProvince)
 
 watch(() => route.query.provinceCode, () => {
+  provinceCode.value = normalizeProvinceCode(route.query.provinceCode)
   void loadForCurrentProvince()
 })
 </script>
@@ -202,17 +205,17 @@ watch(() => route.query.provinceCode, () => {
         </div>
       </section>
 
-      <section v-if="isPreparingProvince" class="sc-special-lock gz-card">
+      <section v-if="isPreparingProvince || !hasStructuredPolicyList" class="sc-special-lock gz-card">
         <ShieldCheck :size="20" />
         <div>
-          <h2>{{ currentProvince.shortName }}特殊类型招生资料需复核</h2>
+          <h2>{{ currentProvince.shortName }}特殊类型招生查询态开放</h2>
           <p>
-            当前{{ currentProvince.shortName }}专区只保留官方来源提醒，不展示未核验的结构化政策列表。后续导入并核验{{ currentProvince.officialSource }}及院校官方通知后再开放分类查询。
+            当前{{ currentProvince.shortName }}专区保留官方来源提醒、资格条件和时间节点线索；结构化列表需按{{ currentProvince.officialSource }}及院校官方通知完成省份核验后再展示，避免串用其他省份数据。
           </p>
         </div>
       </section>
 
-      <section v-if="!isPreparingProvince" class="focus-section gz-card">
+      <section v-if="!isPreparingProvince && hasStructuredPolicyList" class="focus-section gz-card">
         <div class="section-head">
           <div>
             <h2>重点路径先看这里</h2>
@@ -244,7 +247,7 @@ watch(() => route.query.provinceCode, () => {
         </div>
       </section>
 
-      <section v-if="!isPreparingProvince && (missingCoverage.length || sourceStats.reprintCount)" class="coverage-section gz-card">
+      <section v-if="!isPreparingProvince && hasStructuredPolicyList && (missingCoverage.length || sourceStats.reprintCount)" class="coverage-section gz-card">
         <div class="section-head coverage-head">
           <div>
             <h2>数据补齐提示</h2>
@@ -262,7 +265,7 @@ watch(() => route.query.provinceCode, () => {
         </div>
       </section>
 
-      <section v-if="!isPreparingProvince" class="category-section">
+      <section v-if="!isPreparingProvince && hasStructuredPolicyList" class="category-section">
         <div class="section-head">
           <div>
             <h2>按类型查看</h2>
@@ -290,7 +293,7 @@ watch(() => route.query.provinceCode, () => {
         </div>
       </section>
 
-      <section v-if="!isPreparingProvince" class="policy-section">
+      <section v-if="!isPreparingProvince && hasStructuredPolicyList" class="policy-section">
         <div class="section-head">
           <div>
             <h2>{{ selectedCategoryName }}</h2>

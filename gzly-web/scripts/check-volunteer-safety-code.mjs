@@ -24,7 +24,10 @@ assertContains('generateVolunteerPlan year type', api, 'year?: number')
 assertContains('VolunteerForm import', form, 'getCurrentSafetyCode')
 assertContains('VolunteerForm import', form, 'setCurrentSafetyCode')
 assertContains('VolunteerForm state', form, 'const currentSafetyCode = ref(getCurrentSafetyCode())')
-assertContains('VolunteerForm empty guard', form, '请先输入安全码后再生成志愿方案。')
+// 生成新方案的查看凭证：未手填时自动生成（ensureSafetyCode），不再因空凭证拦截生成，
+// 也确保 safetyCode 一定随请求提交（避免“找回历史方案”与“生成新方案”凭证语义混淆）。
+assertContains('VolunteerForm ensure safety code', form, 'function ensureSafetyCode()')
+assertContains('VolunteerForm ensure safety code call', form, 'const safetyCode = ensureSafetyCode()')
 assertContains('VolunteerForm payload', form, 'safetyCode,')
 assertContains('VolunteerForm year payload', form, 'year: activeAdmissionYear.value')
 assertContains('VolunteerForm localStorage sync', form, 'setCurrentSafetyCode(normalized)')

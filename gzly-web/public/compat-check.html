@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>GZLY 浏览器兼容诊断</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #f6f8fc;
+        color: #172033;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      main {
+        width: min(100%, 720px);
+        margin: 0 auto;
+        padding: 24px 16px 40px;
+      }
+
+      .panel {
+        border: 1px solid #dbe3ef;
+        border-radius: 16px;
+        background: #fff;
+        padding: 20px;
+        box-shadow: 0 18px 48px rgba(23, 32, 51, 0.08);
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 22px;
+        line-height: 1.35;
+      }
+
+      p {
+        margin: 0 0 16px;
+        color: #536172;
+        line-height: 1.7;
+      }
+
+      dl {
+        margin: 0;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 10px;
+        padding: 12px 0;
+        border-top: 1px solid #edf1f7;
+      }
+
+      .row:first-child {
+        border-top: 0;
+      }
+
+      dt {
+        color: #657386;
+        font-weight: 700;
+      }
+
+      dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .ok {
+        color: #147a42;
+        font-weight: 700;
+      }
+
+      .warn {
+        color: #9a5b00;
+        font-weight: 700;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      a,
+      button {
+        min-height: 40px;
+        border-radius: 10px;
+        font: inherit;
+        font-weight: 700;
+      }
+
+      a {
+        display: inline-flex;
+        align-items: center;
+        padding: 0 16px;
+        border: 1px solid #c9d3e2;
+        color: #1a4fff;
+        text-decoration: none;
+      }
+
+      button {
+        border: 0;
+        padding: 0 16px;
+        background: #1a4fff;
+        color: #fff;
+      }
+
+      @media (max-width: 520px) {
+        .row {
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel">
+        <h1>GZLY 浏览器兼容诊断</h1>
+        <p>如果这个页面能正常显示，说明 HTTPS 和基础 HTML 已可访问；若首页打不开，通常需要继续看主站 JS 兼容或缓存问题。</p>
+        <dl id="report">
+          <div class="row">
+            <dt>JS 执行</dt>
+            <dd class="warn">正在检测...</dd>
+          </div>
+        </dl>
+        <div class="actions">
+          <button type="button" onclick="location.reload()">重新检测</button>
+          <a href="/">返回首页</a>
+          <a href="/CQ/">打开 /CQ/</a>
+        </div>
+      </section>
+    </main>
+    <script>
+      (function () {
+        function yesNo(value) {
+          return value ? '<span class="ok">支持</span>' : '<span class="warn">不支持</span>';
+        }
+
+        function testLocalStorage() {
+          try {
+            var key = 'gzly_compat_check_' + String(Date.now());
+            window.localStorage.setItem(key, '1');
+            window.localStorage.removeItem(key);
+            return true;
+          } catch (error) {
+            return false;
+          }
+        }
+
+        function row(label, value) {
+          return '<div class="row"><dt>' + label + '</dt><dd>' + value + '</dd></div>';
+        }
+
+        var userAgent = navigator.userAgent || 'unknown';
+        var moduleSupported = 'noModule' in document.createElement('script');
+        var clipboardSupported = !!(navigator.clipboard && navigator.clipboard.writeText);
+        var randomUuidSupported = !!(window.crypto && window.crypto.randomUUID);
+        var localStorageSupported = testLocalStorage();
+        var resizeObserverSupported = 'ResizeObserver' in window;
+
+        document.getElementById('report').innerHTML = [
+          row('JS 执行', '<span class="ok">正常</span>'),
+          row('当前时间', new Date().toLocaleString()),
+          row('User Agent', userAgent),
+          row('ES Module', yesNo(moduleSupported)),
+          row('Clipboard', yesNo(clipboardSupported)),
+          row('crypto.randomUUID', yesNo(randomUuidSupported)),
+          row('localStorage', yesNo(localStorageSupported)),
+          row('ResizeObserver', yesNo(resizeObserverSupported))
+        ].join('');
+      })();
+    </script>
+  </body>
+</html>

@@ -1,6 +1,6 @@
 import http from './request'
 import type { BatchSupportResponse, CandidateType, GradientRanges, Result, VolunteerPlan, RankCheckResponse } from '@/types'
-import type { ProvinceCode } from '@/constants/provinces'
+import { normalizeProvinceCode, type ProvinceCode } from '@/constants/provinces'
 
 /** 生成志愿方案：公共入口只允许当前激活招生年份，历史年份仅用于后台回测 */
 export function generateVolunteerPlan(data: {
@@ -54,15 +54,46 @@ export function getAhBatchSupport() {
   return http.get<Result<BatchSupportResponse>>('/volunteer/ah/batch-support')
 }
 
+export function getHbBatchSupport() {
+  return http.get<Result<BatchSupportResponse>>('/volunteer/hb/batch-support')
+}
+
+export function getGxBatchSupport() {
+  return http.get<Result<BatchSupportResponse>>('/volunteer/gx/batch-support')
+}
+
+export function getHiBatchSupport() {
+  return http.get<Result<BatchSupportResponse>>('/volunteer/hi/batch-support')
+}
+
+export function getYnBatchSupport() {
+  return http.get<Result<BatchSupportResponse>>('/volunteer/yn/batch-support')
+}
+
+export function getHaBatchSupport() {
+  return http.get<Result<BatchSupportResponse>>('/volunteer/ha/batch-support')
+}
+
+export function hasBatchSupportEndpoint(provinceCode: ProvinceCode | string): boolean {
+  const code = normalizeProvinceCode(provinceCode)
+  return ['GZ', 'SC', 'AH', 'HB', 'GX', 'HI', 'YN', 'HA'].includes(code)
+}
+
 /**
- * 按 provinceCode 自动分发到 GZ / SC / AH 批次支持矩阵接口；
- * HB 暂走 SC 同款（PROFESSIONAL_GROUP_45）兜底。
+ * 按 provinceCode 自动分发到本省批次支持矩阵接口。
+ * 不允许把 HB/GX/HI/YN/HA 静默发送到 SC/GZ。
  */
-export function getBatchSupportByProvince(provinceCode: ProvinceCode | string) {
-  const code = (typeof provinceCode === 'string' ? provinceCode : '').trim().toUpperCase()
+export function getBatchSupportByProvince(provinceCode: ProvinceCode | string): ReturnType<typeof getGzBatchSupport> {
+  const code = normalizeProvinceCode(provinceCode)
   if (code === 'GZ') return getGzBatchSupport()
   if (code === 'AH') return getAhBatchSupport()
-  return getScBatchSupport()
+  if (code === 'SC') return getScBatchSupport()
+  if (code === 'HB') return getHbBatchSupport()
+  if (code === 'GX') return getGxBatchSupport()
+  if (code === 'HI') return getHiBatchSupport()
+  if (code === 'YN') return getYnBatchSupport()
+  if (code === 'HA') return getHaBatchSupport()
+  return getGzBatchSupport()
 }
 
 /**

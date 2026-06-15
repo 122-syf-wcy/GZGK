@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getUniversityList } from '@/api/university'
 import { ArrowLeft, MapPin, Search, Crown, Award, Star, Building2, ChevronLeft, ChevronRight } from 'lucide-vue-next'
-import { getProvinceConfig } from '@/constants/provinces'
+import { getProvinceConfig, normalizeProvinceCode, type ProvinceCode } from '@/constants/provinces'
+import DisclaimerNotice from '@/components/DisclaimerNotice.vue'
+import { UNIVERSITY_NOTICE } from '@/constants/disclaimer'
 import type { University } from '@/types'
 
 const router = useRouter()
@@ -16,6 +18,7 @@ const errorMessage = ref('')
 const total = ref(0)
 const page = ref(1)
 const pageSize = 20
+const provinceCode = ref<ProvinceCode>(normalizeProvinceCode(route.query.provinceCode))
 
 const tagOptions = [
   { key: '全部', icon: null, color: '#0f172a' },
@@ -41,7 +44,7 @@ const regionOptions = [
 const allUniversities = ref<University[]>([])
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
-const currentProvince = computed(() => getProvinceConfig(route.query.provinceCode))
+const currentProvince = computed(() => getProvinceConfig(provinceCode.value))
 const visibleRangeText = computed(() => {
   if (total.value === 0) return '0'
   const start = (page.value - 1) * pageSize + 1
@@ -70,6 +73,7 @@ async function fetchList(allowRetry = true) {
     const tag = activeTag.value !== '全部' ? activeTag.value : undefined
     const region = activeRegion.value !== '全部地区' ? activeRegion.value : undefined
     const res = await getUniversityList({
+      provinceCode: provinceCode.value,
       keyword: keyword.value.trim() || undefined,
       tag,
       region,
@@ -192,6 +196,14 @@ function activeTagStyle(key: string, color: string) {
 }
 
 onMounted(() => {
+  fetchList()
+})
+
+watch(() => route.query.provinceCode, () => {
+  const next = normalizeProvinceCode(route.query.provinceCode)
+  if (provinceCode.value === next) return
+  provinceCode.value = next
+  page.value = 1
   fetchList()
 })
 </script>
@@ -327,6 +339,8 @@ onMounted(() => {
         </div>
         <div class="university-results-head__meta">第 {{ page }} / {{ totalPages }} 页 · 当前展示 {{ visibleRangeText }}</div>
       </div>
+
+      <DisclaimerNotice :text="UNIVERSITY_NOTICE" tone="muted" class="university-disclaimer" />
 
       <div v-if="loading" class="university-state gz-shell-panel">
         <van-loading size="24" color="#0f172a" />

@@ -73,7 +73,9 @@ const primaryNav = [
 const secondaryNav = [
   { key: 'announcements', label: '公告管理', iconImg: '/admin-dashboard.png', path: '/admin/announcements' },
   { key: 'ai-config', label: 'AI配置', iconImg: '/admin-dashboard.png', path: '/admin/ai-config' },
+  { key: 'ai-qa', label: 'AI问答', iconImg: '/admin-dashboard.png', path: '/admin/ai-qa' },
   { key: 'feedbacks', label: '反馈管理', iconImg: '/admin-users.png', path: '/admin/feedbacks' },
+  { key: 'ops', label: '巡检状态', iconImg: '/admin-dashboard.png', path: '/admin/ops' },
 ]
 
 // 历史保留：以下功能此前已开发，但和主志愿流程关联较弱，仅保留路由可访问、不在
@@ -169,9 +171,13 @@ function navigateTo(path: string) {
       </nav>
 
       <div class="sidebar-footer">
-        <button class="nav-item nav-item--logout" @click="router.push('/')">
+        <button class="nav-item" @click="router.push('/')">
           <LogOut :size="18" />
           <span>返回前台</span>
+        </button>
+        <button class="nav-item nav-item--logout" @click="doLogout">
+          <LogOut :size="18" />
+          <span>退出登录</span>
         </button>
       </div>
     </aside>

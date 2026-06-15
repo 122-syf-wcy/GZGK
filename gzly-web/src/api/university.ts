@@ -1,8 +1,10 @@
 import http from './request'
 import type { OfficialLink, Result, PageResult, University } from '@/types'
+import type { ProvinceCode } from '@/constants/provinces'
 
 /** 查询院校列表 */
 export function getUniversityList(params: {
+  provinceCode?: ProvinceCode
   keyword?: string
   province?: string
   region?: string

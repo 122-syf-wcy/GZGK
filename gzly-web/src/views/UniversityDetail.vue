@@ -32,6 +32,8 @@ import { listMedia, checkSchoolHasAdmin } from '@/api/alumni'
 import { sanitizeHttpUrl } from '@/utils/markdown'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import UniversityQa from '@/components/UniversityQa.vue'
+import DisclaimerNotice from '@/components/DisclaimerNotice.vue'
+import { UNIVERSITY_NOTICE } from '@/constants/disclaimer'
 
 const route = useRoute()
 const router = useRouter()
@@ -357,6 +359,7 @@ const parsedRules = computed(() => {
     </div>
 
     <div v-else class="detail-body">
+      <DisclaimerNotice :text="UNIVERSITY_NOTICE" tone="muted" class="detail-disclaimer" />
       <!-- Hero Card — Enhanced -->
       <div class="hero-card">
         <div

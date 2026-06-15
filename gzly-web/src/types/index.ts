@@ -1,3 +1,5 @@
+import type { ProvinceCode } from '@/constants/provinces'
+
 /** 统一响应格式 */
 export interface Result<T = unknown> {
   code: number
@@ -193,6 +195,11 @@ export interface FeedbackItem {
   content: string
   sourcePage?: string
   status: number
+  handleStatus?: number
+  resultId?: number | null
+  provinceCode?: string | null
+  handleNote?: string | null
+  handledAt?: string | null
   ipHash?: string
   createdAt: string
   updatedAt?: string
@@ -220,10 +227,79 @@ export interface AdminEncouragementMessageListData {
   hiddenCount: number
 }
 
+export interface AdminPlanItem {
+  id: number
+  userId?: number | null
+  anonymous: boolean
+  provinceCode?: string
+  volunteerUnitType?: string
+  targetBatch?: string
+  totalScore?: number | null
+  provinceRank?: number | null
+  firstSubject?: string
+  resubjects?: string
+  strategyMode?: string
+  decisionPriority?: string
+  itemCount?: number | null
+  hasAiAnalysis: boolean
+  hasSafetyCode: boolean
+  deleted: boolean
+  deletedAt?: string | null
+  deletedBy?: number | null
+  deleteReason?: string | null
+  createdAt?: string
+}
+
+export interface AdminPlanListData extends PageResult<AdminPlanItem> {}
+
+export interface AdminPlanListParams {
+  page?: number
+  size?: number
+  search?: string
+  provinceCode?: string
+  score?: number
+  rank?: number
+  itemCountZero?: boolean
+  anonymous?: boolean
+  startDate?: string
+  endDate?: string
+  includeDeleted?: boolean
+}
+
+export interface AdminPlanDeleteResponse {
+  requestedCount?: number
+  deletedCount: number
+  ids: number[]
+}
+
+export interface AdminPlanCleanupRequest {
+  ids?: number[]
+  idStart?: number
+  idEnd?: number
+  before?: string
+  onlyZeroVolunteer?: boolean
+  onlyAnonymous?: boolean
+  dryRun?: boolean
+  confirm?: boolean
+  provinceCode?: string
+  score?: number
+  rank?: number
+  reason?: string
+}
+
+export interface AdminPlanCleanupResponse {
+  dryRun: boolean
+  matchedCount: number
+  deletedCount: number
+  ids: number[]
+  sample: AdminPlanItem[]
+  notice: string
+}
+
 /** 历年投档线 */
 export interface ScoreLine {
   id: number
-  provinceCode?: 'GZ' | 'SC' | 'HB' | 'AH' | string
+  provinceCode?: ProvinceCode | string
   schoolId?: string
   groupCode?: string
   groupName?: string
@@ -255,7 +331,7 @@ export interface ScoreLine {
 /** 院校级分数线聚合卡片 */
 export interface SchoolScoreSummary {
   id: number
-  provinceCode?: 'GZ' | 'SC' | 'HB' | 'AH' | string
+  provinceCode?: ProvinceCode | string
   volunteerUnitType?: 'MAJOR_96' | 'PROFESSIONAL_GROUP_45' | string
   schoolId: string
   universityName: string
@@ -271,6 +347,76 @@ export interface SchoolScoreSummary {
   lastYear?: number
   dataSourceType?: '院校级' | '院校专业组'
   confidenceLabel?: '中可信' | '需复核'
+}
+
+export interface ProvinceScoreLineTypeCapability {
+  type: string
+  label: string
+  description: string
+  queryable: boolean
+  dataStatus: 'AVAILABLE' | 'MISSING' | string
+  missingReason?: string
+  availableYears: number[]
+  sourceTables: string[]
+}
+
+export interface ProvinceScoreLineCapability {
+  provinceCode: ProvinceCode | string
+  provinceName: string
+  officialSourceName: string
+  officialSourceUrl?: string
+  policyMode: string
+  subjectMode: 'FIRST_CHOICE_312' | 'SELECTED_SUBJECTS_3_3' | string
+  dataStatus: 'PRE_OFFICIAL_DATA' | string
+  latestOfficialDataYear?: number
+  targetYear?: number
+  availableYears: number[]
+  subjectOptions: string[]
+  selectedSubjectOptions: string[]
+  notices: string[]
+  scoreLineTypes: ProvinceScoreLineTypeCapability[]
+  missingReasonByType: Record<string, string>
+}
+
+export interface ProvinceScoreLineRecord {
+  id?: number
+  provinceCode?: ProvinceCode | string
+  provinceName?: string
+  year?: number
+  scoreLineType?: string
+  batchCode?: string
+  batchName?: string
+  subjectCategory?: string
+  schoolCode?: string
+  schoolName?: string
+  majorGroupCode?: string
+  majorGroupName?: string
+  majorName?: string
+  minScore?: number
+  minRank?: number
+  sameScoreCount?: number
+  planCount?: number
+  score?: number
+  cumulativeCount?: number
+  rankLow?: number
+  rankHigh?: number
+  requiredSubjects?: string
+  sourceFile?: string
+  sourceUrl?: string
+  sourcePage?: string
+  dataStatus?: string
+  missingReason?: string
+}
+
+export interface ProvinceScoreLineQueryResult {
+  provinceCode: ProvinceCode | string
+  provinceName: string
+  year?: number
+  scoreLineType: string
+  subjectCategory?: string
+  dataStatus: 'AVAILABLE' | 'MISSING' | string
+  missingReason?: string
+  pageResult: PageResult<ProvinceScoreLineRecord>
 }
 
 export type GradientKey = '冲' | '稳' | '保' | '垫'
@@ -307,7 +453,7 @@ export interface GradientRangeSummary {
 }
 
 export interface HistoryRecord {
-  provinceCode?: 'GZ' | 'SC' | 'HB' | 'AH' | string
+  provinceCode?: ProvinceCode | string
   groupCode?: string
   year?: number
   minScore?: number
@@ -329,8 +475,8 @@ export interface HistoryRecord {
 
 /** 志愿表单 */
 export interface VolunteerFormData {
-  /** 省份代码：GZ=贵州，SC=四川，HB=湖北，AH=安徽 */
-  provinceCode: 'GZ' | 'SC' | 'HB' | 'AH'
+  /** 省份代码：GZ=贵州，SC=四川，HB=湖北，AH=安徽，GX=广西，HI=海南，YN=云南，HA=河南 */
+  provinceCode: ProvinceCode
   province?: string
   candidateType: CandidateType
   batchCode: string
@@ -368,7 +514,7 @@ export interface VolunteerFormData {
 /** 单个志愿项 */
 export interface VolunteerItem {
   index: number
-  provinceCode?: 'GZ' | 'SC' | 'HB' | 'AH' | string
+  provinceCode?: ProvinceCode | string
   volunteerUnitType?: 'MAJOR_96' | 'PROFESSIONAL_GROUP_45' | string
   volunteerUnitLabel?: string
   universityName: string
@@ -543,7 +689,7 @@ export interface PlanMetrics {
   /** 自动调平的中文说明，可直接拼到结果页提示。 */
   autoRebalanceNote?: string
   targetCount?: number
-  provinceCode?: 'GZ' | 'SC' | 'HB' | 'AH' | string
+  provinceCode?: ProvinceCode | string
   volunteerUnitType?: 'MAJOR_96' | 'PROFESSIONAL_GROUP_45' | string
   generationCostMs?: number
   generatedAtMs?: number
@@ -588,7 +734,7 @@ export interface AdvisorAdvice {
 
 /** 手填位次校验响应 */
 export interface RankCheckResponse {
-  provinceCode?: 'GZ' | 'SC' | 'HB' | 'AH' | string
+  provinceCode?: ProvinceCode | string
   provinceName?: string
   subjectType: string
   referenceYear?: number
@@ -616,7 +762,7 @@ export interface RankEstimateSummary extends RankCheckResponse {
 /** 志愿方案 */
 export interface VolunteerPlan {
   id: number
-  provinceCode?: 'GZ' | 'SC' | 'HB' | 'AH' | string
+  provinceCode?: ProvinceCode | string
   provinceName?: string
   volunteerUnitType?: 'MAJOR_96' | 'PROFESSIONAL_GROUP_45' | string
   volunteerUnitLabel?: string

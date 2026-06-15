@@ -128,7 +128,7 @@ async function restorePlan() {
   try {
     const res = await fetchVolunteerPlan(planId, safetyCode)
     const plan = res.data.data
-    volunteerStore.setPlanFromResponse(plan)
+    volunteerStore.setPlanFromResponse(plan, safetyCode)
     volunteerStore.setFormData(formDataFromPlan(plan))
     if (route.query.safetyCode || route.query.accessKey) {
       router.replace({ path: route.path, query: { ...route.query, safetyCode: undefined, accessKey: undefined } })

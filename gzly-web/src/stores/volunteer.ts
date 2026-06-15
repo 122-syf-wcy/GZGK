@@ -108,9 +108,9 @@ export const useVolunteerStore = defineStore('volunteer', () => {
   }
 
   /** 把后端返回的方案完整写入 store；兼容老版本只传 items 的调用点。 */
-  function setPlanFromResponse(plan: VolunteerPlan) {
+  function setPlanFromResponse(plan: VolunteerPlan, fallbackCredential = '') {
     planId.value = plan.id
-    const credential = plan.safetyCode || plan.accessKey || ''
+    const credential = plan.safetyCode || plan.accessKey || fallbackCredential || getStoredSafetyCode(plan.id)
     planSafetyCode.value = credential
     planItems.value = plan.items || []
     dataQualityWarning.value = plan.dataQualityWarning || ''

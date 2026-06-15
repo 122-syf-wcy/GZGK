@@ -1,5 +1,12 @@
 import http from './request'
-import type { Result, PageResult, ScoreLine, SchoolScoreSummary } from '@/types'
+import type {
+  Result,
+  PageResult,
+  ScoreLine,
+  SchoolScoreSummary,
+  ProvinceScoreLineCapability,
+  ProvinceScoreLineQueryResult,
+} from '@/types'
 import type { ProvinceCode } from '@/constants/provinces'
 
 /** 查询历年投档线 */
@@ -41,6 +48,47 @@ export function getSchoolScoreLineHistory(params: {
 /** 获取可选年份列表 */
 export function getScoreLineYears(provinceCode: ProvinceCode = 'GZ') {
   return http.get<Result<number[]>>('/score-line/years', { params: { provinceCode } })
+}
+
+/** 获取省份分数线查询能力矩阵 */
+export function getProvinceScoreLineCapability(provinceCode: ProvinceCode) {
+  return http.get<Result<ProvinceScoreLineCapability>>(`/score-lines/${provinceCode.toLowerCase()}/capability`)
+}
+
+export interface ProvinceScoreLineQueryParams {
+  year?: number
+  batchCode?: string
+  subjectCategory?: string
+  subjectType?: string
+  selectedSubjects?: string
+  schoolCode?: string
+  schoolName?: string
+  majorGroupCode?: string
+  majorName?: string
+  score?: number
+  page?: number
+  pageSize?: number
+}
+
+function scoreLineEndpoint(type: string): string {
+  if (type === 'control_line') return 'control-lines'
+  if (type === 'score_rank') return 'score-rank'
+  if (type === 'major_group_line') return 'major-group-lines'
+  if (type === 'major_score') return 'major-score-lines'
+  if (type === 'art_sport') return 'art-sport-lines'
+  return 'admission-lines'
+}
+
+/** 按省份 adapter 查询分数线，不跨省回退 */
+export function queryProvinceScoreLines(
+  provinceCode: ProvinceCode,
+  type: string,
+  params: ProvinceScoreLineQueryParams,
+) {
+  return http.get<Result<ProvinceScoreLineQueryResult>>(
+    `/score-lines/${provinceCode.toLowerCase()}/${scoreLineEndpoint(type)}`,
+    { params },
+  )
 }
 
 /** 热门专业TOP10 — 基于真实录取数据 */

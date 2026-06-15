@@ -63,7 +63,11 @@ const aiMeta = ref<{
 let eventSource: EventSource | null = null
 
 const modeProfile = computed(() => buildAiProfileSummary(volunteerStore.formData))
-const markdownHtml = computed(() => renderMarkdown(content.value))
+const markdownHtml = computed(() => renderMarkdown(content.value, { autoSectionHeadings: true }))
+
+function renderAiChatMarkdown(markdown: string) {
+  return renderMarkdown(markdown, { autoSectionHeadings: true })
+}
 
 function chanceOf(item: { chanceScore?: number }) {
   return item.chanceScore || 0
@@ -189,7 +193,7 @@ const reportSections = computed<ReportSection[]>(() => {
     return [{
       id: 'report-section-1',
       title: '完整诊断',
-      html: renderMarkdown(source),
+      html: renderMarkdown(source, { autoSectionHeadings: true }),
       preview: cleanPreviewText(source).slice(0, 110),
     }]
   }
@@ -197,7 +201,7 @@ const reportSections = computed<ReportSection[]>(() => {
   return sections.map((section, index) => ({
     id: `report-section-${index + 1}`,
     title: section.title,
-    html: renderMarkdown(section.lines.join('\n')),
+    html: renderMarkdown(section.lines.join('\n'), { autoSectionHeadings: true }),
     preview: section.preview,
   }))
 })
@@ -435,7 +439,7 @@ async function restorePlan() {
   try {
     const res = await fetchVolunteerPlan(planId, safetyCode)
     const plan = res.data.data
-    volunteerStore.setPlanFromResponse(plan)
+    volunteerStore.setPlanFromResponse(plan, safetyCode)
     volunteerStore.setFormData(formDataFromPlan(plan))
     if (route.query.safetyCode || route.query.accessKey) {
       router.replace({ path: route.path, query: { ...route.query, safetyCode: undefined, accessKey: undefined } })
@@ -739,7 +743,7 @@ function downloadBlob(blob: Blob, filename: string) {
             :messages="skillMessages"
             :loading="skillLoading"
             :error="skillError"
-            :render="renderMarkdown"
+            :render="renderAiChatMarkdown"
             @pick="fillSkillSuggestion"
             @send="sendSkillMessage"
           />
@@ -1633,6 +1637,8 @@ function downloadBlob(blob: Blob, filename: string) {
   font-size: 14px;
   line-height: 1.72;
   color: #2f3a44;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .markdown-body :deep(h2),
@@ -1658,6 +1664,29 @@ function downloadBlob(blob: Blob, filename: string) {
   font-size: 15px;
   line-height: 1.45;
   font-weight: 800;
+}
+
+.markdown-body :deep(.markdown-section-title) {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  margin: 12px 0 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #ede7db;
+  color: #5f4630;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 900;
+}
+
+.markdown-body :deep(.markdown-section-title::before) {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #9b7a55;
 }
 
 .markdown-body :deep(p) {
@@ -1688,11 +1717,76 @@ function downloadBlob(blob: Blob, filename: string) {
   color: #1f2933;
 }
 
+.markdown-body :deep(code) {
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: #ede7db;
+  color: #1f2933;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.92em;
+}
+
+.markdown-body :deep(pre) {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 12px 0;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: #1f2933;
+  color: #fffdf7;
+  line-height: 1.55;
+}
+
+.markdown-body :deep(pre code) {
+  display: block;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  white-space: pre;
+}
+
 .markdown-body :deep(hr) {
   height: 1px;
   margin: 16px 0;
   border: 0;
   background: rgba(31, 41, 51, 0.16);
+}
+
+.markdown-body :deep(.markdown-table-wrap) {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 12px 0;
+  border: 1px solid rgba(31, 41, 51, 0.12);
+  border-radius: 12px;
+  background: #fffdf7;
+  box-shadow: 0 1px 0 rgba(31, 41, 51, 0.03);
+}
+
+.markdown-body :deep(table) {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.markdown-body :deep(th),
+.markdown-body :deep(td) {
+  padding: 9px 11px;
+  border-bottom: 1px solid rgba(31, 41, 51, 0.1);
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-body :deep(th) {
+  background: #f7f2e8;
+  color: #1f2933;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.markdown-body :deep(tr:last-child td) {
+  border-bottom: 0;
 }
 
 .bottom-bar {

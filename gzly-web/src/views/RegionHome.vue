@@ -27,6 +27,7 @@ const router = useRouter()
 const provinceCode = computed(() => normalizeProvinceCode(route.params.provinceCode))
 const province = computed(() => getProvinceConfig(provinceCode.value))
 const isPreparing = computed(() => province.value.status !== 'open')
+const isQueryOnlyWorkspace = computed(() => province.value.workspaceMode === 'query-only')
 const isProfessionalGroupProvince = computed(() => province.value.volunteerUnitType === 'PROFESSIONAL_GROUP_45')
 
 const featureCards = computed(() => [
@@ -53,8 +54,10 @@ const featureCards = computed(() => [
     title: '智能填报',
     desc: isPreparing.value
       ? province.value.volunteerLockDescription
-      : `生成 ${province.value.targetCount} 个${province.value.volunteerUnit}草稿。`,
-    status: isPreparing.value ? '锁定' : '已开放',
+      : isQueryOnlyWorkspace.value
+        ? province.value.volunteerLockDescription
+        : `生成 ${province.value.targetCount} 个${province.value.volunteerUnit}草稿。`,
+    status: isPreparing.value ? '锁定' : isQueryOnlyWorkspace.value ? '历史估算' : '已开放',
     icon: isPreparing.value ? LockKeyhole : GraduationCap,
     path: '/volunteer',
     tone: isPreparing.value ? 'amber' : 'dark',
@@ -75,11 +78,11 @@ const metrics = computed(() => [
   { label: '志愿单位', value: province.value.volunteerUnit, note: province.value.targetBatch },
   { label: '目标数量', value: `${province.value.targetCount}`, note: isProfessionalGroupProvince.value ? '院校专业组' : '平行志愿' },
   { label: '官方来源', value: province.value.shortName, note: province.value.officialSource },
-  { label: '入口状态', value: province.value.statusLabel, note: isPreparing.value ? '先展示专区' : '主流程可用' },
+  { label: '入口状态', value: province.value.statusLabel, note: isPreparing.value ? '先展示专区' : isQueryOnlyWorkspace.value ? '查询态工作台' : '主流程可用' },
 ])
 
 watch(provinceCode, (code) => {
-  if (route.params.provinceCode !== code) {
+  if (route.params.provinceCode !== code || normalizeProvinceCode(route.query.provinceCode) !== code) {
     router.replace({ path: `/region/${code}`, query: province.value.routeQuery })
   }
 }, { immediate: true })
@@ -93,7 +96,8 @@ function goHome(): void {
 }
 
 function statusText(item: ProvinceConfig): string {
-  return item.status === 'open' ? '已开放' : '数据准备中'
+  if (item.status === 'open') return item.workspaceMode === 'query-only' ? '查询态开放' : '已开放'
+  return '资料核验中'
 }
 </script>
 

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import GlobalAnnouncement from '@/components/GlobalAnnouncement.vue'
 import GlobalWarning from '@/components/GlobalWarning.vue'
+import GlobalDisclaimerFooter from '@/components/GlobalDisclaimerFooter.vue'
+import SiteEntryGate from '@/components/SiteEntryGate.vue'
 </script>
 
 <template>
@@ -16,6 +18,8 @@ import GlobalWarning from '@/components/GlobalWarning.vue'
         </transition>
       </router-view>
     </main>
+    <GlobalDisclaimerFooter />
+    <SiteEntryGate />
   </div>
 </template>
 

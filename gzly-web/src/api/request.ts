@@ -28,8 +28,9 @@ http.interceptors.request.use((config) => {
   } else if (url.startsWith('/me/') || url === '/me') {
     token = userToken || adminToken
   } else {
-    // 业务 API：优先携带普通用户 token，其次 admin（admin 也允许调用业务 API）
-    token = userToken || adminToken
+    // 业务 API 多为公开接口：仅携带普通用户 token，不再回退 admin token，
+    // 避免管理员浏览前台时把高权限 token 暴露到公开业务请求中。
+    token = userToken
   }
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
@@ -59,6 +60,14 @@ http.interceptors.response.use(
       try {
         localStorage.removeItem('gz_user_token')
         localStorage.removeItem('gz_user_profile')
+      } catch {
+        // ignore
+      }
+    }
+    if (status === 401 && url.startsWith('/admin/')) {
+      // 管理端 token 失效：清理本机 admin token，避免失效凭证长期驻留
+      try {
+        localStorage.removeItem('gz_token')
       } catch {
         // ignore
       }
