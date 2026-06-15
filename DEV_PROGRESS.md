@@ -1,10 +1,321 @@
 # GZLY 开发进度交接
 
-更新时间：2026-05-18 17:00（v7.55 P1-P8 运维加固：磁盘清理 1.1G + Prometheus alerts 模板 + e2e smoke 脚本 + 前端 vitest 起步）
+更新时间：2026-06-15（v7.58 大批量功能落地：未上线 23 省 AI 问答 + 专业规划师 + 多省分数线查询 + HB/NextProvince 省份扩展 + 全站合规门禁 + 应用内运维后台；本轮把 6/11–6/14 此前游离在 git/文档外的改动统一收口提交）
 
 > 完整历史流水已归档到 `DEV_PROGRESS_ARCHIVE_20260426.md`。本文件只保留当前交接所需信息，后续每轮只追加高价值结论，避免继续膨胀。
 
-## 最新一轮变更（v7.55 P1+P4+P6+P8 运维加固，2026-05-18 17:00）
+## 最新一轮变更（v7.58 多省扩展 + AI 问答 + 专业规划师 + 全站合规门禁 + 运维后台，2026-06-15）
+
+承接 v7.57，本轮是一次跨度约 3 周（6/11–6/14）的大批量功能开发，把 GZLY 从「贵州为主 + SC/AH 试运行」推进到「8 省工作台 + 未上线 23 省 AI 问答 + 专业规划师 + 全站合规门禁 + 应用内运维后台」。这批改动此前一直游离在 git / 进度文档之外，本轮统一收口提交（按 data / backend / web / docs 分组多个 commit），并补齐进度文档。
+
+> 说明：v7.56 / v7.57 的数据底座加宽与安徽 ML 训练管线（`scripts/` + `ml-service/` + `docs/ops/anhui_baseline_runbook.md`）同样此前未提交，本轮一并收口。全量 `./mvnw test` + 前端 `npm run build/test` 回归**建议作为下一步执行**（本轮以代码与文档收口为主，尚未跑完整验证基线）。
+
+### 1. 未上线地区 AI 问答（AiQa，新子系统）
+
+面向**尚未接入完整志愿推荐的 23 个省级地区**（北京/广东/江苏…）提供 AI 多轮政策问答，**与已上线 8 省推荐链路完全解耦**：不生成正式志愿表、不伪造 2026 官方数据、不承诺录取。
+
+- **后端**：`AiQaController`（公开）+ `AdminAiQaController`（管理只读，绝不返回对话码）+ `AiQaService` / `AiQaChatClient`（**非流式** chat/completions）/ `AiQaContentParser`（解析 ` ```gzly-sources ` 来源块）/ `AiQaRegionRegistry`（8 省排除 + 23 省白名单）/ `AiQaSessionCodeService`（12 位对话码，BCrypt 哈希 + SHA256 指纹，DB 不存明文）。
+- **公开 API**：`GET /api/ai-qa/regions`、`POST /api/ai-qa/sessions`、`POST /api/ai-qa/sessions/restore`、`POST /api/ai-qa/sessions/{uid}/messages`、`GET /api/ai-qa/sessions/{uid}/messages?code=`，全部带 IP 限流（找回错误 5 次/IP/10min 锁定）。
+- **数据模型**（迁移 `db/20260613_ai_qa_unlaunched.sql`，**尚未并入 `schema.sql`，部署需单独跑**）：`ai_qa_session` / `ai_qa_message` / `ai_qa_evidence` / `ai_qa_context_compaction`。
+- **上下文压缩**：未压缩消息 >30 条或 token 估算 >3200 时调 LLM 摘要（失败规则兜底），实时窗口最多 24 条；摘要 + `memoryFacts` 持续注入系统 prompt。
+- **合规**：系统 prompt 硬规则 + `ComplianceTextGuard`（scene=`ai_qa`）+ 强制来源块 + AI 生成声明；单条 ≤1000 字、每会话每天 ≤100 条。
+- **前端**：`/ai-chat`（`AiChat.vue` 两步向导，自包含聊天 UI + 来源卡片）、`/ai-chat/drafts`（`AiChatDrafts.vue` 凭对话码找回）、管理页 `/admin/ai-qa`（`AiQaSessions.vue`）。`api/aiQa.ts` + `constants/unlaunched-regions.ts`。
+- **测试**：`AiQaContentParserTest` / `AiQaRegionRegistryTest` / `AiQaSessionCodeServiceTest`（纯逻辑单测）。
+
+### 2. 专业规划师（MajorPlanner，新功能）
+
+志愿填报前的「专业方向探索」工具：5 步问卷 → **规则引擎**对 15 个专业大类评分（确定性、可离线、**不依赖 LLM**）→ 雷达图 + Top10 方向 + 不建议方向；AI 深度解读为**可选增强**。明确不生成志愿表、不承诺录取就业。
+
+- **后端**：`MajorPlannerController` + `MajorPlannerService`（`scoreProfile()` 15 大类画像评分）+ `MajorPlannerCodeService`（规划码，与志愿 SafetyCode 同思路，独立实现）；AI 走 `AiService.chatForMajorPlanner()`，失败规则 Markdown 兜底。
+- **API**：`POST /api/major-planner/evaluate`、`POST /api/major-planner/restore`、`GET /api/major-planner/results/{id}`（Header `X-Major-Plan-Code`）、`POST /api/major-planner/results/{id}/ai-analysis`。**不登录**，靠 id + 规划码鉴权。
+- **数据模型**：`major_planner_result`（迁移 `db/20260613_major_planner.sql`，**已并入 `schema.sql`**）；规划码 BCrypt 哈希 + fingerprint 找回，URL 不含码。
+- **前端**：`/major-planner`（`MajorPlanner.vue`）、`/major-planner/result`（`MajorPlannerResult.vue`）；`api/majorPlanner.ts` + `utils/majorPlannerSession.ts`（sessionStorage 暂存）。
+- **测试**：`MajorPlannerControllerTest` / `MajorPlannerCodeServiceTest` / `MajorPlannerServiceTest`。
+
+### 3. 多省分数线查询 + 省份扩展（ScoreLines + HB / NextProvince）
+
+- **分数线查询**从贵州单接口升级为**按省 Adapter 的多类型查询**：`GET /api/score-lines/{省}/{capability|control-lines|score-rank|admission-lines|major-group-lines|major-score-lines|art-sport-lines}`。`ProvinceScoreLineService` + `ProvinceScoreLineAdapterRegistry` + `ScoreLineModels`；Adapter：GZ=`GuizhouAdapter`、SC/AH/HB/GX/YN/HA=`ProfessionalGroupAdapter`、HI=`HainanAdapter`（3+3 选科）。无数据时诚实返回 `MISSING` + 原因，**不跨省回退、不伪造**。
+- **省份矩阵**：GZ 完整 96 志愿｜SC/AH 完整 45 院校专业组｜**HB 湖北**独立链路（`HubeiBatchRuleRegistry` 6 批次 + `HubeiBatchSupportService`，本科主批可 `TRIAL_RECOMMEND`）｜**NextProvince（GX/HI/YN/HA）**（`NextProvincePolicyRegistry` + `NextProvinceBatchSupportService`，仅 `NEXT_PROVINCE_QUERY_ONLY` 查询型骨架）。
+- **引擎矩阵** `ProvinceBatchEngineMatrix`：GZ18 + SC18 + AH14 + HB6 + NextProvince24，`selfCheck()` 双向一致校验；HB 复用 `ProfessionalGroupVolunteerService`（`HubeiProfessionalGroup45Engine` 仅为标识名）。
+- **批次支持 API**（公开）：`/api/volunteer/recommend/{gz,sc,hb,ah,gx,hi,yn,ha}/batch-support`；`recommendForHubeiProvince()` / `recommendForNextProvinceQueryOnly()`。
+- 全局 `dataStatus=PRE_OFFICIAL_DATA`、`targetYear=2026`。前端：`ScoreLineQuery.vue` 改用新接口、`constants/provinces.ts` 8 省 workspaceMode、`api/scoreLine.ts`（新旧双轨）。
+
+### 4. 全站合规门禁 + 运维后台（SiteEntryGate + AdminOps）
+
+- **合规门禁（纯前端）**：`SiteEntryGate.vue`（挂在 `App.vue`，首次进站全屏强制阅读 + 滚到底 + 勾选，版本 `SITE_DISCLAIMER_VERSION=2026-06-13-v1` 存 localStorage）+ `DisclaimerNotice/Modal`、`GlobalDisclaimerFooter`、`PlanRestoreDialog`（planId + safetyCode 找回）；文案集中 `constants/disclaimer.ts`。
+- **运维后台**（均 admin JWT）：`AdminOpsController` `GET /admin/ops/health-check`（DB/Redis/AI/关键 API/磁盘 + 合规 guards）、`AdminAiOpsController`（`ai-status` + `test-volunteer` / `test-ai-qa` 探针）、`AdminFeedbackOpsController`（工单 list/status）、`AdminPlanOpsController`（方案软删 `restore` / `batch-restore`）。`AiCallLogService` 记录每次 AI 调用（不存 key）。前端新增 `/admin/ops`（`Ops.vue`）+ `AdminLayout` 导航。
+- **迁移**：`db/20260611_plan_history_soft_delete.sql`（`biz_plan_history` 软删列 + 索引，幂等）、`db/20260613_ops_cleanup.sql`（`biz_user_feedback` 工单字段 + 新表 `ai_call_log`）。
+
+### 5. 跨模块接线与限流
+
+`config/WebMvcConfig.java` + `application.yml` 为新端点补限流规则；`AdminController` / `FeedbackController` / `MePlanController` / `VolunteerController` / `VolunteerPlanController` / `SkillsAdminController` 及 `AiConfigService` / `AiService` / `BatchSupportService` / `PolicyRuleService` / `ProvincePolicyService` / `SafetyCodeService` / `SichuanDataAdminService` / `VolunteerService` 等为多省与新功能做适配；前端 `App.vue` / `main.ts` / `router/index.ts` / `types/index.ts` / `utils/markdown.ts`（+ DOMPurify）/ `api/*` 同步接线，新增 `__tests__`（markdown / numberInput / volunteer-batch-support）。
+
+### v7.58 已知缺口 / 下一轮入口
+
+1. **全量验证待跑**：`./mvnw test` 与前端 `npm run build` + `npm test` 尚未在本轮统一跑过，建议立即补一次绿色基线。
+2. **`ai_qa_*` 表未并入 `schema.sql`**：部署需手动执行 `db/20260613_ai_qa_unlaunched.sql`（其余 3 个迁移已并入或为幂等 ALTER）。
+3. **合规双版本并存**：站点门禁 `SITE_DISCLAIMER_VERSION=2026-06-13-v1` 与志愿生成 `DISCLAIMER_VERSION=2026-04-27-v1` 是两套；`SiteEntryGate` 未排除 `/admin`，后台也需先过门禁；`RiskConfirmCard.vue` 已建但未接入（VolunteerForm 仍用旧 `DisclaimerDialog`）。
+4. **MajorPlanner 未接线项**：`acceptPrivate` / `acceptSinoForeign` / `cityPreferences` / `provinceCode` 已收集但未参与规则评分；该模块端点暂无 Redis 限流。
+5. **ScoreLine 双轨**：旧 `/score-line/*` 与新 `/score-lines/{省}/*` 并存未统一；省控线 / 艺体线 / 专业最低分多省仍 `MISSING`（等 2026 官方数据）。
+6. **新模块测试偏薄**：多为纯逻辑单测，缺 Service/Controller 集成测试与前端测试。
+
+## 上一轮变更（v7.57 安徽 ML 训练管线 + 2024 数据回扫，2026-05-20 10:50）
+
+承接 v7.56「SC/AH 数据底座加宽」后用户「按照安徽最新政策然后设计算法之后补齐历年数据进行训练待 26 分数线出就更新，和贵州板块差不多的」，本轮把安徽 ML 训练管线从「runbook 待办」推进到「baseline 跑通 + 2024 回扫后台启动 + 单测覆盖」。
+
+### 1. 安徽算法 / 规则核对（已对齐官方 2025 实施办法）
+
+复核 `AnhuiBatchRuleRegistry`（14 批次）与 `AnhuiCompositeScoreCalculator`（5050 / 7030 / 1.2+0.8 体育）口径，全部与皖招委 2025-05-12《安徽省 2025 年普通高校招生工作实施办法》第 24-37 条原文一致：
+
+| 维度 | 官方 | 当前实现 |
+|---|---|---|
+| 普通本科批 | 45 院校专业组 × 6 专业 + 服从 | `AH_BENKE` `targetCount=45` `majorsPerGroup=6` `hasAdjustment=true` ✅ |
+| 提前批军公师范优师免医农技 | 20 平行（6 子类合一） | `AH_TIQIAN_BENKE_PARALLEL` 20 + `TIQIAN_BENKE_SUBTYPES` 6 ✅ |
+| 提前批司法应急消防其他 | 1 顺序 | `AH_TIQIAN_BENKE_SEQUENTIAL` 1 顺序 ✅ |
+| 国家专项 / 地方专项 | 20 平行 | `AH_NATIONAL_SPECIAL` / `AH_LOCAL_SPECIAL` 20 平行 ✅ |
+| 高校专项 | 1 院校专业组 | `AH_UNIVERSITY_SPECIAL` 1 顺序 ✅（与官方一致；非 gk100 报道的 20 平行） |
+| 艺术统考本科 A/B 段 + 音乐单投 | 20 平行 | `AH_ART_TONGKAO_BENKE` 20 平行 ✅（A/B 段已写入 supportNote） |
+| 体育本科文化控线 | 普通本科控线 × 65%（2025 物 300 / 历 310） | `SPORTS_BENKE_LINE_PHYSICS_DEFAULT=300` / `HISTORY=310` ✅ |
+| 平行同分排序 | 综合分→语+数→语/数→外语→首选→再选 | `OFFICIAL_TIE_BREAKER_TEXT` ✅ |
+| 调档比例 | 平行 105% / 省属 100% / 非平行 120% | 已在 `OFFICIAL_SOURCE_TEXT` 记录 ✅ |
+
+2026 实施办法尚未发布（约 6 月下旬），按 2025 同款建模，出文后再冲重。
+
+### 2. AH ML 训练 ETL 管线（v7.57 主交付）
+
+**新增 `ml-service/scripts/build_training_csv_ah.py`**（460 行，沿用 SC 同款结构，14 批次专属适配）：
+
+- 数据源 `data_admission_group_line × data_admission_group_plan × sys_university WHERE province_code='AH'`
+- 训练单元 `(school_id, group_code, subject_type)`
+- 新增 `_batch_code_ah()`：14 批次映射，按窄优先级匹配避免误命中（国家专项 → 地方专项 → 高校专项 → 本科提前批顺序/平行 → 高职提前批顺序/平行 → 艺术校考/统考本科/统考专科 → 体育本科/专科 → 高职专科 → 普通本科）
+- `subject_regime`：AH 2024 起新高考 3+1+2 → `new`；2023 及更早老高考 → `old`（与 SC 不同，SC 2025 起新高考）
+- 输出 quality report `reports/ah_training_quality_baseline.md` 含 batch 分布 + official context inventory
+- `--allow-no-lag` baseline 模式 + `--strict` 校验 + `--require-train-years` 强制年份完整性
+
+**实测 baseline（生产 2026-05-20 10:44）**：
+
+```
+[ah-etl] raw rows: 4702 → cleaned 4702 → enriched 4702 → trainable 4702 → exported 4702 (31 cols)
+yearCounts: {2025: 4702}
+batchCounts: {AH_BENKE: 4309, AH_NATIONAL_SPECIAL: 252, AH_TIQIAN_BENKE_PARALLEL: 87,
+              AH_LOCAL_SPECIAL: 25, AH_UNIVERSITY_SPECIAL: 24, AH_ZHUANKE: 4, AH_TIQIAN_ZHUANKE_PARALLEL: 1}
+featureCompleteness: {year/school_code/major_code/subject_type/batch_code/min_rank/current_plan_count: 100.0%,
+                      min_rank_lag_1: 0.13%}
+officialContext: {group_line_rows: 4702, group_line_distinct_groups: 4696, group_plan_rows: 14238,
+                  group_plan_resubject_filled: 14238, score_rank_rows: 961}
+```
+
+`min_rank_lag_1` 完整度 0.13% 是因为同 group 在多批次重复出现导致少量 lag 命中；本质上 AH 单年数据无法形成有效 lag 训练样本，必须等 AH 2024 数据齐备后才能去掉 `--allow-no-lag`。
+
+### 3. AH 2024 数据回扫（zjzw_pull_ah_year.py + 后台运行）
+
+**新增 `scripts/server/sichuan_2025/zjzw_pull_ah_year.py`**（210 行，参数化 `--year`）：
+
+- 复用 zjzw `score/province` API + `local_province_id=34`（安徽）
+- 与 `zjzw_pull_ah_2025.py`（硬编码 2025）的唯一差异是接受 `--year` 参数，可同时回填 2024 / 2026
+- `sourcePageUrl` URL encode 改成 `%E5%AE%89%E5%BE%BD`（安徽）
+- 仍 `school_verified` 等级，下游 `merge_zjzw_to_reviewed_ah.py` 必须按 OPTION A URL 净化后才能进 reviewed
+
+**生产 smoke（2026-05-20 10:44）**：北京工业大学 (school_id=30) 2024 物理类返回本科批 (627 分 / 12334 位次) + 国家专项计划本科批 (620 分 / 15308 位次) 各 1 条，证明 zjzw 端点确实返回 AH 2024 历史数据。
+
+**全量后台任务**：PID 585113 @ 2026-05-20 10:44，`--sleep 1.2`，2198 院校预计 ≤45 分钟完成，draft 落到 `/root/gzly_scraper/sichuan_2025/draft/zjzw_full_ah_2024_20260520_104450.csv`。当前 120/2198 (~5%)，rows=256，无 rate-limit。
+
+跑完后下一步（已在 `docs/ops/anhui_baseline_runbook.md` Phase B2 记录）：
+
+1. `merge_zjzw_to_reviewed_ah.py --draft <draft.csv> --output reviewed/AH/group_lines_ah_2024_reviewed.csv`（需把模板里的 2025 改成 2024）
+2. `import_province_group_lines.py --reviewed reviewed/AH/group_lines_ah_2024_reviewed.csv --year 2024 --province-code AH --no-dry-run`
+3. zjzw special CSV 拉 2024 招生计划 → `import_special_to_group_plan.py --year 2024 --province-code AH`
+4. AH 2024 一分一段：从中安在线 / 合肥本地宝拉取 3 列 tab 数据，改 `import_ah_score_rank.py` 的年份后入库 `data_score_rank`
+5. 重跑 `build_training_csv_ah.py --train-years 2024,2025 --min-rows 50`（去掉 `--allow-no-lag` 走正式 lag 训练）
+
+### 4. 单测覆盖（36 行新单测全绿）
+
+**新增 `ml-service/tests/test_build_training_csv_ah.py`**（90 行，36 个测试用例）：
+
+- 35 个 `_batch_code_ah` 参数化用例覆盖全 14 批次 + 空串 / None / 未知 兜底
+- 1 个 `normalize` regime 测试验证 AH 2024+ → new、2023- → old，覆盖文科/理科归一化为 历史类/物理类
+
+实测 `pytest tests/test_build_training_csv_ah.py -v` 36 passed in 2.41s ✅。
+
+后端 `./mvnw test -Dtest=AnhuiCompositeScoreCalculatorTest,ProvinceBatchEngineMatrixTest,VolunteerRecommendControllerTest` 38 passed ✅，无回归。
+
+### 5. 生产 smoke（v7.57 部署前快照）
+
+```
+[AH] 安徽主流程 + 多批次 engine 路由
+  ✓ AH AH_BENKE 物高 480/60000  → code=0 items=38 engine=AnhuiProfessionalGroup45Engine
+  ✓ AH AH_BENKE 物中 540/30000  → code=0 items=45
+  ✓ AH AH_BENKE 历高 580/30000  → code=0 items=41（单独验证；smoke 顺跑因限流 429）
+  ✓ AH AH_NATIONAL_SPECIAL      → code=0 items=60 engine=AnhuiSpecialPlanEligibilityEngine
+  ✓ AH AH_UNIVERSITY_SPECIAL    → code=0 items=20 engine=AnhuiSequentialCollegeEngine
+  ✓ AH AH_TIQIAN_BENKE_PARALLEL → code=0 items=45 engine=AnhuiSpecialPlanEligibilityEngine
+  ✓ AH AH_ART_TONGKAO_BENKE     → code=0 items=0 engine=AnhuiArtCompositeEngine（数据为空，规则就位）
+  ✓ AH AH_SPORTS_BENKE          → code=0 items=0 engine=AnhuiSportsCompositeEngine（同上）
+```
+
+三省 18 个关键组合 + composite-score 端点 19/20 passed（唯一 fail 是 AH 历高被 smoke 顺跑触发 429 限流，单独请求 41 items 正常）。顺手修复 `smoke_test_all_provinces.sh` 第 101 行 `${prov^^}` bash 4+ 才支持的语法 → 改成 `tr '[:lower:]' '[:upper:]'` 兼容 zsh/macOS 自带 bash 3.2。
+
+### v7.57 待办 / 下一轮入口
+
+1. **AH 2024 zjzw 回扫完成后**（约 11:30）→ merge + admin API 入库，让 `data_admission_group_line` 出现 AH 2024 行
+2. **AH 2024 一分一段补齐** → 从安徽考试院 / 中安在线手取或 vision OCR，入库 `data_score_rank`
+3. **AH 2024 招生计划补齐** → zjzw special CSV + `import_special_to_group_plan.py --year 2024`
+4. **完成 1-3 后**重跑 `build_training_csv_ah.py --train-years 2024,2025 --min-rows 50` 出 lag 训练样本
+5. **不要现在 active AH 专属模型**：单年数据训练只会过拟合，等至少 ≥2 年新高考数据齐备再开启
+6. **2026 实施办法发布后**（6 月下旬）：核对 14 批次是否需要冲重；2026 数据出后跑 `--train-years 2024,2025,2026 --require-train-years`
+
+## 上一轮变更（v7.56 SC/AH 数据底座加宽，2026-05-18 22:20）
+
+承接 v7.55 用户「负责这个项目，看看数据获取怎么样了」，本轮一口气把数据获取层做了三件事：选科要求零成本回填、新批次 plan 入库、考试院 catalog vision 抽取管线起步。
+
+### 1. zjzw `subjectInfo` → `resubject_requirement` 全量回填（14558 行）
+
+**问题**：v7.52 的 `import_special_to_group_plan.py` 第 78 行写 `"resub": ""  # 不分解 sg_info 二级`，又在 `ON DUPLICATE KEY UPDATE` 子句里漏列了 `resubject_requirement` 字段，导致：
+- SC 6006 行中仅 v7.51 老 csv 那 140 行有选科要求
+- AH 8552 行选科要求列全部为空字符串
+
+**修复**：
+- 新增 `parse_subject_info()` 解析「首选物理，再选化学」「首选历史，再选化学、生物(2科必选)」「首选物理，再选思想政治」等 12 种 zjzw 写法，归一化为 GZ 既有口径（`不限/化学/生物/政治/地理/化学和生物/政治和地理`...）
+- ON DUPLICATE KEY UPDATE 加 `resubject_requirement=VALUES(resubject_requirement)`
+- 9/9 单测全过，对历史 140 行 manual_verified_csv 不动（避免覆写人工核验数据）
+
+**复跑结果**：SC 6006/6006 + AH 8552/8552 = **14558 行选科要求落库**，分布：
+| 取值 | SC | AH |
+|---|---|---|
+| 化学 | 2953 | 4787 |
+| 不限 | 2719 | 3382 |
+| 政治 | 118 | 126 |
+| 化学和生物 | 89 | 127 |
+| 地理 | 41 | 60 |
+| 生物 | 38 | 64 |
+| 政治和地理 | 3 | 5 |
+
+「major_requirement 选科要求」这一长期欠账以零额外成本一次性收口。
+
+### 2. `BATCH_NORM_MAP` 扩展，捕到之前被丢的 7681 行 plan
+
+承接 v7.51 用户在 SC 数据补齐时发现 BATCH_NORM_MAP 过窄只覆盖 5 个本科批/专项批。本轮发现 zjzw special CSV 里还有 7300+ 行被 `skip_no_batch` 直接丢掉：
+- SC: 1052 行专科批 + 123 行本科提前批B段 + 45 行本科提前批A段 + 35 行专科提前批 + 2 行本科提前批高校专项 + 2 行裸本科提前批
+- AH: 5399 行专科批 + 343 行本科提前批 + 227 行专科提前批 + 50 行地方专项计划 + 7 行高校专项计划
+
+**扩展**：把 `本科提前批A段/B段/裸本科提前批/本科提前批(高校专项)/专科批/专科提前批/地方专项计划批/高校专项计划批` 全部加进 `BATCH_NORM_MAP`，每个 value 都对齐 `SichuanBatchRuleRegistry` / `AnhuiBatchRuleRegistry` 的 batchName/aliases，确保 BatchListingRecommendationService 能查到。
+
+**复跑结果**：
+- SC 6006 → **7444 行**（+1438：1006 专科批 + 104 提前批B + 35 专科提前批 + 19 提前批A + ...）
+- AH 8552 → **14795 行**（+6243：5314 专科批 + 188 本科提前批 + 143 专科提前批 + 36 地方专项 + 5 高校专项）
+- `skip_no_batch=0` 双省全清，剩 18 + 86 行因学校没在 `uni_official_link` 里跳过（合规过滤）
+
+**生产 smoke 实测**（公网 39.97.232.141，X-Safety-Code 头）：
+- `AH_ZHUANKE 350 物化生` → `code=0 engine=QueryOnlyRecommendEngine items=40` ✅ 专科批可查询了
+- `AH_TIQIAN_BENKE_PARALLEL / AH_LOCAL_SPECIAL / AH_UNIVERSITY_SPECIAL` → `code=0 items=0`：plan 已入库但 `data_admission_group_line` 这边只有 `普通本科批`，三个批次的 line 数据需后续走 `merge_zjzw_to_reviewed_v2.py` + `import_province_group_lines.py` admin API 入库才能真正出推荐
+
+### 3. 考试院专业目录 (sceea.cn) vision 抽取管线
+
+**目的**：补 SC plan_count / tuition / studyYears（zjzw 任何端点都不返）。
+
+**发现**：四川省教育考试院《2025 招生计划合订本》（plan.sceea.cn）不是 PDF 是 372 张扫描 GIF：
+- 物理类 `lk (1-232).gif`，本科段约 23-141 页（118 页），单张 800KB-1MB，1200x1800 分辨率
+- 历史类 `wk (1-140).gif`，本科段 5-61 页（57 页）
+- Tesseract 4.1.1 chi_sim 输出基本不可用；项目已接入的 `mimo-v2.5` vision 模型抽取质量很好
+
+**新增脚本** `scripts/server/sichuan_2025/`:
+- `extract_catalog_pages.py` —— `--series lk|wk --pages 5-22,30,100-141` 范围抽取，PIL 自动 GIF→PNG，OpenAI 兼容 vision API，`chat_template_kwargs.enable_thinking=false + reasoning_effort=low` 关闭推理省 token，错位 JSON 恢复器逐对象解析 markdown 包裹 / 截断 / 多重引号场景，输出 resumable JSON（重跑跳过已抽页）
+- `import_catalog_extract.py` —— 全部 JSON 行 → sys_university 名称→school_id 映射 → `(school_id, normalized_major_name, subject_type)` 候选筛选 → unique=UPDATE plan_count/tuition/study_years, ambig=CSV 留检，dry-run 默认
+
+**调用样例**:
+```bash
+set -a; source /etc/gzly/vision.env; set +a
+python3.11 extract_catalog_pages.py --series lk --pages 23-141 --model mimo-v2.5
+MYSQL_PWD=$DB_PASS python3.11 import_catalog_extract.py --apply
+```
+
+### 4. v7.56 boundary probe 实测结果
+
+| 页码 | 批次 | 行数 | planFilled | tuitionFilled | 备注 |
+|---|---|---|---|---|---|
+| lk 5-8 | 本科提前批A段 | 423 | 100% | 12% | 4 页 |
+| lk 23 | 本科批A段 | 112 | 100% | 99% |  |
+| lk 30 | 本科批A段+地方专项 | 157 | 100% | 100% | 7 校 |
+| lk 142 | 省属高校少数民族预科 | 61 | 100% | 100% |  |
+| lk 143 | 高职(专科)提前批 | 120 | 100% | 100% |  |
+| lk 150 | 高职(专科)批 | 178 | 100% | 99% |  |
+| lk 200 | 艺术类本科批 | 83 | 100% | 99% |  |
+| TOC lk 4 | 本科 5-22, 本科批 23-202 | OCR 几秒搞定 | - | - | 极快 |
+
+样本 580 行做 dry-run 匹配：unique 38 行（6.6%）/ ambig 4 / unresolved school 65（多为军校）/ no major match 473。
+
+**真相**：catalog 用 SC 本省 4 位「院校代号」（5116）+ 3 位「专业组代号」（501/502），zjzw 用 gaokao.cn 内部 ID（274）+ 自己的 3 位组代号（101/103），两套编号无法 1:1。`(school_id, major_name)` 单字段匹配会让同一 DB 行被多条 catalog 重复 UPDATE，必须扩展键到 `(school_id, group_code-via-cross-mapping, major_code)`。这一步需要先建 `catalog_school_code↔school_id` 与 `catalog_group_code↔zjzw_group_code` 两张映射表，留给下一轮做。
+
+### 5. overnight 后台抽取任务
+
+22:00 启动两个 worker 并发跑：
+- LK PID 459928 — `lk pages 9-22,24-29,31-141`（131 页）
+- WK PID 459929 — `wk pages 5-61`（57 页）
+
+并发降速到 ~4.5 min/页（单 worker ~138s/页，双 worker 共享 API 慢约一倍）。估计 lk worker 是瓶颈，约 5-6 小时完成，03:00-04:00 落到 `/root/gzly_scraper/sichuan_2025/catalog_extract/`。
+
+**恢复执行**：脚本 resumable，存在 .json 且 rows 非空就跳过；要重跑加 `--force`。
+
+### v7.56 验证基线
+
+- Python 单测 `parse_subject_info` 9/9 通过、`parse_json_safe` 3/3 通过
+- DB 校验：SC 7444 / AH 14795 行 `first_subject_requirement` + `resubject_requirement` 双填率 100%
+- 生产 smoke：GZ NORMAL_UNDERGRADUATE / SC SC_BENKE_B / AH AH_BENKE 三大主流程 `code=0 items=96/45/45 supportLevel=TRIAL_RECOMMEND` 全过，新增 AH_ZHUANKE 已能查询 40 items
+- catalog 抽取 9 页样本入盘：lk 5,6,7,8,23,30,142,143,150,200 = 1102 行真实数据
+
+### 6. v7.56 第四件事：AH line 端补齐 + Java 校验放开 + 重部署
+
+承接前面 plan 端入库后发现 4 个新批次都 `code=0 items=0`（line 表空），本轮一并干完。
+
+#### Java 校验放开
+
+`SichuanDataAdminService.validateGroupLineRow` 第 796-799 行的「batch 必须 contains 本科 AND 批」AND 校验把 `国家专项计划 / 地方专项计划 / 高校专项计划 / 专科批 / 专科提前批` 全部 reject。新增 `isSupportedBatchKeyword()` 白名单：本科 / 专科 / 专项 / 提前批 / 高职 任一关键词即可。
+
+**改动**：`gzly-server/src/main/java/com/gzly/service/SichuanDataAdminService.java` +13/-4 行。
+
+#### merge_zjzw_to_reviewed_v2 BATCH_NORM 同步扩展
+
+`scripts/server/sichuan_2025/merge_zjzw_to_reviewed_v2.py` BATCH_NORM 加 8 类批次别名（与 `import_special_to_group_plan.py` 完全对齐），AH zjzw_full_v2 CSV 复跑 merge：existing 4282 + new **420** = 4702 行。
+
+#### 部署 + admin 入库
+
+- `./mvnw test` 318/0/0 全绿
+- `deploy_backend_safe.sh` 22:06:51 部署成功，旧 JAR 备份 `app.jar.20260518220642.bak`
+- `import_province_group_lines.py --no-dry-run` 跑出 `inserted=420 / updated=4282 / rejected=0`
+- 备份 `line_ah_before_v756_20260518220716.sql`
+
+#### AH data_admission_group_line 最终分布
+
+| batch | 行数 | 状态 |
+|---|---|---|
+| 普通本科批 | 4309 | +27 |
+| 国家专项计划 | 252 | **NEW** |
+| 本科提前批 | 87 | **NEW** |
+| 地方专项计划 | 25 | **NEW** |
+| 高校专项计划 | 24 | **NEW** |
+| 专科批 | 4 | **NEW** |
+| 专科提前批 | 1 | **NEW** |
+
+#### 生产 smoke：5/5 AH 新批次返回 items
+
+| 场景 | v7.55 之前 | v7.56 部署后 |
+|---|---|---|
+| AH_BENKE 580 | 45 items TRIAL_RECOMMEND ✅ | 45 items（同）✅ |
+| AH_TIQIAN_BENKE_PARALLEL 600 | **0 items** | **45 items** QUERY_ONLY ✅ |
+| AH_NATIONAL_SPECIAL 560 | **0 items** | **60 items** QUERY_ONLY ✅ |
+| AH_LOCAL_SPECIAL 540 | **0 items** | **19 items** QUERY_ONLY ✅ |
+| AH_UNIVERSITY_SPECIAL 620 | **0 items** | **20 items** QUERY_ONLY ✅ |
+
+### v7.56 待办（明早 catalog 跑完后继续）
+
+1. **catalog → DB 映射**：建 `catalog_school_code → school_id` 与 `catalog_group_code → zjzw_group_code` 映射表，把 `import_catalog_extract.py` 改成精确匹配，跑全量 UPDATE plan_count/tuition/study_years
+2. **SC 本科提前批 / 专科批 line**：zjzw score/province 端点不返这些批次，得继续从考试院 catalog 抽（v7.56 已建抽取管线，本轮没时间整合）
+3. **SichuanDataAdminServiceTest 补单测**：新增 `validateGroupLineRow_acceptsSupportedBatches` / `rejectsUnsupportedBatch` 两个用例，防漂
+4. **SC 同款 line 数据补**：catalog 抽完后从其 batch 字段反推出 line 行 + admin API 入库（绕过 zjzw 不返 SC 专科批的问题）
+
+---
+
+## 上一轮变更（v7.55 P1+P4+P6+P8 运维加固，2026-05-18 17:00）
 
 承接 v7.54 5 项优化完成后用户「看看还有什么需要优化的地方」的二轮深 audit，发现 4 项 P1-P8 可立即做：
 
