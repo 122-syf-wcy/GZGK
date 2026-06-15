@@ -114,4 +114,15 @@ class RecommendEngineRouterTest {
         assertThat(decision.getBatchCode()).isEqualTo("UNKNOWN_BATCH");
         assertThat(decision.getEngineName()).isNotEqualTo(OrdinaryParallelMajorEngine.NAME);
     }
+
+    @Test
+    void nextProvinces_shouldNeverRouteToGuizhouOrdinaryEngine() {
+        for (String province : List.of("GX", "HI", "YN", "HA")) {
+            RecommendEngineDecision decision = router.resolve(province, "普通类", province + "_QUERY_ONLY");
+
+            assertThat(decision.getEngineName()).isEqualTo(QueryOnlyRecommendEngine.NAME);
+            assertThat(decision.getSupportLevel()).isEqualTo("UNSUPPORTED");
+            assertThat(decision.getEngineName()).isNotEqualTo(OrdinaryParallelMajorEngine.NAME);
+        }
+    }
 }

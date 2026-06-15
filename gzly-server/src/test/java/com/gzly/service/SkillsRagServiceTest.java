@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -116,6 +117,29 @@ class SkillsRagServiceTest {
         verify(aiService, times(1)).chatWithAdvisorSkill(anyString(), anyString(), anyString(), anyString(), any());
         // 持久化
         verify(queryLogMapper).insert(any(SkillsQueryLog.class));
+    }
+
+    @Test
+    void ask_sendsCompactPlanContextToAi() {
+        VolunteerService.PlanResult plan = samplePlan();
+        for (int i = 3; i <= 40; i++) {
+            plan.getItems().add(item(i, i % 3 == 0 ? "冲" : "稳", "测试大学" + i, "测试专业" + i));
+        }
+        when(volunteerService.getPlanResult(101L, "key")).thenReturn(plan);
+        when(chunkMapper.selectList(any())).thenReturn(List.of(chunk(7L, "专业选择策略要看就业方向")));
+        when(aiService.chatWithAdvisorSkill(anyString(), anyString(), anyString(), anyString(), any()))
+                .thenReturn("> 本内容由 AI 生成，仅供参考。\n\n建议先看就业、再看城市。");
+
+        service.ask(101L, "key", "这份方案稳吗？", null, null);
+
+        verify(aiService).chatWithAdvisorSkill(
+                anyString(),
+                argThat(context -> context.contains("\"focusItems\"")
+                        && context.contains("\"totalItems\":40")
+                        && !context.contains("测试大学40")),
+                anyString(),
+                anyString(),
+                any());
     }
 
     @Test

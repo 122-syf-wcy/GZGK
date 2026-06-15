@@ -56,7 +56,11 @@ public class SafetyCodeService {
             return false;
         }
         PlanHistory history = planHistoryMapper.selectById(planId);
-        return history != null && verify(planId, code, history.getSafetyCodeHash());
+        return history != null && !isDeleted(history) && verify(planId, code, history.getSafetyCodeHash());
+    }
+
+    public boolean isDeleted(PlanHistory history) {
+        return history != null && Integer.valueOf(1).equals(history.getDeleted());
     }
 
     public String generateSafetyCode() {

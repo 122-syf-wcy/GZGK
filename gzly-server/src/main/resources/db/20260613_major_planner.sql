@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS `major_planner_result` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `plan_no` VARCHAR(40) NOT NULL COMMENT '规划编号',
+  `plan_code_hash` VARCHAR(120) NOT NULL COMMENT '规划码 BCrypt 哈希',
+  `plan_code_fingerprint` CHAR(64) NOT NULL COMMENT '规划码不可逆指纹，用于找回定位',
+  `plan_code_masked` VARCHAR(20) NOT NULL DEFAULT '' COMMENT '规划码掩码展示',
+  `province_code` VARCHAR(10) DEFAULT NULL COMMENT '所在省份，可空',
+  `subject_category` VARCHAR(80) NOT NULL DEFAULT '' COMMENT '选科/科类',
+  `score` INT DEFAULT NULL COMMENT '分数，可空',
+  `province_rank` INT DEFAULT NULL COMMENT '位次，可空',
+  `answers_json` MEDIUMTEXT NOT NULL COMMENT '问卷答案 JSON',
+  `result_json` LONGTEXT NOT NULL COMMENT '规则评分结果 JSON',
+  `ai_summary` MEDIUMTEXT NULL COMMENT 'AI 深度解读',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` DATETIME NULL COMMENT '软删除时间',
+  UNIQUE KEY `uk_major_planner_plan_no` (`plan_no`),
+  KEY `idx_major_planner_code_fp` (`plan_code_fingerprint`),
+  KEY `idx_major_planner_created` (`created_at`),
+  KEY `idx_major_planner_deleted_created` (`deleted_at`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='专业选择规划结果表';

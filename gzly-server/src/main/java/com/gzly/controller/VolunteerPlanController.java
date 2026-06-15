@@ -63,10 +63,13 @@ public class VolunteerPlanController {
         }
         int safePage = Math.max(1, page);
         int safeSize = Math.max(1, Math.min(pageSize, LIST_PAGE_SIZE_MAX));
-        QueryWrapper<PlanHistory> total = new QueryWrapper<PlanHistory>().eq("safety_code_fingerprint", fingerprint);
+        QueryWrapper<PlanHistory> total = new QueryWrapper<PlanHistory>()
+                .eq("safety_code_fingerprint", fingerprint)
+                .eq("deleted", 0);
         long count = planHistoryMapper.selectCount(total);
         QueryWrapper<PlanHistory> wrapper = new QueryWrapper<PlanHistory>()
                 .eq("safety_code_fingerprint", fingerprint)
+                .eq("deleted", 0)
                 .orderByDesc("created_at")
                 .last("LIMIT " + ((safePage - 1) * safeSize) + ", " + safeSize);
         List<PlanHistory> rows = planHistoryMapper.selectList(wrapper);

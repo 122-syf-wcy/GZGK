@@ -18,7 +18,7 @@ public class SkillsAdminController {
     private final SkillsSyncService skillsSyncService;
     private final SkillsSourceMapper sourceMapper;
 
-    @GetMapping("/skills/sources")
+    @GetMapping("/admin/skills/sources")
     public Result<List<SkillsSource>> sources() {
         return Result.ok(sourceMapper.selectList(new LambdaQueryWrapper<SkillsSource>()
                 .orderByDesc(SkillsSource::getLastSyncTime)

@@ -81,6 +81,9 @@ public class VolunteerController {
         Long userId = tryExtractUserId(httpReq);
         String clientIp = getClientIp(httpReq);
         String provinceCode = provincePolicyService.normalizeProvinceCode(req == null ? null : req.getProvinceCode());
+        if (provincePolicyService.isNextProvinceQueryOnly(provinceCode)) {
+            throw new BizException(400, "当前省份仍处于 PRE_OFFICIAL_DATA 查询阶段，请使用 /volunteer/recommend 查询政策与数据缺口。");
+        }
         PlanResult result = provincePolicyService.isProfessionalGroupProvince(provinceCode)
                 ? professionalGroupVolunteerService.generate(req, userId, clientIp)
                 : volunteerService.generate(req, userId, clientIp);

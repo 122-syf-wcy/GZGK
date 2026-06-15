@@ -88,6 +88,7 @@ public class VolunteerService {
     private static final int MAX_POSITIVE_OFFSET = 100000;
     private static final List<String> GRADIENT_ORDER = List.of("冲", "稳", "保", "垫");
     private static final String NEIGHBOR_GRADIENT_BACKFILL = "NEIGHBOR_GRADIENT_BACKFILL";
+    private static final String RANK_RELAX_BACKFILL = "RANK_RELAX_BACKFILL";
     private static final DefaultRedisScript<Long> RELEASE_GENERATE_LOCK_SCRIPT = new DefaultRedisScript<>(
             "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
             Long.class);
@@ -568,6 +569,7 @@ public class VolunteerService {
     private static class GenerationStats {
         private int specialExcludedCount;
         private int neighborGradientBackfillCount;
+        private int rankRelaxBackfillCount;
 
         void incrementSpecialExcluded() {
             specialExcludedCount++;
@@ -575,6 +577,10 @@ public class VolunteerService {
 
         void addNeighborGradientBackfill(int count) {
             neighborGradientBackfillCount += Math.max(0, count);
+        }
+
+        void addRankRelaxBackfill(int count) {
+            rankRelaxBackfillCount += Math.max(0, count);
         }
     }
 
@@ -728,6 +734,12 @@ public class VolunteerService {
         allItems.addAll(baoItems);
         allItems.addAll(dianItems);
 
+        // 3.5 全局放宽兜底：按用户手填位次几乎查不到候选（多因分数-位次错配）时，
+        //     用分数对应的官方一分一段位次重算梯度窗口补充真实候选，避免返回空集。
+        //     仅补充真实历史候选并标记补位来源，不伪造数据、不绕过硬规则过滤。
+        relaxBackfillByScoreRank(allItems, req, rankResolution, subjectType, profile,
+                policyTargetCount, generationStats, filterCriteria);
+
         // 按历年最低位次从小到大排序（位次越小=录取难度越高=排在前面）
         allItems.sort(Comparator.comparingInt(VolunteerItem::getHistoryMinRank));
 
@@ -766,6 +778,7 @@ public class VolunteerService {
         List<ManualReviewItem> manualReviewItems = buildManualReviewList(allItems);
         String dataQualityWarning = buildDataQualityWarning(req, subjectType, allItems, rankResolution.summary());
         dataQualityWarning = appendNeighborBackfillWarning(dataQualityWarning, generationStats);
+        dataQualityWarning = appendRankRelaxWarning(dataQualityWarning, generationStats, rankResolution.summary());
         dataQualityWarning = appendPortfolioSafetyWarning(dataQualityWarning, portfolioSafety);
         if (rebalanceResult.applied()) {
             dataQualityWarning = appendAutoRebalanceWarning(dataQualityWarning, rebalanceResult,
@@ -925,6 +938,114 @@ public class VolunteerService {
         }
     }
 
+    /**
+     * 保存 QUERY_ONLY 策略建议结果。
+     *
+     * <p>该链路只写用户方案历史，用于生成 resultId 和一次性查看凭证；
+     * 不写正式招生表，不导入数据，不把明文 safetyCode 放入 JSON 字段。</p>
+     */
+    public PlanResult saveQueryOnlyPlanResult(GenerateRequest req,
+                                              PlanResult plan,
+                                              Long userId,
+                                              String clientIp) {
+        if (req == null || plan == null) {
+            throw new BizException("策略建议结果不能为空");
+        }
+        SafetyCodeService.SafetyCodeIssue safetyCodeIssue = safetyCodeService.issue(req.getSafetyCode());
+        LocalDateTime now = LocalDateTime.now();
+
+        PlanHistory history = new PlanHistory();
+        history.setUserId(userId != null ? userId : 0L);
+        history.setClientIp(clientIp);
+        history.setProvinceCode(safeTrim(plan.getProvinceCode()).isBlank()
+                ? provincePolicyService.normalizeProvinceCode(req.getProvinceCode())
+                : provincePolicyService.normalizeProvinceCode(plan.getProvinceCode()));
+        history.setVolunteerUnitType(safeTrim(plan.getVolunteerUnitType()).isBlank()
+                ? policyVolunteerUnitType(req)
+                : safeTrim(plan.getVolunteerUnitType()));
+        history.setTargetBatch(safeTrim(plan.getTargetBatch()).isBlank()
+                ? policyBatchName(req)
+                : safeTrim(plan.getTargetBatch()));
+        history.setAgreedDisclaimer(Boolean.TRUE.equals(req.getAgreedDisclaimer()) ? 1 : 0);
+        history.setDisclaimerVersion(req.getDisclaimerVersion());
+        history.setDisclaimerConfirmedAt(now);
+        history.setTotalScore(plan.getTotalScore());
+        history.setProvinceRank(plan.getProvinceRank());
+        history.setFirstSubject(safeText(plan.getFirstSubject()));
+        history.setStrategyMode(safeText(plan.getStrategyMode()));
+        history.setDecisionPriority(safeText(plan.getDecisionPriority()));
+        history.setCareerGoal(safeText(plan.getCareerGoal()));
+        history.setTuitionBudget(safeText(plan.getTuitionBudget()));
+        history.setAcceptPrivate(Boolean.TRUE.equals(plan.getAcceptPrivate()) ? 1 : 0);
+        history.setAcceptSinoForeign(Boolean.TRUE.equals(plan.getAcceptSinoForeign()) ? 1 : 0);
+        history.setDataQualityWarning(plan.getDataQualityWarning());
+        history.setItemCount(plan.getItems() == null ? 0 : plan.getItems().size());
+        history.setSafetyCodeHash(safetyCodeIssue.safetyCodeHash());
+        history.setSafetyCodeFingerprint(safetyCodeService.fingerprint(safetyCodeIssue.safetyCode()));
+        history.setSafetyCodeCreatedAt(now);
+        history.setSafetyCodeVersion(1);
+        history.setCreatedAt(now);
+        try {
+            history.setResubjects(objectMapper.writeValueAsString(plan.getResubjects() == null ? List.of() : plan.getResubjects()));
+            history.setPreferredMajors(objectMapper.writeValueAsString(plan.getPreferredMajors() == null ? List.of() : plan.getPreferredMajors()));
+            history.setPreferredRegions(objectMapper.writeValueAsString(plan.getPreferredRegions() == null ? List.of() : plan.getPreferredRegions()));
+            history.setPlanJson(objectMapper.writeValueAsString(plan.getItems() == null ? List.of() : plan.getItems()));
+            history.setManualReviewJson(objectMapper.writeValueAsString(
+                    plan.getManualReviewItems() == null ? List.of() : plan.getManualReviewItems()));
+            history.setMetricsJson(objectMapper.writeValueAsString(plan.getMetrics()));
+            history.setRequestSnapshotJson(objectMapper.writeValueAsString(buildQueryOnlySnapshot(req, plan)));
+        } catch (JsonProcessingException e) {
+            throw new BizException("序列化策略建议失败");
+        }
+        planHistoryMapper.insert(history);
+
+        plan.setId(history.getId());
+        plan.setSafetyCode(safetyCodeIssue.safetyCode());
+        plan.setAccessKey(safetyCodeIssue.safetyCode());
+        plan.setCreatedAt(now.toString());
+        return plan;
+    }
+
+    private Map<String, Object> buildQueryOnlySnapshot(GenerateRequest req, PlanResult plan) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("totalScore", plan.getTotalScore());
+        snapshot.put("provinceCode", provincePolicyService.normalizeProvinceCode(
+                safeTrim(plan.getProvinceCode()).isBlank() ? req.getProvinceCode() : plan.getProvinceCode()));
+        snapshot.put("volunteerUnitType", plan.getVolunteerUnitType());
+        snapshot.put("targetBatch", plan.getTargetBatch());
+        snapshot.put("targetCount", plan.getTargetCount());
+        snapshot.put("provinceRank", plan.getProvinceRank());
+        snapshot.put("firstSubject", safeText(plan.getFirstSubject()));
+        snapshot.put("resubjects", plan.getResubjects() == null ? List.of() : plan.getResubjects());
+        snapshot.put("preferredMajors", plan.getPreferredMajors() == null ? List.of() : plan.getPreferredMajors());
+        snapshot.put("preferredRegions", plan.getPreferredRegions() == null ? List.of() : plan.getPreferredRegions());
+        snapshot.put("strategyMode", safeText(plan.getStrategyMode()));
+        snapshot.put("decisionPriority", safeText(plan.getDecisionPriority()));
+        snapshot.put("careerGoal", safeText(plan.getCareerGoal()));
+        snapshot.put("tuitionBudget", safeText(plan.getTuitionBudget()));
+        snapshot.put("acceptPrivate", Boolean.TRUE.equals(plan.getAcceptPrivate()));
+        snapshot.put("acceptSinoForeign", Boolean.TRUE.equals(plan.getAcceptSinoForeign()));
+        snapshot.put("agreedDisclaimer", Boolean.TRUE.equals(req.getAgreedDisclaimer()));
+        snapshot.put("disclaimerVersion", safeText(req.getDisclaimerVersion()));
+        snapshot.put("policy", plan.getPolicy());
+        snapshot.put("modelInfo", plan.getModelInfo());
+        snapshot.put("warnings", plan.getWarnings() == null ? List.of() : plan.getWarnings());
+        snapshot.put("activeAdmissionYear", plan.getActiveAdmissionYear());
+        snapshot.put("latestOfficialDataYear", plan.getLatestOfficialDataYear());
+        snapshot.put("targetYear", plan.getTargetYear());
+        snapshot.put("futureImportYear", plan.getFutureImportYear());
+        snapshot.put("trainingYears", plan.getTrainingYears() == null ? List.of() : plan.getTrainingYears());
+        snapshot.put("dataSourceYears", plan.getDataSourceYears() == null ? List.of() : plan.getDataSourceYears());
+        snapshot.put("recommendationPhase", safeText(plan.getRecommendationPhase()));
+        snapshot.put("estimateMode", plan.isEstimateMode());
+        snapshot.put("officialDataReady", plan.isOfficialDataReady());
+        snapshot.put("supportLevel", safeText(plan.getSupportLevel()));
+        snapshot.put("recommendMode", safeText(plan.getRecommendMode()));
+        snapshot.put("engineName", safeText(plan.getEngineName()));
+        snapshot.put("supportReason", safeText(plan.getSupportReason()));
+        return snapshot;
+    }
+
     private String buildDataQualityWarning(GenerateRequest req, String subjectType, List<VolunteerItem> items,
                                            RankEstimateSummary rankEstimate) {
         List<String> warnings = new ArrayList<>();
@@ -952,6 +1073,38 @@ public class VolunteerService {
         }
         String note = String.format("部分梯度候选不足，已从相邻梯度参考区间补充%d个志愿项，并在条目中标记补位来源。",
                 stats.getNeighborGradientBackfillCount());
+        if (warning == null || warning.isBlank()) {
+            return note;
+        }
+        return warning + " " + note;
+    }
+
+    /**
+     * 分数-位次放宽兜底的用户可解释提示（relaxReason）。
+     *
+     * <p>仅在 {@link #relaxBackfillByScoreRank} 实际补充了候选时追加；明确告诉用户系统已按分数对应的
+     * 官方一分一段位次放宽补位，并提醒核对位次，避免“位次填错→候选为空→以为生成不了”。</p>
+     */
+    private String appendRankRelaxWarning(String warning, GenerationStats stats, RankEstimateSummary summary) {
+        if (stats == null || stats.getRankRelaxBackfillCount() <= 0) {
+            return warning;
+        }
+        String note;
+        if (summary != null && summary.getSubmittedRank() != null && summary.getEstimatedRank() != null
+                && summary.getRankLow() != null && summary.getRankHigh() != null) {
+            note = String.format(
+                    "你填写的位次第%,d名与%d分对应的官方位次区间（约第%,d–%,d名）差异较大；"
+                    + "系统已按分数对应的历史位次区间放宽补充%d个候选（条目已标记“分数位次放宽补位”，置信度较低），"
+                    + "请以贵州省招生考试院一分一段表核对真实位次后再使用。",
+                    summary.getSubmittedRank(), summary.getTotalScore(),
+                    summary.getRankLow(), summary.getRankHigh(),
+                    stats.getRankRelaxBackfillCount());
+        } else {
+            note = String.format(
+                    "因按你填写的位次候选不足，系统已按分数对应的历史位次区间放宽补充%d个候选"
+                    + "（条目已标记“分数位次放宽补位”，置信度较低），请人工复核位次后再使用。",
+                    stats.getRankRelaxBackfillCount());
+        }
         if (warning == null || warning.isBlank()) {
             return note;
         }
@@ -1453,6 +1606,84 @@ public class VolunteerService {
         }
         if (stats != null && added > 0) {
             stats.addNeighborGradientBackfill(added);
+        }
+    }
+
+    /**
+     * 分数-位次错配场景的全局放宽兜底。
+     *
+     * <p>触发条件（三者同时满足，避免误伤正常方案）：</p>
+     * <ol>
+     *   <li>按用户手填位次生成后仍不足目标数（deficit &gt; 0）；</li>
+     *   <li>候选严重不足（已生成 &lt; 目标一半）；</li>
+     *   <li>用户位次与分数对应官方位次明显不一致（matched=false），或当前候选几乎为空（&lt; 目标 1/4）。</li>
+     * </ol>
+     *
+     * <p>命中后用分数对应的官方一分一段估算位次（{@code estimatedRank}）作为锚点，复用
+     * {@link #resolveGradientRanges} 重算冲/稳/保/垫窗口，再用 {@link #pickGradient}（仍走全部硬规则、
+     * 选科与偏好过滤）补充真实历史候选。补进来的条目标记 {@code outsideConfiguredRange + RANK_RELAX_BACKFILL}，
+     * 并通过 {@link #appendRankRelaxWarning} 输出 relaxReason。不伪造数据、不绕过候选过滤。</p>
+     */
+    private void relaxBackfillByScoreRank(List<VolunteerItem> allItems, GenerateRequest req,
+                                          RankResolution rankResolution, String subjectType,
+                                          PreferenceProfile profile, int policyTargetCount,
+                                          GenerationStats stats,
+                                          CandidateFilterEngine.FilterCriteria criteria) {
+        if (allItems == null || rankResolution == null || policyTargetCount <= 0) {
+            return;
+        }
+        RankEstimateSummary summary = rankResolution.summary();
+        if (summary == null) {
+            return;
+        }
+        int deficit = policyTargetCount - allItems.size();
+        if (deficit <= 0) {
+            return;
+        }
+        Integer estimatedRank = summary.getEstimatedRank();
+        if (estimatedRank == null || estimatedRank <= 0) {
+            return;
+        }
+        boolean severelyShort = allItems.size() < Math.max(1, policyTargetCount / 2);
+        boolean mismatch = Boolean.FALSE.equals(summary.getMatched());
+        boolean nearlyEmpty = allItems.size() < Math.max(1, policyTargetCount / 4);
+        if (!severelyShort || (!mismatch && !nearlyEmpty)) {
+            return;
+        }
+
+        ResolvedGradientRanges relaxRanges = resolveGradientRanges(req, estimatedRank, profile, policyTargetCount);
+        Set<String> existingKeys = allItems.stream()
+                .map(this::volunteerItemDedupKey)
+                .collect(Collectors.toCollection(HashSet::new));
+        int added = 0;
+        for (String gradient : GRADIENT_ORDER) {
+            if (allItems.size() >= policyTargetCount) {
+                break;
+            }
+            GradientRangeDetail detail = relaxRanges.get(gradient);
+            if (detail == null) {
+                continue;
+            }
+            int want = policyTargetCount - allItems.size() + 16;
+            List<VolunteerItem> candidates = pickGradient(gradient, subjectType,
+                    detail.getRankLow(), detail.getRankHigh(), req.getResubjects(),
+                    want, profile, null, criteria);
+            for (VolunteerItem candidate : candidates) {
+                if (allItems.size() >= policyTargetCount) {
+                    break;
+                }
+                if (!existingKeys.add(volunteerItemDedupKey(candidate))) {
+                    continue;
+                }
+                candidate.setGradient(gradient);
+                candidate.setOutsideConfiguredRange(true);
+                candidate.setFillReason(RANK_RELAX_BACKFILL);
+                allItems.add(candidate);
+                added++;
+            }
+        }
+        if (stats != null && added > 0) {
+            stats.addRankRelaxBackfill(added);
         }
     }
 
@@ -3159,7 +3390,8 @@ public class VolunteerService {
 
     public boolean isValidPlanAccessKey(Long planId, String accessKey) {
         PlanHistory history = planHistoryMapper.selectById(planId);
-        return history != null && safetyCodeService.verify(planId, accessKey, history.getSafetyCodeHash());
+        return history != null && !safetyCodeService.isDeleted(history)
+                && safetyCodeService.verify(planId, accessKey, history.getSafetyCodeHash());
     }
 
     private String sha256Hex(String payload) {
@@ -3183,6 +3415,7 @@ public class VolunteerService {
         List<PlanHistory> histories = planHistoryMapper.selectList(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PlanHistory>()
                         .eq(PlanHistory::getUserId, userId)
+                        .eq(PlanHistory::getDeleted, 0)
                         .orderByDesc(PlanHistory::getCreatedAt)
                         .last("LIMIT 10"));
 
@@ -3190,7 +3423,8 @@ public class VolunteerService {
     }
 
     public PlanHistory getPlanById(Long planId) {
-        return planHistoryMapper.selectById(planId);
+        PlanHistory history = planHistoryMapper.selectById(planId);
+        return safetyCodeService.isDeleted(history) ? null : history;
     }
 
     public PlanResult getPlanResult(Long planId, String accessKey) {
@@ -3198,7 +3432,8 @@ public class VolunteerService {
             return null;
         }
         PlanHistory history = planHistoryMapper.selectById(planId);
-        if (history == null || !safetyCodeService.verify(planId, accessKey, history.getSafetyCodeHash())) {
+        if (history == null || safetyCodeService.isDeleted(history)
+                || !safetyCodeService.verify(planId, accessKey, history.getSafetyCodeHash())) {
             return null;
         }
         return toPlanResult(history);
@@ -3209,7 +3444,7 @@ public class VolunteerService {
             return null;
         }
         PlanHistory history = planHistoryMapper.selectById(planId);
-        return history == null ? null : toPlanResult(history);
+        return history == null || safetyCodeService.isDeleted(history) ? null : toPlanResult(history);
     }
 
     private PlanResult toPlanResult(PlanHistory h) {
@@ -3271,6 +3506,33 @@ public class VolunteerService {
                 if (rankEstimate != null) {
                     r.setRankEstimate(objectMapper.convertValue(rankEstimate, RankEstimateSummary.class));
                 }
+                Object policySnapshot = snapshot.get("policy");
+                if (policySnapshot != null) {
+                    r.setPolicy(objectMapper.convertValue(policySnapshot,
+                            objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class)));
+                }
+                Object modelInfoSnapshot = snapshot.get("modelInfo");
+                if (modelInfoSnapshot != null) {
+                    r.setModelInfo(objectMapper.convertValue(modelInfoSnapshot,
+                            objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class)));
+                }
+                Object warningsSnapshot = snapshot.get("warnings");
+                if (warningsSnapshot != null) {
+                    r.setWarnings(snapshotStringList(warningsSnapshot));
+                }
+                snapshotInt(snapshot, "activeAdmissionYear").ifPresent(r::setActiveAdmissionYear);
+                snapshotInt(snapshot, "latestOfficialDataYear").ifPresent(r::setLatestOfficialDataYear);
+                snapshotInt(snapshot, "targetYear").ifPresent(r::setTargetYear);
+                snapshotInt(snapshot, "futureImportYear").ifPresent(r::setFutureImportYear);
+                r.setTrainingYears(snapshotIntegerList(snapshot.get("trainingYears")));
+                r.setDataSourceYears(snapshotIntegerList(snapshot.get("dataSourceYears")));
+                r.setRecommendationPhase(snapshotString(snapshot, "recommendationPhase"));
+                r.setEstimateMode(snapshotBoolean(snapshot, "estimateMode"));
+                r.setOfficialDataReady(snapshotBoolean(snapshot, "officialDataReady"));
+                r.setSupportLevel(snapshotString(snapshot, "supportLevel"));
+                r.setRecommendMode(snapshotString(snapshot, "recommendMode"));
+                r.setEngineName(snapshotString(snapshot, "engineName"));
+                r.setSupportReason(snapshotString(snapshot, "supportReason"));
             }
         } catch (Exception e) {
             log.warn("反序列化历史方案失败: planId={}", h.getId(), e);
@@ -3307,6 +3569,91 @@ public class VolunteerService {
         } catch (Exception e) {
             return List.of();
         }
+    }
+
+    private Optional<Integer> snapshotInt(Map<String, Object> snapshot, String key) {
+        if (snapshot == null || key == null || key.isBlank()) {
+            return Optional.empty();
+        }
+        Object value = snapshot.get(key);
+        if (value instanceof Number number) {
+            return Optional.of(number.intValue());
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Optional.of(Integer.parseInt(text.trim()));
+            } catch (NumberFormatException ignored) {
+                return Optional.empty();
+            }
+        }
+        return Optional.empty();
+    }
+
+    private String snapshotString(Map<String, Object> snapshot, String key) {
+        if (snapshot == null || key == null || key.isBlank()) {
+            return "";
+        }
+        Object value = snapshot.get(key);
+        return value == null ? "" : safeText(String.valueOf(value));
+    }
+
+    private boolean snapshotBoolean(Map<String, Object> snapshot, String key) {
+        if (snapshot == null || key == null || key.isBlank()) {
+            return false;
+        }
+        Object value = snapshot.get(key);
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        if (value instanceof String text) {
+            return Boolean.parseBoolean(text.trim());
+        }
+        return false;
+    }
+
+    private List<Integer> snapshotIntegerList(Object value) {
+        if (value == null) {
+            return List.of();
+        }
+        if (value instanceof Collection<?> collection) {
+            return collection.stream()
+                    .map(this::toSnapshotInteger)
+                    .flatMap(Optional::stream)
+                    .collect(Collectors.toList());
+        }
+        return toSnapshotInteger(value).map(List::of).orElseGet(List::of);
+    }
+
+    private Optional<Integer> toSnapshotInteger(Object value) {
+        if (value instanceof Number number) {
+            return Optional.of(number.intValue());
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Optional.of(Integer.parseInt(text.trim()));
+            } catch (NumberFormatException ignored) {
+                return Optional.empty();
+            }
+        }
+        return Optional.empty();
+    }
+
+    private List<String> snapshotStringList(Object value) {
+        if (value == null) {
+            return List.of();
+        }
+        if (value instanceof Collection<?> collection) {
+            return collection.stream()
+                    .filter(Objects::nonNull)
+                    .map(item -> safeText(String.valueOf(item)))
+                    .filter(text -> !text.isBlank())
+                    .collect(Collectors.toList());
+        }
+        String text = safeText(String.valueOf(value));
+        return text.isBlank() ? List.of() : List.of(text);
     }
 
     /**

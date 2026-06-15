@@ -9,7 +9,11 @@ import com.gzly.service.AnhuiBatchSupportService;
 import com.gzly.service.AnhuiCompositeScoreCalculator;
 import com.gzly.service.BatchRuleRegistry;
 import com.gzly.service.BatchSupportService;
+import com.gzly.service.HubeiBatchRuleRegistry;
+import com.gzly.service.HubeiBatchSupportService;
 import com.gzly.service.PolicyRuleService;
+import com.gzly.service.NextProvinceBatchSupportService;
+import com.gzly.service.NextProvincePolicyRegistry;
 import com.gzly.service.ProvincePolicyService;
 import com.gzly.service.ProvincePlanDecorator;
 import com.gzly.service.ProfessionalGroupVolunteerService;
@@ -30,6 +34,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,11 +53,13 @@ public class VolunteerRecommendController {
     private final MlPredictionService mlPredictionService;
     private final BatchSupportService batchSupportService;
     private final SichuanBatchSupportService sichuanBatchSupportService;
+    private final HubeiBatchSupportService hubeiBatchSupportService;
     private final SichuanBatchListingService sichuanBatchListingService;
     private final SichuanCompositeScoreCalculator sichuanCompositeScoreCalculator;
     private final AnhuiBatchSupportService anhuiBatchSupportService;
     private final AnhuiBatchListingService anhuiBatchListingService;
     private final AnhuiCompositeScoreCalculator anhuiCompositeScoreCalculator;
+    private final NextProvinceBatchSupportService nextProvinceBatchSupportService;
     private final RecommendEngineRouter recommendEngineRouter;
     private final QueryOnlyRecommendEngine queryOnlyRecommendEngine;
     private final SafetyCodeRequestResolver safetyCodeRequestResolver;
@@ -85,6 +92,9 @@ public class VolunteerRecommendController {
         if (ProvincePolicyService.AH.equals(provinceCode)) {
             return Result.ok(recommendForAnhuiProvince(req, policy, provinceCode, httpReq));
         }
+        if (provincePolicyService.isNextProvinceQueryOnly(provinceCode)) {
+            return Result.ok(recommendForNextProvinceQueryOnly(req, policy, provinceCode));
+        }
         if (provincePolicyService.isProfessionalGroupProvince(provinceCode)) {
             return Result.ok(recommendForProfessionalGroupProvince(req, policy, provinceCode, httpReq));
         }
@@ -93,7 +103,7 @@ public class VolunteerRecommendController {
         if (!engineDecision.isMainPipelineEngine()) {
             VolunteerService.PlanResult plan = queryOnlyRecommendEngine.generate(req, policy.getConfig(), engineDecision);
             decoratePlan(req, plan, policy, MlPredictionService.ApplyResult.empty(), engineDecision);
-            return Result.ok(plan);
+            return Result.ok(volunteerService.saveQueryOnlyPlanResult(req, plan, null, getClientIp(httpReq)));
         }
         if ("EarlyCParallelMajorEngine".equals(engineDecision.getEngineName())) {
             // EARLY_C 走主推荐链路，但 policyMaxVolunteerCount 必须按 60 平行志愿口径
@@ -127,6 +137,16 @@ public class VolunteerRecommendController {
     }
 
     /**
+     * 湖北本科普通批等院校专业组批次支持矩阵。
+     * 不能把 HB 静默发往 SC；response.provinceCode 必须保持 HB。
+     */
+    @GetMapping("/hb/batch-support")
+    public Result<BatchSupportService.BatchSupportResponse> hbBatchSupport(@RequestParam(required = false) Integer year) {
+        int publicYear = admissionYearService.normalizePublicYear(year);
+        return Result.ok(hubeiBatchSupportService.supportMatrix(ProvincePolicyService.HB, publicYear, true));
+    }
+
+    /**
      * 安徽 14 批次支持矩阵（含 AH_BENKE / AH_ZHUANKE 主流程 + 提前批 / 艺术 / 体育 / 专项 QUERY_ONLY 兜底）。
      * 前端 VolunteerForm 在 provinceCode=AH 时调用，用于渲染批次选择器与状态徽标。
      */
@@ -134,6 +154,154 @@ public class VolunteerRecommendController {
     public Result<BatchSupportService.BatchSupportResponse> ahBatchSupport(@RequestParam(required = false) Integer year) {
         int publicYear = admissionYearService.normalizePublicYear(year);
         return Result.ok(anhuiBatchSupportService.supportMatrix(ProvincePolicyService.AH, publicYear, true));
+    }
+
+    @GetMapping("/gx/batch-support")
+    public Result<BatchSupportService.BatchSupportResponse> gxBatchSupport(@RequestParam(required = false) Integer year) {
+        return nextProvinceBatchSupport(ProvincePolicyService.GX, year);
+    }
+
+    @GetMapping("/hi/batch-support")
+    public Result<BatchSupportService.BatchSupportResponse> hiBatchSupport(@RequestParam(required = false) Integer year) {
+        return nextProvinceBatchSupport(ProvincePolicyService.HI, year);
+    }
+
+    @GetMapping("/yn/batch-support")
+    public Result<BatchSupportService.BatchSupportResponse> ynBatchSupport(@RequestParam(required = false) Integer year) {
+        return nextProvinceBatchSupport(ProvincePolicyService.YN, year);
+    }
+
+    @GetMapping("/ha/batch-support")
+    public Result<BatchSupportService.BatchSupportResponse> haBatchSupport(@RequestParam(required = false) Integer year) {
+        return nextProvinceBatchSupport(ProvincePolicyService.HA, year);
+    }
+
+    private Result<BatchSupportService.BatchSupportResponse> nextProvinceBatchSupport(String provinceCode,
+                                                                                       Integer year) {
+        int publicYear = admissionYearService.normalizePublicYear(year);
+        return Result.ok(nextProvinceBatchSupportService.supportMatrix(provinceCode, publicYear, true));
+    }
+
+    private VolunteerService.PlanResult recommendForNextProvinceQueryOnly(VolunteerService.GenerateRequest req,
+                                                                          PolicyRuleService.PolicyContext policy,
+                                                                          String provinceCode) {
+        NextProvincePolicyRegistry.Profile profile = NextProvincePolicyRegistry.require(provinceCode);
+        BatchSupportService.BatchSupportResponse supportResponse =
+                nextProvinceBatchSupportService.supportMatrix(provinceCode, req.getYear());
+        BatchSupportService.BatchSupportItem supportItem = findSupportItem(supportResponse, req.getBatchCode());
+        VolunteerService.PlanResult plan = buildNextProvinceQueryOnlyPlanSkeleton(req, profile, supportItem);
+
+        List<String> warnings = new ArrayList<>();
+        if (policy != null && policy.getWarning() != null && !policy.getWarning().isBlank()) {
+            warnings.add(policy.getWarning());
+        }
+        if (supportItem != null && supportItem.getWarnings() != null) {
+            for (String warning : supportItem.getWarnings()) {
+                if (warning != null && !warning.isBlank() && !warnings.contains(warning)) {
+                    warnings.add(warning);
+                }
+            }
+        }
+        if (!warnings.contains(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING)) {
+            warnings.add(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING);
+        }
+        applyYearContext(plan, supportResponse, warnings);
+
+        Map<String, Object> publicPolicy = policy == null || policy.getConfig() == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(policyRuleService.toPublicPolicy(policy.getConfig()));
+        String supportLevel = supportItem == null ? BatchRuleRegistry.SupportLevel.QUERY_ONLY.name() : supportItem.getSupportLevel();
+        String recommendMode = supportItem == null ? BatchRuleRegistry.RecommendMode.QUERY_ONLY.name() : supportItem.getRecommendMode();
+        String engineName = supportItem == null || supportItem.getEngineName() == null ? QueryOnlyRecommendEngine.NAME : supportItem.getEngineName();
+        String supportReason = supportItem == null || supportItem.getSupportReason() == null ? profile.supportNote() : supportItem.getSupportReason();
+        publicPolicy.put("supportLevel", supportLevel);
+        publicPolicy.put("recommendMode", recommendMode);
+        publicPolicy.put("engineName", engineName);
+        publicPolicy.put("supportReason", supportReason);
+        publicPolicy.put("provinceCode", profile.provinceCode());
+        publicPolicy.put("volunteerUnitType", profile.volunteerUnitType());
+        publicPolicy.put("batchCode", supportItem == null ? profile.defaultBatchCode() : supportItem.getBatchCode());
+        publicPolicy.put("batchName", supportItem == null ? profile.defaultBatchName() : supportItem.getBatchName());
+
+        Map<String, Object> modelInfo = new LinkedHashMap<>();
+        modelInfo.put("supportLevel", supportLevel);
+        modelInfo.put("recommendMode", recommendMode);
+        modelInfo.put("engineName", engineName);
+        modelInfo.put("supportReason", supportReason);
+        modelInfo.put("queryOnly", true);
+        modelInfo.put("visibleMetric", BatchRuleRegistry.SupportLevel.TRIAL_RECOMMEND.name().equals(supportLevel)
+                ? "historical_estimate" : "query_only");
+        modelInfo.put("appliedCount", 0);
+        applyYearContext(publicPolicy, modelInfo, supportResponse);
+
+        plan.setPolicy(publicPolicy);
+        plan.setModelInfo(modelInfo);
+        plan.setWarnings(warnings);
+        return volunteerService.saveQueryOnlyPlanResult(req, plan, null, null);
+    }
+
+    private BatchSupportService.BatchSupportItem findSupportItem(BatchSupportService.BatchSupportResponse response,
+                                                                 String batchCode) {
+        if (response == null || response.getItems() == null || response.getItems().isEmpty()) {
+            return null;
+        }
+        if (batchCode != null && !batchCode.isBlank()) {
+            for (BatchSupportService.BatchSupportItem item : response.getItems()) {
+                if (batchCode.equalsIgnoreCase(item.getBatchCode())) {
+                    return item;
+                }
+            }
+        }
+        return response.getItems().get(0);
+    }
+
+    private VolunteerService.PlanResult buildNextProvinceQueryOnlyPlanSkeleton(VolunteerService.GenerateRequest req,
+                                                                                NextProvincePolicyRegistry.Profile profile,
+                                                                                BatchSupportService.BatchSupportItem supportItem) {
+        VolunteerService.PlanResult plan = new VolunteerService.PlanResult();
+        plan.setId(0L);
+        plan.setProvinceCode(profile.provinceCode());
+        plan.setProvinceName(profile.provinceName());
+        plan.setVolunteerUnitType(profile.volunteerUnitType());
+        plan.setVolunteerUnitLabel(profile.volunteerUnitLabel());
+        plan.setTargetBatch(supportItem == null ? profile.defaultBatchName() : supportItem.getBatchName());
+        plan.setTargetCount(supportItem == null ? profile.targetCount() : supportItem.getTargetCount());
+        plan.setTotalScore(req.getTotalScore());
+        plan.setProvinceRank(req.getProvinceRank());
+        plan.setFirstSubject(req.getFirstSubject());
+        plan.setResubjects(req.getResubjects() == null ? List.of() : req.getResubjects());
+        plan.setPreferredMajors(req.getPreferredMajors() == null ? List.of() : req.getPreferredMajors());
+        plan.setPreferredRegions(req.getPreferredRegions() == null ? List.of() : req.getPreferredRegions());
+        plan.setStrategyMode(req.getStrategyMode() == null ? "均衡型" : req.getStrategyMode());
+        plan.setDecisionPriority(req.getDecisionPriority() == null ? "专业优先" : req.getDecisionPriority());
+        plan.setCareerGoal(req.getCareerGoal() == null ? "就业优先" : req.getCareerGoal());
+        plan.setTuitionBudget(req.getTuitionBudget() == null ? "均衡预算" : req.getTuitionBudget());
+        plan.setAcceptPrivate(Boolean.TRUE.equals(req.getAcceptPrivate()));
+        plan.setAcceptSinoForeign(Boolean.TRUE.equals(req.getAcceptSinoForeign()));
+        plan.setItems(List.of());
+        plan.setManualReviewItems(List.of());
+        plan.setCreatedAt(LocalDateTime.now().toString());
+        plan.setDataQualityWarning(profile.supportNoteForBatch(supportItem == null ? profile.defaultBatchCode() : supportItem.getBatchCode()));
+        plan.setReferenceProbabilityNotice(profile.referenceNotice());
+        String supportLevel = supportItem == null || supportItem.getSupportLevel() == null
+                ? BatchRuleRegistry.SupportLevel.QUERY_ONLY.name() : supportItem.getSupportLevel();
+        String recommendMode = supportItem == null || supportItem.getRecommendMode() == null
+                ? BatchRuleRegistry.RecommendMode.QUERY_ONLY.name() : supportItem.getRecommendMode();
+        String engineName = supportItem == null || supportItem.getEngineName() == null
+                ? QueryOnlyRecommendEngine.NAME : supportItem.getEngineName();
+        plan.setSupportLevel(supportLevel);
+        plan.setRecommendMode(recommendMode);
+        plan.setEngineName(engineName);
+        plan.setSupportReason(supportItem == null || supportItem.getSupportReason() == null
+                ? profile.supportNoteForBatch(profile.defaultBatchCode()) : supportItem.getSupportReason());
+        VolunteerService.PlanMetrics metrics = new VolunteerService.PlanMetrics();
+        metrics.setTotalCount(0);
+        metrics.setTargetCount(supportItem == null ? profile.targetCount() : supportItem.getTargetCount());
+        metrics.setProvinceCode(profile.provinceCode());
+        metrics.setVolunteerUnitType(profile.volunteerUnitType());
+        metrics.setGeneratedAtMs(System.currentTimeMillis());
+        plan.setMetrics(metrics);
+        return plan;
     }
 
     /**
@@ -232,6 +400,9 @@ public class VolunteerRecommendController {
                                                                               PolicyRuleService.PolicyContext policy,
                                                                               String provinceCode,
                                                                               HttpServletRequest httpReq) {
+        if (ProvincePolicyService.HB.equals(provinceCode)) {
+            return recommendForHubeiProvince(req, policy, provinceCode, httpReq);
+        }
         SichuanBatchRuleRegistry.BatchRule rule = SichuanBatchRuleRegistry.find(req.getBatchCode())
                 .orElseGet(() -> SichuanBatchRuleRegistry.require(SichuanBatchRuleRegistry.DEFAULT_BATCH_CODE));
         BatchSupportService.BatchSupportResponse supportResponse = resolveSichuanSupportMatrix(provinceCode, req.getYear());
@@ -274,6 +445,116 @@ public class VolunteerRecommendController {
 
         decorateSichuanPlan(req, plan, policy, rule, supportResponse, supportItem, mainPipeline);
         return plan;
+    }
+
+    /**
+     * 湖北主链路：使用 HB_* 批次码面向前端和结果页，主批仍复用通用院校专业组 45 生成服务。
+     */
+    private VolunteerService.PlanResult recommendForHubeiProvince(VolunteerService.GenerateRequest req,
+                                                                  PolicyRuleService.PolicyContext policy,
+                                                                  String provinceCode,
+                                                                  HttpServletRequest httpReq) {
+        HubeiBatchRuleRegistry.BatchRule rule = HubeiBatchRuleRegistry.find(req.getBatchCode())
+                .orElseGet(() -> HubeiBatchRuleRegistry.require(HubeiBatchRuleRegistry.DEFAULT_BATCH_CODE));
+        BatchSupportService.BatchSupportResponse supportResponse = resolveHubeiSupportMatrix(provinceCode, req.getYear());
+        BatchSupportService.BatchSupportItem supportItem = locateHubeiSupportItem(supportResponse, rule);
+
+        boolean mainPipeline = rule.mainRankEngine();
+        VolunteerService.PlanResult plan;
+        if (mainPipeline) {
+            plan = professionalGroupVolunteerService.generate(req, null, getClientIp(httpReq));
+        } else {
+            plan = buildHubeiQueryOnlyPlanSkeleton(req, rule);
+        }
+
+        decorateHubeiPlan(req, plan, policy, rule, supportResponse, supportItem, mainPipeline);
+        return plan;
+    }
+
+    private VolunteerService.PlanResult buildHubeiQueryOnlyPlanSkeleton(VolunteerService.GenerateRequest req,
+                                                                        HubeiBatchRuleRegistry.BatchRule rule) {
+        VolunteerService.PlanResult plan = new VolunteerService.PlanResult();
+        plan.setProvinceCode(req.getProvinceCode());
+        plan.setProvinceName(provincePolicyService.getPolicy(req.getProvinceCode()).getProvinceName());
+        plan.setVolunteerUnitType(ProvincePolicyService.UNIT_PROFESSIONAL_GROUP_45);
+        plan.setVolunteerUnitLabel("院校专业组");
+        plan.setTargetBatch(rule.batchName());
+        plan.setTargetCount(rule.targetCount());
+        plan.setTotalScore(req.getTotalScore());
+        plan.setProvinceRank(req.getProvinceRank());
+        plan.setFirstSubject(req.getFirstSubject());
+        plan.setResubjects(req.getResubjects() == null ? List.of() : req.getResubjects());
+        plan.setPreferredMajors(req.getPreferredMajors() == null ? List.of() : req.getPreferredMajors());
+        plan.setPreferredRegions(req.getPreferredRegions() == null ? List.of() : req.getPreferredRegions());
+        plan.setStrategyMode(req.getStrategyMode() == null ? "均衡型" : req.getStrategyMode());
+        plan.setDecisionPriority(req.getDecisionPriority() == null ? "专业优先" : req.getDecisionPriority());
+        plan.setCareerGoal(req.getCareerGoal() == null ? "就业优先" : req.getCareerGoal());
+        plan.setTuitionBudget(req.getTuitionBudget() == null ? "均衡预算" : req.getTuitionBudget());
+        plan.setAcceptPrivate(Boolean.TRUE.equals(req.getAcceptPrivate()));
+        plan.setAcceptSinoForeign(Boolean.TRUE.equals(req.getAcceptSinoForeign()));
+        plan.setItems(List.of());
+        plan.setManualReviewItems(List.of());
+        plan.setRecommendMode(rule.recommendMode().name());
+        plan.setSupportLevel(rule.supportLevel());
+        plan.setEngineName(ProvinceBatchEngineMatrix.resolveEngineName(req.getProvinceCode(), rule.batchCode()));
+        plan.setSupportReason(rule.supportNote());
+        plan.setWarnings(rule.supportNote() == null ? List.of() : new ArrayList<>(List.of(rule.supportNote())));
+        plan.setReferenceProbabilityNotice(String.format(
+                "本系统输出为湖北%s策略建议；当前为 2026 官方数据待发布阶段，不构成录取承诺，最终以湖北省教育考试院和高校招生章程为准。",
+                rule.batchName()));
+        return plan;
+    }
+
+    private BatchSupportService.BatchSupportResponse resolveHubeiSupportMatrix(String provinceCode, Integer year) {
+        try {
+            return hubeiBatchSupportService.supportMatrix(provinceCode, year);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private BatchSupportService.BatchSupportItem locateHubeiSupportItem(
+            BatchSupportService.BatchSupportResponse response, HubeiBatchRuleRegistry.BatchRule rule) {
+        if (response == null || response.getItems() == null || rule == null) {
+            return null;
+        }
+        return response.getItems().stream()
+                .filter(item -> rule.batchCode().equals(item.getBatchCode()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void decorateHubeiPlan(VolunteerService.GenerateRequest req,
+                                   VolunteerService.PlanResult plan,
+                                   PolicyRuleService.PolicyContext policy,
+                                   HubeiBatchRuleRegistry.BatchRule rule,
+                                   BatchSupportService.BatchSupportResponse supportResponse,
+                                   BatchSupportService.BatchSupportItem supportItem,
+                                   boolean mainPipeline) {
+        if (plan == null) {
+            return;
+        }
+        List<String> warnings = new ArrayList<>();
+        if (policy != null && policy.getWarning() != null && !policy.getWarning().isBlank()) {
+            warnings.add(policy.getWarning());
+        }
+        if (supportItem != null && supportItem.getWarnings() != null) {
+            for (String warning : supportItem.getWarnings()) {
+                if (warning != null && !warning.isBlank() && !warnings.contains(warning)) {
+                    warnings.add(warning);
+                }
+            }
+        }
+        applySichuanYearContext(plan, supportResponse, warnings);
+
+        ProvincePlanDecorator.FinalDecoration decoration = ProvincePlanDecorator.apply(
+                req.getProvinceCode(), rule.batchCode(), rule.batchName(),
+                rule.recommendMode().name(), rule.supportNote(),
+                ProvinceBatchEngineMatrix.resolveEngineName(req.getProvinceCode(), rule.batchCode()),
+                plan, policy, supportResponse, supportItem, mainPipeline, policyRuleService);
+        applySichuanYearContext(decoration.publicPolicy(), decoration.modelInfo(), supportResponse);
+        plan.setModelInfo(decoration.modelInfo());
+        plan.setWarnings(warnings);
     }
 
     /**
@@ -706,6 +987,9 @@ public class VolunteerRecommendController {
             if (BatchRuleRegistry.RecommendMode.QUERY_ONLY.name().equals(recommendMode)) {
                 modelInfo.put("queryOnly", true);
                 modelInfo.put("visibleMetric", "query_only");
+            } else {
+                modelInfo.put("queryOnly", false);
+                modelInfo.remove("visibleMetric");
             }
             if (isPreOfficialDataResponse(supportResponse) || plan.getSupportReason() == null || plan.getSupportReason().isBlank()) {
                 plan.setSupportReason(supportReason);
@@ -844,6 +1128,8 @@ public class VolunteerRecommendController {
             req.setCandidateType(AnhuiBatchRuleRegistry.normalizeCandidateType(req.getCandidateType()));
         } else if (provincePolicyService.isProfessionalGroupProvince(provinceCode)) {
             req.setCandidateType(SichuanBatchRuleRegistry.normalizeCandidateType(req.getCandidateType()));
+        } else if (provincePolicyService.isNextProvinceQueryOnly(provinceCode)) {
+            req.setCandidateType(NextProvincePolicyRegistry.normalizeCandidateType(provinceCode, req.getCandidateType()));
         } else {
             req.setCandidateType(BatchRuleRegistry.normalizeCandidateType(req.getCandidateType()));
         }
@@ -914,9 +1200,14 @@ public class VolunteerRecommendController {
         req.setPolicyMaxVolunteerCount(config.getMaxVolunteerCount());
         req.setPolicyBatchName(config.getBatchName());
         req.setPolicyVolunteerUnitLabel(config.getVolunteerMode());
-        req.setPolicyVolunteerUnitType(provincePolicyService.isProfessionalGroupProvince(provinceCode)
-                ? ProvincePolicyService.UNIT_PROFESSIONAL_GROUP_45
-                : ProvincePolicyService.UNIT_MAJOR_96);
+        ProvincePolicyService.ProvincePolicy policy = provincePolicyService.getPolicy(provinceCode);
+        if (policy != null && policy.getVolunteerUnitType() != null && !policy.getVolunteerUnitType().isBlank()) {
+            req.setPolicyVolunteerUnitType(policy.getVolunteerUnitType());
+        } else {
+            req.setPolicyVolunteerUnitType(provincePolicyService.isProfessionalGroupProvince(provinceCode)
+                    ? ProvincePolicyService.UNIT_PROFESSIONAL_GROUP_45
+                    : ProvincePolicyService.UNIT_MAJOR_96);
+        }
     }
 
     private String getClientIp(HttpServletRequest req) {

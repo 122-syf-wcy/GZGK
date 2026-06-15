@@ -52,7 +52,7 @@ public class SkillsRagService {
             String digest = buildDigest(chunks);
             rawAnswer = aiService.chatWithAdvisorSkill(
                     digest,
-                    buildPlanContext(plan),
+                    buildPlanContext(plan, question),
                     aiReport == null || aiReport.isBlank() ? (rawPlan == null ? "" : rawPlan.getAiAnalysis()) : aiReport,
                     question,
                     history);
@@ -199,13 +199,15 @@ public class SkillsRagService {
         StringBuilder builder = new StringBuilder("以下为公开 skills 策略库检索片段，只可作为辅助参考：\n");
         for (int i = 0; i < chunks.size(); i++) {
             builder.append("片段").append(i + 1).append("：")
-                    .append(limit(chunks.get(i).getText(), 900))
+                    .append(limit(chunks.get(i).getText(), 420))
                     .append("\n\n");
         }
         return builder.toString();
     }
 
-    private String buildPlanContext(VolunteerService.PlanResult plan) {
+    private String buildPlanContext(VolunteerService.PlanResult plan, String question) {
+        List<VolunteerService.VolunteerItem> items = plan.getItems() == null ? List.of() : plan.getItems();
+        List<Map<String, Object>> focusItems = focusedItems(plan, question);
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("planId", plan.getId());
         root.put("provinceCode", plan.getProvinceCode());
@@ -216,10 +218,37 @@ public class SkillsRagService {
                 "firstSubject", plan.getFirstSubject(),
                 "resubjects", plan.getResubjects() == null ? List.of() : plan.getResubjects(),
                 "strategyMode", plan.getStrategyMode()));
-        root.put("metrics", plan.getMetrics());
+        root.put("summary", Map.of(
+                "totalItems", items.size(),
+                "chong", countByGradient(items, "冲"),
+                "wen", countByGradient(items, "稳"),
+                "bao", countByGradient(items, "保"),
+                "dian", countByGradient(items, "垫")));
         root.put("advisorAdvice", plan.getAdvisorAdvice());
-        root.put("manualReviewItems", plan.getManualReviewItems() == null ? List.of() : plan.getManualReviewItems());
-        root.put("items", plan.getItems() == null ? List.of() : plan.getItems().stream().limit(96).map(item -> {
+        root.put("manualReviewCount", plan.getManualReviewItems() == null ? 0 : plan.getManualReviewItems().size());
+        root.put("manualReviewItems", plan.getManualReviewItems() == null ? List.of()
+                : plan.getManualReviewItems().stream().limit(8).toList());
+        root.put("focusItems", focusItems);
+        root.put("note", "focusItems 为本轮追问相关或前序代表性志愿摘要；完整方案由后端根据 planId 校验读取，未在 prompt 中展开全部 96 条以避免超时。");
+        try {
+            return objectMapper.writeValueAsString(root);
+        } catch (Exception e) {
+            return "{}";
+        }
+    }
+
+    private List<Map<String, Object>> focusedItems(VolunteerService.PlanResult plan, String question) {
+        if (plan.getItems() == null || plan.getItems().isEmpty()) {
+            return List.of();
+        }
+        List<VolunteerService.VolunteerItem> matched = plan.getItems().stream()
+                .filter(item -> itemMatchesQuestion(item, question))
+                .limit(24)
+                .toList();
+        if (matched.isEmpty()) {
+            matched = plan.getItems().stream().limit(24).toList();
+        }
+        return matched.stream().map(item -> {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("index", item.getIndex());
             map.put("gradient", item.getGradient());
@@ -231,17 +260,14 @@ public class SkillsRagService {
             map.put("riskLevel", item.getRiskLevel());
             map.put("dataConfidence", item.getDataConfidence());
             map.put("rankDiff", item.getRankDiff());
-            map.put("planExpansionIndex", item.getPlanExpansionIndex());
-            map.put("schoolEnrollmentIndex", item.getSchoolEnrollmentIndex());
-            map.put("recommendReason", item.getRecommendReason());
-            map.put("riskReason", item.getRiskReason());
+            map.put("recommendReason", limit(item.getRecommendReason(), 120));
+            map.put("riskReason", limit(item.getRiskReason(), 120));
             return map;
-        }).toList());
-        try {
-            return objectMapper.writeValueAsString(root);
-        } catch (Exception e) {
-            return "{}";
-        }
+        }).toList();
+    }
+
+    private long countByGradient(List<VolunteerService.VolunteerItem> items, String gradient) {
+        return items.stream().filter(item -> gradient.equals(item.getGradient())).count();
     }
 
     private List<Map<String, Object>> referencedVolunteers(VolunteerService.PlanResult plan, String question) {

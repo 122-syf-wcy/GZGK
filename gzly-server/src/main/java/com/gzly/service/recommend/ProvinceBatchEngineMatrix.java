@@ -2,6 +2,8 @@ package com.gzly.service.recommend;
 
 import com.gzly.service.AnhuiBatchRuleRegistry;
 import com.gzly.service.BatchRuleRegistry;
+import com.gzly.service.HubeiBatchRuleRegistry;
+import com.gzly.service.NextProvincePolicyRegistry;
 import com.gzly.service.ProvincePolicyService;
 import com.gzly.service.SichuanBatchRuleRegistry;
 
@@ -27,6 +29,8 @@ import java.util.Optional;
  *   <li>GZ × 18 批次（贵州，普通本科批 / 提前 A/B/C / 专业本科 / 8 类专项 / 艺术 / 体育）</li>
  *   <li>SC × 18 批次（四川，本科批B 主 + 17 个非主流程）</li>
  *   <li>AH × 14 批次（安徽，普通本科批 / 高职专科 / 提前批 / 4 子艺术 / 2 子体育 / 3 子专项）</li>
+ *   <li>HB × 6 批次（湖北，本科普通批历史估算 + 5 个策略建议批次）</li>
+ *   <li>GX / HI / YN / HA × 6 查询型批次（PRE_OFFICIAL_DATA query-only 骨架）</li>
  * </ul>
  *
  * <p>未声明的 (province, batch) 组合返回 {@link QueryOnlyRecommendEngine#NAME} 作为兜底，
@@ -94,7 +98,9 @@ public final class ProvinceBatchEngineMatrix {
         Map<String, String> m = new LinkedHashMap<>();
         registerGuizhou(m);
         registerSichuan(m);
+        registerHubei(m);
         registerAnhui(m);
+        registerNextProvinces(m);
         return Collections.unmodifiableMap(m);
     }
 
@@ -168,6 +174,15 @@ public final class ProvinceBatchEngineMatrix {
         sc(m, "SC_SPORTS_ZHUANKE", SichuanSportsCompositeEngine.NAME);
     }
 
+    private static void registerHubei(Map<String, String> m) {
+        hb(m, "HB_BENKE", "HubeiProfessionalGroup45Engine");
+        hb(m, "HB_ZHUANKE", QueryOnlyRecommendEngine.NAME);
+        hb(m, "HB_EARLY", QueryOnlyRecommendEngine.NAME);
+        hb(m, "HB_SPECIAL", QueryOnlyRecommendEngine.NAME);
+        hb(m, "HB_ART", QueryOnlyRecommendEngine.NAME);
+        hb(m, "HB_SPORTS", QueryOnlyRecommendEngine.NAME);
+    }
+
     // ============================================================
     // 安徽 14 批次（与 AnhuiBatchRuleRegistry 严格对齐）
     // ============================================================
@@ -199,12 +214,24 @@ public final class ProvinceBatchEngineMatrix {
         ah(m, "AH_SPORTS_ZHUANKE", AnhuiSportsCompositeEngine.NAME);
     }
 
+    private static void registerNextProvinces(Map<String, String> m) {
+        for (NextProvincePolicyRegistry.Profile profile : NextProvincePolicyRegistry.allProfiles()) {
+            for (NextProvincePolicyRegistry.BatchProfile batch : profile.batches()) {
+                m.put(profile.provinceCode() + "|" + batch.batchCode(), batch.engineName());
+            }
+        }
+    }
+
     private static void gz(Map<String, String> m, String batch, String engine) {
         m.put(ProvincePolicyService.GZ + "|" + batch, engine);
     }
 
     private static void sc(Map<String, String> m, String batch, String engine) {
         m.put(ProvincePolicyService.SC + "|" + batch, engine);
+    }
+
+    private static void hb(Map<String, String> m, String batch, String engine) {
+        m.put(ProvincePolicyService.HB + "|" + batch, engine);
     }
 
     private static void ah(Map<String, String> m, String batch, String engine) {
@@ -226,8 +253,12 @@ public final class ProvinceBatchEngineMatrix {
                 known = BatchRuleRegistry.find(batch).isPresent();
             } else if (ProvincePolicyService.SC.equals(province)) {
                 known = SichuanBatchRuleRegistry.find(batch).isPresent();
+            } else if (ProvincePolicyService.HB.equals(province)) {
+                known = HubeiBatchRuleRegistry.find(batch).isPresent();
             } else if (ProvincePolicyService.AH.equals(province)) {
                 known = AnhuiBatchRuleRegistry.find(batch).isPresent();
+            } else if (NextProvincePolicyRegistry.find(province).isPresent()) {
+                known = NextProvincePolicyRegistry.require(province).findBatch(batch).isPresent();
             } else {
                 known = false;
             }
@@ -246,9 +277,21 @@ public final class ProvinceBatchEngineMatrix {
                 result.unregisteredBatches.add(ProvincePolicyService.SC + "|" + rule.batchCode());
             }
         }
+        for (HubeiBatchRuleRegistry.BatchRule rule : HubeiBatchRuleRegistry.allRules()) {
+            if (!MATRIX.containsKey(ProvincePolicyService.HB + "|" + rule.batchCode())) {
+                result.unregisteredBatches.add(ProvincePolicyService.HB + "|" + rule.batchCode());
+            }
+        }
         for (AnhuiBatchRuleRegistry.BatchRule rule : AnhuiBatchRuleRegistry.allRules()) {
             if (!MATRIX.containsKey(ProvincePolicyService.AH + "|" + rule.batchCode())) {
                 result.unregisteredBatches.add(ProvincePolicyService.AH + "|" + rule.batchCode());
+            }
+        }
+        for (NextProvincePolicyRegistry.Profile profile : NextProvincePolicyRegistry.allProfiles()) {
+            for (NextProvincePolicyRegistry.BatchProfile batch : profile.batches()) {
+                if (!MATRIX.containsKey(profile.provinceCode() + "|" + batch.batchCode())) {
+                    result.unregisteredBatches.add(profile.provinceCode() + "|" + batch.batchCode());
+                }
             }
         }
         return result;

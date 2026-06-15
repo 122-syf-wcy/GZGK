@@ -2,6 +2,8 @@ package com.gzly.service.recommend;
 
 import com.gzly.service.AnhuiBatchRuleRegistry;
 import com.gzly.service.BatchRuleRegistry;
+import com.gzly.service.HubeiBatchRuleRegistry;
+import com.gzly.service.NextProvincePolicyRegistry;
 import com.gzly.service.ProvincePolicyService;
 import com.gzly.service.SichuanBatchRuleRegistry;
 import org.junit.jupiter.api.Test;
@@ -111,6 +113,17 @@ class ProvinceBatchEngineMatrixTest {
     }
 
     @Test
+    void resolveEngineName_hubeiShouldUseHbPrefixedBatches() {
+        assertThat(ProvinceBatchEngineMatrix.resolveEngineName("HB", "HB_BENKE"))
+                .isEqualTo("HubeiProfessionalGroup45Engine");
+        assertThat(ProvinceBatchEngineMatrix.resolveEngineName("HB", "HB_EARLY"))
+                .isEqualTo(QueryOnlyRecommendEngine.NAME);
+        assertThat(ProvinceBatchEngineMatrix.entriesForProvince("HB"))
+                .containsEntry("HB_BENKE", "HubeiProfessionalGroup45Engine")
+                .doesNotContainKey("SC_BENKE_B");
+    }
+
+    @Test
     void resolveEngineName_unknownProvinceOrBatchFallsBackToQueryOnly() {
         assertThat(ProvinceBatchEngineMatrix.resolveEngineName("XYZ", "AH_BENKE"))
                 .isEqualTo(QueryOnlyRecommendEngine.NAME);
@@ -118,6 +131,18 @@ class ProvinceBatchEngineMatrixTest {
                 .isEqualTo(QueryOnlyRecommendEngine.NAME);
         assertThat(ProvinceBatchEngineMatrix.resolveEngineName(null, null))
                 .isEqualTo(QueryOnlyRecommendEngine.NAME);
+    }
+
+    @Test
+    void resolveEngineName_nextProvincesShouldHaveExplicitQueryOnlyBatches() {
+        for (NextProvincePolicyRegistry.Profile profile : NextProvincePolicyRegistry.allProfiles()) {
+            assertThat(ProvinceBatchEngineMatrix.resolveEngineName(profile.provinceCode(), profile.defaultBatchCode()))
+                    .isEqualTo(QueryOnlyRecommendEngine.NAME);
+            assertThat(ProvinceBatchEngineMatrix.entriesForProvince(profile.provinceCode()))
+                    .containsEntry(profile.defaultBatchCode(), QueryOnlyRecommendEngine.NAME);
+            assertThat(ProvinceBatchEngineMatrix.entriesForProvince(profile.provinceCode()).size())
+                    .isEqualTo(profile.batches().size());
+        }
     }
 
     @Test
@@ -138,6 +163,10 @@ class ProvinceBatchEngineMatrixTest {
         Map<String, String> sc = ProvinceBatchEngineMatrix.entriesForProvince("SC");
         assertThat(sc).hasSize(18);
         assertThat(sc).containsEntry("SC_BENKE_B", SichuanProfessionalGroup45Engine.NAME);
+
+        Map<String, String> hb = ProvinceBatchEngineMatrix.entriesForProvince("HB");
+        assertThat(hb).hasSize(6);
+        assertThat(hb).containsEntry("HB_BENKE", "HubeiProfessionalGroup45Engine");
 
         Map<String, String> gz = ProvinceBatchEngineMatrix.entriesForProvince("GZ");
         assertThat(gz).hasSize(18);
@@ -160,7 +189,9 @@ class ProvinceBatchEngineMatrixTest {
     void totalRegistrations_shouldEqualSumOfThreeRegistries() {
         int expected = BatchRuleRegistry.allRules().size()
                 + SichuanBatchRuleRegistry.allRules().size()
-                + AnhuiBatchRuleRegistry.allRules().size();
+                + HubeiBatchRuleRegistry.allRules().size()
+                + AnhuiBatchRuleRegistry.allRules().size()
+                + NextProvincePolicyRegistry.allProfiles().stream().mapToInt(profile -> profile.batches().size()).sum();
         assertThat(ProvinceBatchEngineMatrix.totalRegistrations()).isEqualTo(expected);
     }
 
@@ -170,5 +201,9 @@ class ProvinceBatchEngineMatrixTest {
         assertThat(ProvincePolicyService.GZ).isEqualTo("GZ");
         assertThat(ProvincePolicyService.SC).isEqualTo("SC");
         assertThat(ProvincePolicyService.AH).isEqualTo("AH");
+        assertThat(ProvincePolicyService.GX).isEqualTo("GX");
+        assertThat(ProvincePolicyService.HI).isEqualTo("HI");
+        assertThat(ProvincePolicyService.YN).isEqualTo("YN");
+        assertThat(ProvincePolicyService.HA).isEqualTo("HA");
     }
 }

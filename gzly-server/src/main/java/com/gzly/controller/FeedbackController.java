@@ -38,6 +38,12 @@ public class FeedbackController {
         feedback.setContent(content);
         feedback.setSourcePage(sourcePage);
         feedback.setStatus(0);
+        feedback.setHandleStatus(0);
+        feedback.setResultId(req.getResultId());
+        if (req.getProvinceCode() != null && !req.getProvinceCode().isBlank()) {
+            String pc = req.getProvinceCode().trim();
+            feedback.setProvinceCode(pc.length() > 16 ? pc.substring(0, 16) : pc);
+        }
         feedback.setIpHash(hashIp(getClientIp(request)));
         feedbackMapper.insert(feedback);
         return Result.ok();
@@ -70,5 +76,7 @@ public class FeedbackController {
     public static class FeedbackRequest {
         private String content;
         private String sourcePage;
+        private Long resultId;
+        private String provinceCode;
     }
 }

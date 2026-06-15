@@ -39,6 +39,53 @@ class PolicyRuleServiceTest {
         assertThat(context.getConfig().getBatchCode()).isEqualTo("ART_UNDERGRADUATE_B");
     }
 
+    @Test
+    void requirePolicy_nextProvinceShouldUseOwnQueryOnlyBatch() {
+        PolicyRuleService service = service();
+
+        PolicyRuleService.PolicyContext context = service.requirePolicy("GX", 2026, "普通类", null);
+
+        assertThat(context.getConfig().getProvince()).isEqualTo("GX");
+        assertThat(context.getConfig().getBatchCode()).isEqualTo("GX_BENKE");
+        assertThat(context.getConfig().getFilingPrinciple()).isEqualTo("QUERY_ONLY");
+        assertThat(service.toPublicPolicy(context.getConfig()))
+                .containsEntry("supportLevel", "TRIAL_RECOMMEND")
+                .containsEntry("recommendMode", "QUERY_ONLY")
+                .containsEntry("engineName", "QueryOnlyRecommendEngine");
+    }
+
+    @Test
+    void requirePolicy_nextProvinceShouldRejectSichuanAndGuizhouBatchFallbacks() {
+        PolicyRuleService service = service();
+
+        assertThatThrownBy(() -> service.requirePolicy("GX", 2026, "普通类", "SC_BENKE_B"))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("当前省份不支持该批次");
+        assertThatThrownBy(() -> service.requirePolicy("GX", 2026, "普通类", "NORMAL_UNDERGRADUATE"))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("当前省份不支持该批次");
+    }
+
+    @Test
+    void requirePolicy_hubeiShouldUseHbBatchCodesWithoutScFallback() {
+        PolicyRuleService service = service();
+
+        PolicyRuleService.PolicyContext context = service.requirePolicy("HB", 2026, "普通类", "本科普通批");
+
+        assertThat(context.getConfig().getProvince()).isEqualTo("HB");
+        assertThat(context.getConfig().getBatchCode()).isEqualTo("HB_BENKE");
+        assertThat(context.getConfig().getBatchName()).isEqualTo("本科普通批");
+        assertThat(context.getConfig().getFilingPrinciple()).isEqualTo("PARALLEL_GROUP");
+        assertThat(service.toPublicPolicy(context.getConfig()))
+                .containsEntry("supportLevel", "TRIAL_RECOMMEND")
+                .containsEntry("recommendMode", "PARALLEL_GROUP")
+                .containsEntry("engineName", "HubeiProfessionalGroup45Engine");
+
+        assertThatThrownBy(() -> service.requirePolicy("HB", 2026, "普通类", "SC_BENKE_B"))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("当前省份不支持该批次");
+    }
+
     private PolicyRuleService service() {
         return new PolicyRuleService(Mockito.mock(PolicyRuleConfigMapper.class), new ProvincePolicyService(), new AdmissionYearService());
     }

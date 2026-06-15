@@ -95,6 +95,11 @@ public class BatchSupportService {
     }
 
     private BatchSupportResponse doSupportMatrix(String provinceCode, int resolvedYear, boolean publicYearLocked) {
+        NextProvincePolicyRegistry.Profile nextProvinceProfile =
+                NextProvincePolicyRegistry.find(provinceCode).orElse(null);
+        if (nextProvinceProfile != null) {
+            return nextProvinceSupportMatrix(nextProvinceProfile, resolvedYear, publicYearLocked);
+        }
         BatchSupportResponse response = new BatchSupportResponse();
         response.setProvinceCode(provinceCode);
         response.setYear(resolvedYear);
@@ -118,6 +123,95 @@ public class BatchSupportService {
         response.setItems(items);
         response.setSummary(buildSummary(items));
         return response;
+    }
+
+    private BatchSupportResponse nextProvinceSupportMatrix(NextProvincePolicyRegistry.Profile profile,
+                                                           int resolvedYear,
+                                                           boolean publicYearLocked) {
+        BatchSupportResponse response = new BatchSupportResponse();
+        response.setProvinceCode(profile.provinceCode());
+        response.setYear(resolvedYear);
+        response.setActiveAdmissionYear(admissionYearService.getActiveAdmissionYear());
+        response.setLatestOfficialDataYear(admissionYearService.getLatestOfficialDataYear());
+        response.setHistoryYears(admissionYearService.resolveHistoryYears(admissionYearService.getActiveAdmissionYear()));
+        response.setTrainingYears(admissionYearService.resolveTrainingYears());
+        response.setTargetYear(admissionYearService.getTargetYear());
+        response.setFutureImportYear(admissionYearService.getFutureImportYear());
+        response.setPublicYearLocked(publicYearLocked);
+        DataReadiness readiness = nextProvinceReadiness(profile, resolvedYear);
+        response.setDataReadiness(readiness);
+        response.setRecommendationPhase(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+        response.setOfficialDataReady(false);
+        response.setEstimateMode(true);
+        response.setDataSourceYears(response.getTrainingYears());
+        List<BatchSupportItem> items = profile.batches().stream()
+                .map(batch -> nextProvinceItem(profile, batch))
+                .toList();
+        response.setItems(items);
+        response.setSummary(buildSummary(response.getItems()));
+        return response;
+    }
+
+    private DataReadiness nextProvinceReadiness(NextProvincePolicyRegistry.Profile profile, int resolvedYear) {
+        DataReadiness readiness = new DataReadiness();
+        readiness.setProvinceCode(profile.provinceCode());
+        readiness.setYear(resolvedYear);
+        readiness.setPolicyReady(false);
+        readiness.setScoreSegmentReady(false);
+        readiness.setAdmissionPlanReady(false);
+        readiness.setMajorRequirementReady(false);
+        readiness.setMajorMetaReady(false);
+        readiness.setMlTrainingReady(false);
+        readiness.setHistoricalTrainingReady(true);
+        readiness.setRecommendationPhase(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+        readiness.setRemarks(profile.dataStatusDetail());
+        return readiness;
+    }
+
+    private BatchSupportItem nextProvinceItem(NextProvincePolicyRegistry.Profile profile,
+                                              NextProvincePolicyRegistry.BatchProfile batch) {
+        BatchSupportItem item = new BatchSupportItem();
+        item.setBatchCode(batch.batchCode());
+        item.setBatchName(batch.batchName());
+        item.setCandidateType(batch.candidateType());
+        item.setCategory(batch.category());
+        item.setRecommendMode(batch.recommendMode());
+        item.setEngine(batch.engineName());
+        item.setEngineName(batch.engineName());
+        item.setTargetCount(batch.targetCount());
+        item.setMaxVolunteerCount(batch.targetCount());
+        item.setMajorPerSchoolCount(batch.majorPerSchoolCount());
+        item.setHasAdjustment(batch.hasAdjustment());
+        item.setVolunteerMode(batch.volunteerMode());
+        item.setSupportNote(batch.supportNote());
+        item.setPolicyConfigured(true);
+        item.setPolicyStatus("registry_only");
+        item.setSupportLevel(batch.supportLevel());
+        item.setHistoricalScoreLineCount(batch.ordinaryEstimate() ? 1L : 0L);
+        item.setDataStatus(nextProvinceDataStatus(profile, batch));
+        item.setMissingData(batch.missingData());
+        item.setSupportReason(batch.ordinaryEstimate()
+                ? "当前为 PRE_OFFICIAL_DATA 历史估算能力，基于 2024/2025 数据窗口展示趋势和缺口，不开放完整推荐。"
+                : batch.supportNote());
+        item.setWarnings(List.of(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING, profile.dataStatusDetail(), batch.supportNote()));
+        return item;
+    }
+
+    private DataStatus nextProvinceDataStatus(NextProvincePolicyRegistry.Profile profile,
+                                              NextProvincePolicyRegistry.BatchProfile batch) {
+        DataStatus status = new DataStatus();
+        status.setPolicyCount(1);
+        status.setScoreLineCount(0);
+        status.setMajorScoreCount(0);
+        status.setHistoryCount(batch.ordinaryEstimate() ? 1L : 0L);
+        status.setPlanCount(0);
+        status.setRequirementCount(0);
+        status.setStatus(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+        status.setDetail(batch.ordinaryEstimate()
+                ? profile.provinceName() + "普通主批可展示历史估算能力；2026 官方数据待发布。"
+                : profile.dataStatusDetail());
+        status.setReady(false);
+        return status;
     }
 
     private BatchSupportItem buildItem(BatchRuleRegistry.BatchRule rule,

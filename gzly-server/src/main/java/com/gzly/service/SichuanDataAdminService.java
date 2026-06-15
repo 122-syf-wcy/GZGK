@@ -779,6 +779,21 @@ public class SichuanDataAdminService {
         return errors;
     }
 
+    /**
+     * v7.56: batch 关键词白名单。批次必须包含「本科/专科/专项/提前批」之一才能进 line 表。
+     * 对应 SichuanBatchRuleRegistry / AnhuiBatchRuleRegistry / BatchRuleRegistry 实际定义的批次类型。
+     */
+    private static boolean isSupportedBatchKeyword(String batch) {
+        if (batch == null || batch.isBlank()) {
+            return false;
+        }
+        return batch.contains("本科")
+                || batch.contains("专科")
+                || batch.contains("专项")
+                || batch.contains("提前批")
+                || batch.contains("高职");
+    }
+
     private List<String> validateGroupLineRow(GroupLineRow row, Set<String> seenKeys) {
         List<String> errors = new ArrayList<>();
         if (row == null) {
@@ -794,8 +809,11 @@ public class SichuanDataAdminService {
             errors.add("最低位次填写时必须大于0");
         }
         String batch = defaultText(row.getBatch(), TARGET_BATCH);
-        if (!batch.contains("本科") || !batch.contains("批")) {
-            errors.add("批次必须为普通本科批次口径");
+        // v7.56：允许本科 / 专科 / 国家专项 / 地方专项 / 高校专项 / 提前批 等所有主流批次进入 line 表，
+        // 之前的「本科+批」AND 校验把国家专项计划 / 地方专项计划 / 高校专项计划 / 专科批 / 专科提前批
+        // 全部 reject 掉，AH/SC 这些批次因此一直没有 line 数据；现按多省 BatchRuleRegistry 已支持的批次类型放开。
+        if (!isSupportedBatchKeyword(batch)) {
+            errors.add("批次不在已支持的本科/专科/专项/提前批口径范围内: " + batch);
         }
         String key = trimToEmpty(row.getSchoolId()) + "#" + trimToEmpty(row.getUniversityName())
                 + "#" + trimToEmpty(row.getGroupCode()) + "#" + trimToEmpty(row.getSubjectType());

@@ -5,8 +5,10 @@ import lombok.Data;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Collections;
 
 @Service
 public class ProvincePolicyService {
@@ -15,19 +17,16 @@ public class ProvincePolicyService {
     public static final String SC = "SC";
     public static final String HB = "HB";
     public static final String AH = "AH";
+    public static final String GX = "GX";
+    public static final String HI = "HI";
+    public static final String YN = "YN";
+    public static final String HA = "HA";
     public static final String UNIT_MAJOR_96 = "MAJOR_96";
     public static final String UNIT_PROFESSIONAL_GROUP_45 = "PROFESSIONAL_GROUP_45";
+    public static final String UNIT_NEXT_PROVINCE_QUERY_ONLY = "NEXT_PROVINCE_QUERY_ONLY";
+    public static final String UNIT_NEXT_PROVINCE_QUERY_ONLY_LABEL = "院校专业组（查询预估）";
 
-    private static final Map<String, ProvincePolicy> POLICIES = Map.of(
-            GZ, policy(GZ, "贵州", UNIT_MAJOR_96, "专业（类）+ 院校", "普通本科批", 96,
-                    List.of("物理类", "历史类"), "贵州省招生考试院"),
-            SC, policy(SC, "四川", UNIT_PROFESSIONAL_GROUP_45, "院校专业组", "普通本科批B段", 45,
-                    List.of("物理类", "历史类"), "四川省教育考试院"),
-            HB, policy(HB, "湖北", UNIT_PROFESSIONAL_GROUP_45, "院校专业组", "本科普通批", 45,
-                    List.of("物理类", "历史类"), "湖北省教育考试院"),
-            AH, policy(AH, "安徽", UNIT_PROFESSIONAL_GROUP_45, "院校专业组", "普通本科批次", 45,
-                    List.of("物理类", "历史类"), "安徽省教育招生考试院")
-    );
+    private static final Map<String, ProvincePolicy> POLICIES = buildPolicies();
 
     public String normalizeProvinceCode(String provinceCode) {
         String raw = provinceCode == null ? "" : provinceCode.trim();
@@ -42,6 +41,18 @@ public class ProvincePolicyService {
         }
         if ("安徽".equals(raw) || "安徽省".equals(raw)) {
             return AH;
+        }
+        if ("广西".equals(raw) || "广西壮族自治区".equals(raw)) {
+            return GX;
+        }
+        if ("海南".equals(raw) || "海南省".equals(raw)) {
+            return HI;
+        }
+        if ("云南".equals(raw) || "云南省".equals(raw)) {
+            return YN;
+        }
+        if ("河南".equals(raw) || "河南省".equals(raw)) {
+            return HA;
         }
         String value = raw.toUpperCase(Locale.ROOT);
         if (value.isBlank()) {
@@ -58,12 +69,31 @@ public class ProvincePolicyService {
     }
 
     public List<ProvincePolicy> listPolicies() {
-        return List.of(POLICIES.get(GZ), POLICIES.get(SC), POLICIES.get(HB), POLICIES.get(AH));
+        return List.copyOf(POLICIES.values());
     }
 
     public boolean isProfessionalGroupProvince(String provinceCode) {
         ProvincePolicy policy = getPolicy(provinceCode);
         return UNIT_PROFESSIONAL_GROUP_45.equals(policy.getVolunteerUnitType());
+    }
+
+    public boolean isNextProvinceQueryOnly(String provinceCode) {
+        ProvincePolicy policy = getPolicy(provinceCode);
+        return UNIT_NEXT_PROVINCE_QUERY_ONLY.equals(policy.getVolunteerUnitType());
+    }
+
+    private static Map<String, ProvincePolicy> buildPolicies() {
+        Map<String, ProvincePolicy> policies = new LinkedHashMap<>();
+        policies.put(GZ, policy(GZ, "贵州", UNIT_MAJOR_96, "专业（类）+ 院校", "普通本科批", 96,
+                List.of("物理类", "历史类"), "贵州省招生考试院"));
+        policies.put(SC, policy(SC, "四川", UNIT_PROFESSIONAL_GROUP_45, "院校专业组", "普通本科批B段", 45,
+                List.of("物理类", "历史类"), "四川省教育考试院"));
+        policies.put(HB, policy(HB, "湖北", UNIT_PROFESSIONAL_GROUP_45, "院校专业组", "本科普通批", 45,
+                List.of("物理类", "历史类"), "湖北省教育考试院"));
+        policies.put(AH, policy(AH, "安徽", UNIT_PROFESSIONAL_GROUP_45, "院校专业组", "普通本科批次", 45,
+                List.of("物理类", "历史类"), "安徽省教育招生考试院"));
+        policies.putAll(NextProvincePolicyRegistry.provincePolicies());
+        return Collections.unmodifiableMap(policies);
     }
 
     private static ProvincePolicy policy(String code, String name, String unitType, String unitLabel,

@@ -10,21 +10,27 @@ import com.gzly.entity.AiConfig;
 import com.gzly.mapper.AiConfigMapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AiConfigService {
@@ -37,10 +43,15 @@ public class AiConfigService {
 
     private final AiConfigMapper aiConfigMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Autowired(required = false)
+    private AiCallLogService aiCallLogService;
     private final OkHttpClient testClient = new OkHttpClient.Builder()
             .connectTimeout(Duration.ofSeconds(5))
-            .readTimeout(Duration.ofSeconds(20))
+            .readTimeout(Duration.ofSeconds(45))
             .writeTimeout(Duration.ofSeconds(10))
+            .callTimeout(Duration.ofSeconds(50))
+            .protocols(List.of(Protocol.HTTP_1_1))
             .build();
 
     @Value("${gzly.ai.base-url:}")
@@ -140,6 +151,41 @@ public class AiConfigService {
 
         long startedAt = System.currentTimeMillis();
         try {
+            ModelProbeResult probe = probeModel(config);
+            long elapsedMs = System.currentTimeMillis() - startedAt;
+            recordTestLog(probe.success(), probe.httpStatus(), probe.errorCode(), config.getChatModel(),
+                    elapsedMs, probe.message());
+            if (probe.success()) {
+                return AiConfigTestResult.ok("连接成功，模型可正常响应（" + probe.protocol() + "）",
+                        elapsedMs, defaultIfBlank(probe.model(), config.getChatModel()));
+            }
+            return AiConfigTestResult.fail(probe.userMessage(), elapsedMs, config.getChatModel());
+        } catch (Exception e) {
+            long elapsedMs = System.currentTimeMillis() - startedAt;
+            String code = isTimeout(e) ? "TIMEOUT" : "EXCEPTION";
+            String message = friendlyExceptionMessage(e);
+            recordTestLog(false, null, code, config.getChatModel(), elapsedMs, message);
+            return AiConfigTestResult.fail(message, elapsedMs, config.getChatModel());
+        }
+    }
+
+    private ModelProbeResult probeModel(RuntimeAiConfig config) {
+        boolean preferResponses = shouldPreferResponses(config.getBaseUrl(), config.getChatModel());
+        if (preferResponses) {
+            ModelProbeResult responses = probeResponses(config);
+            if (responses.success() || !responses.unsupported()) {
+                return responses;
+            }
+        }
+        ModelProbeResult chat = probeChatCompletions(config);
+        if (chat.success() || preferResponses || !chat.unsupported()) {
+            return chat;
+        }
+        return probeResponses(config);
+    }
+
+    private ModelProbeResult probeChatCompletions(RuntimeAiConfig config) {
+        try {
             ObjectNode body = objectMapper.createObjectNode();
             body.put("model", config.getChatModel());
             body.put("max_tokens", 8);
@@ -147,35 +193,75 @@ public class AiConfigService {
             ArrayNode messages = body.putArray("messages");
             ObjectNode userMsg = messages.addObject();
             userMsg.put("role", "user");
-            userMsg.put("content", "ping");
-
-            Request request = new Request.Builder()
-                    .url(resolveChatCompletionsUrl(config.getBaseUrl()))
-                    .addHeader("Authorization", "Bearer " + config.getApiKey())
-                    .addHeader("Content-Type", "application/json")
+            userMsg.put("content", "ping，请只回复 OK");
+            Request request = requestBuilder(config, resolveChatCompletionsUrl(config.getBaseUrl()))
                     .post(RequestBody.create(body.toString(), MediaType.parse("application/json")))
                     .build();
-
             try (Response response = testClient.newCall(request).execute()) {
-                long elapsedMs = System.currentTimeMillis() - startedAt;
                 String responseBody = response.body() == null ? "" : response.body().string();
                 if (!response.isSuccessful()) {
-                    return AiConfigTestResult.fail(
-                            "连接失败：HTTP " + response.code() + formatResponseError(responseBody),
-                            elapsedMs,
-                            config.getChatModel()
-                    );
+                    return ModelProbeResult.httpFailure("chat_completions", response.code(),
+                            extractErrorCode(responseBody), formatResponseError(responseBody));
                 }
-                String model = config.getChatModel();
-                if (!isBlank(responseBody)) {
-                    JsonNode root = objectMapper.readTree(responseBody);
-                    model = defaultIfBlank(root.path("model").asText(), model);
-                }
-                return AiConfigTestResult.ok("连接成功，模型可正常响应", elapsedMs, model);
+                JsonNode root = objectMapper.readTree(responseBody.isBlank() ? "{}" : responseBody);
+                String content = root.path("choices").path(0).path("message").path("content").asText("");
+                return ModelProbeResult.success("chat_completions", response.code(),
+                        defaultIfBlank(root.path("model").asText(), config.getChatModel()), content);
             }
         } catch (Exception e) {
-            long elapsedMs = System.currentTimeMillis() - startedAt;
-            return AiConfigTestResult.fail("连接失败：" + e.getMessage(), elapsedMs, config.getChatModel());
+            return ModelProbeResult.exception("chat_completions", e);
+        }
+    }
+
+    private ModelProbeResult probeResponses(RuntimeAiConfig config) {
+        try {
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("model", config.getChatModel());
+            body.put("input", "ping，请只回复 OK");
+            body.put("max_output_tokens", 16);
+            Request request = requestBuilder(config, resolveResponsesUrl(config.getBaseUrl()))
+                    .post(RequestBody.create(body.toString(), MediaType.parse("application/json")))
+                    .build();
+            try (Response response = testClient.newCall(request).execute()) {
+                String responseBody = response.body() == null ? "" : response.body().string();
+                if (!response.isSuccessful()) {
+                    return ModelProbeResult.httpFailure("responses", response.code(),
+                            extractErrorCode(responseBody), formatResponseError(responseBody));
+                }
+                JsonNode root = objectMapper.readTree(responseBody.isBlank() ? "{}" : responseBody);
+                return ModelProbeResult.success("responses", response.code(),
+                        defaultIfBlank(root.path("model").asText(), config.getChatModel()),
+                        extractResponsesText(root));
+            }
+        } catch (Exception e) {
+            return ModelProbeResult.exception("responses", e);
+        }
+    }
+
+    private void recordTestLog(boolean success, Integer httpStatus, String errorCode, String model,
+                               long latencyMs, String message) {
+        if (aiCallLogService != null) {
+            aiCallLogService.record(AiCallLogService.SCENE_TEST_CONNECTION, success, httpStatus, errorCode,
+                    model, (int) latencyMs, message);
+        }
+    }
+
+    private String extractErrorCode(String body) {
+        if (isBlank(body)) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            String code = root.path("code").asText("");
+            if (code.isBlank()) {
+                code = root.path("error").path("code").asText("");
+            }
+            if (code.isBlank()) {
+                code = root.path("error").path("type").asText("");
+            }
+            return code.isBlank() ? null : code;
+        } catch (Exception e) {
+            return null;
         }
     }
 
@@ -325,6 +411,50 @@ public class AiConfigService {
         view.setUpdatedAt(runtime.getUpdatedAt());
         return view;
     }
+
+    private Request.Builder requestBuilder(RuntimeAiConfig config, String url) {
+        return new Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer " + config.getApiKey())
+                .addHeader("Content-Type", "application/json")
+                .addHeader("User-Agent", "GZLY-AI-Provider/1.0");
+    }
+
+    private boolean shouldPreferResponses(String baseUrl, String model) {
+        String normalizedUrl = baseUrl == null ? "" : baseUrl.toLowerCase(Locale.ROOT);
+        String normalizedModel = model == null ? "" : model.toLowerCase(Locale.ROOT);
+        return normalizedUrl.endsWith("/responses")
+                || normalizedModel.startsWith("gpt-5")
+                || normalizedModel.contains("gpt-5.");
+    }
+
+    private String extractResponsesText(JsonNode root) {
+        String outputText = root.path("output_text").asText("");
+        if (!outputText.isBlank()) {
+            return outputText;
+        }
+        JsonNode output = root.path("output");
+        if (output.isArray()) {
+            StringBuilder builder = new StringBuilder();
+            for (JsonNode item : output) {
+                JsonNode content = item.path("content");
+                if (content.isArray()) {
+                    for (JsonNode part : content) {
+                        String text = part.path("text").asText("");
+                        if (text.isBlank()) {
+                            text = part.path("content").asText("");
+                        }
+                        if (!text.isBlank()) {
+                            builder.append(text).append('\n');
+                        }
+                    }
+                }
+            }
+            return builder.toString().trim();
+        }
+        return root.path("choices").path(0).path("message").path("content").asText("");
+    }
+
     private AiConfig loadSavedConfig() {
         return aiConfigMapper.selectOne(new LambdaQueryWrapper<AiConfig>()
                 .orderByDesc(AiConfig::getUpdatedAt)
@@ -343,6 +473,7 @@ public class AiConfigService {
         if (baseUrl.length() > 500) {
             throw new BizException("AI接口地址过长");
         }
+        assertOutboundUrlAllowed(baseUrl);
         if (isBlank(req.getChatModel())) {
             throw new BizException("请输入对话模型名称");
         }
@@ -377,9 +508,54 @@ public class AiConfigService {
         if (baseUrl.length() > 500) {
             throw new BizException("AI接口地址过长");
         }
+        assertOutboundUrlAllowed(baseUrl);
         if (req.getApiKey() != null && req.getApiKey().length() > 500) {
             throw new BizException("API Key过长");
         }
+    }
+
+    /**
+     * SSRF 防护：禁止 AI 出站地址指向回环/内网/链路本地/云元数据地址，
+     * 防止管理员凭证被盗后用服务端探测内网或读取云元数据。
+     */
+    private void assertOutboundUrlAllowed(String baseUrl) {
+        String host;
+        try {
+            host = java.net.URI.create(baseUrl).getHost();
+        } catch (Exception e) {
+            throw new BizException("AI接口地址格式不正确");
+        }
+        if (host == null || host.isBlank()) {
+            throw new BizException("AI接口地址缺少主机名");
+        }
+        String lower = host.toLowerCase();
+        if (lower.equals("localhost") || lower.endsWith(".localhost")
+                || lower.equals("metadata.google.internal")) {
+            throw new BizException("AI接口地址不允许指向本机或内网地址");
+        }
+        try {
+            for (java.net.InetAddress addr : java.net.InetAddress.getAllByName(host)) {
+                if (addr.isLoopbackAddress() || addr.isAnyLocalAddress()
+                        || addr.isLinkLocalAddress() || addr.isSiteLocalAddress()
+                        || isUniqueLocalIpv6(addr)) {
+                    throw new BizException("AI接口地址不允许指向本机或内网地址");
+                }
+            }
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            // 解析失败不阻断（可能是临时 DNS 故障）；字面量为内网的已在上面拦截。
+            log.warn("AI 出站地址解析失败，跳过 SSRF 解析校验: host={}, err={}", host, e.toString());
+        }
+    }
+
+    private boolean isUniqueLocalIpv6(java.net.InetAddress addr) {
+        if (!(addr instanceof java.net.Inet6Address)) {
+            return false;
+        }
+        byte[] b = addr.getAddress();
+        // fc00::/7 (ULA)
+        return b.length == 16 && (b[0] & 0xFE) == 0xFC;
     }
 
     private RuntimeAiConfig buildRuntimeConfigForRequest(SaveAiConfigRequest req, AiConfig saved) {
@@ -410,10 +586,27 @@ public class AiConfigService {
         if (normalized.endsWith("/chat/completions")) {
             return normalized;
         }
+        if (normalized.endsWith("/responses")) {
+            normalized = normalized.substring(0, normalized.length() - "/responses".length());
+        }
         if (normalized.endsWith("/v1")) {
             return normalized + "/chat/completions";
         }
         return normalized + "/v1/chat/completions";
+    }
+
+    private String resolveResponsesUrl(String rawBaseUrl) {
+        String normalized = normalizeUrl(rawBaseUrl);
+        if (normalized.endsWith("/responses")) {
+            return normalized;
+        }
+        if (normalized.endsWith("/chat/completions")) {
+            normalized = normalized.substring(0, normalized.length() - "/chat/completions".length());
+        }
+        if (normalized.endsWith("/v1")) {
+            return normalized + "/responses";
+        }
+        return normalized + "/v1/responses";
     }
 
     private String normalizeUrl(String value) {
@@ -459,6 +652,32 @@ public class AiConfigService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private String friendlyExceptionMessage(Exception e) {
+        if (isTimeout(e)) {
+            return "连接失败：AI 服务响应超时，请稍后重试；如果连续出现，请确认服务商线路或模型是否可用。";
+        }
+        String message = e.getMessage();
+        if (message == null || message.isBlank()) {
+            return "连接失败：AI 服务暂时不可用";
+        }
+        return "连接失败：" + message;
+    }
+
+    private boolean isTimeout(Throwable e) {
+        Throwable cur = e;
+        while (cur != null) {
+            if (cur instanceof SocketTimeoutException) {
+                return true;
+            }
+            String message = cur.getMessage();
+            if (message != null && message.toLowerCase(Locale.ROOT).contains("timeout")) {
+                return true;
+            }
+            cur = cur.getCause();
+        }
+        return false;
     }
 
     @Data
@@ -583,5 +802,43 @@ public class AiConfigService {
         private Double temperature;
         private String systemPrompt;
         private Boolean enabled;
+    }
+
+    private record ModelProbeResult(String protocol, boolean success, boolean unsupported, Integer httpStatus,
+                                    String errorCode, String model, String message, String userMessage) {
+        static ModelProbeResult success(String protocol, Integer httpStatus, String model, String content) {
+            boolean ok = content != null && !content.isBlank();
+            return new ModelProbeResult(protocol, ok, false, httpStatus, ok ? null : "EMPTY_CONTENT",
+                    model, ok ? "OK" : "AI 返回空内容",
+                    ok ? "" : "连接失败：AI 返回空内容，请检查模型名或协议模式。");
+        }
+
+        static ModelProbeResult httpFailure(String protocol, int status, String errorCode, String detail) {
+            boolean unsupported = status == 404 || status == 405 || status == 501;
+            String code = errorCode == null || errorCode.isBlank() ? "HTTP_" + status : errorCode;
+            String message = "HTTP " + status + detail;
+            String userMessage;
+            if (status == 401 || status == 403 || "INSUFFICIENT_BALANCE".equalsIgnoreCase(code)) {
+                userMessage = "连接失败：API Key 无效、模型无权限或账户余额不足。";
+            } else if (unsupported) {
+                userMessage = "连接失败：该服务商不支持本次尝试的 API 协议，可手动填写模型后再测试。";
+            } else {
+                userMessage = "连接失败：" + message;
+            }
+            return new ModelProbeResult(protocol, false, unsupported, status, code, "", message, userMessage);
+        }
+
+        static ModelProbeResult exception(String protocol, Exception e) {
+            boolean timeout = e instanceof SocketTimeoutException
+                    || (e.getMessage() != null && e.getMessage().toLowerCase(Locale.ROOT).contains("timeout"));
+            String message = timeout
+                    ? "AI 服务响应超时"
+                    : e.getMessage() == null ? "未知异常" : e.getMessage();
+            String userMessage = timeout
+                    ? "连接失败：AI 服务响应超时，请稍后重试；如果连续出现，请确认服务商线路或模型是否可用。"
+                    : "连接失败：" + message;
+            return new ModelProbeResult(protocol, false, false, null, timeout ? "TIMEOUT" : "EXCEPTION",
+                    "", message, userMessage);
+        }
     }
 }

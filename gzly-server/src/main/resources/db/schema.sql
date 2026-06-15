@@ -310,11 +310,44 @@ CREATE TABLE IF NOT EXISTS `biz_plan_history` (
   `metrics_json` VARCHAR(2000) NULL COMMENT '生成耗时/复核率等监控指标(JSON)',
   `request_snapshot_json` MEDIUMTEXT NULL COMMENT '完整 GenerateRequest 快照(JSON)',
   `safety_code_hash` VARCHAR(120) NULL COMMENT '方案安全码 BCrypt 哈希',
+  `safety_code_fingerprint` CHAR(64) NULL COMMENT '方案安全码指纹，用于跨设备历史列表',
+  `safety_code_created_at` DATETIME NULL COMMENT '安全码创建时间',
+  `safety_code_version` TINYINT NOT NULL DEFAULT 1 COMMENT '安全码版本',
+  `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记 0=正常 1=已删除',
+  `deleted_at` DATETIME NULL COMMENT '软删除时间',
+  `deleted_by` BIGINT NULL COMMENT '软删除操作人',
+  `delete_reason` VARCHAR(200) NULL COMMENT '软删除原因',
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY `idx_user_id` (`user_id`),
   KEY `idx_province_created` (`province_code`, `created_at`),
+  KEY `idx_deleted_created` (`deleted`, `created_at`),
+  KEY `idx_deleted_user_created` (`deleted`, `user_id`, `created_at`),
+  KEY `idx_deleted_fp_created` (`deleted`, `safety_code_fingerprint`, `created_at`),
   KEY `idx_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='志愿方案生成记录';
+
+-- 5.1 专业选择规划结果表
+CREATE TABLE IF NOT EXISTS `major_planner_result` (
+  `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+  `plan_no` VARCHAR(40) NOT NULL COMMENT '规划编号',
+  `plan_code_hash` VARCHAR(120) NOT NULL COMMENT '规划码 BCrypt 哈希',
+  `plan_code_fingerprint` CHAR(64) NOT NULL COMMENT '规划码不可逆指纹，用于找回定位',
+  `plan_code_masked` VARCHAR(20) NOT NULL DEFAULT '' COMMENT '规划码掩码展示',
+  `province_code` VARCHAR(10) DEFAULT NULL COMMENT '所在省份，可空',
+  `subject_category` VARCHAR(80) NOT NULL DEFAULT '' COMMENT '选科/科类',
+  `score` INT DEFAULT NULL COMMENT '分数，可空',
+  `province_rank` INT DEFAULT NULL COMMENT '位次，可空',
+  `answers_json` MEDIUMTEXT NOT NULL COMMENT '问卷答案 JSON',
+  `result_json` LONGTEXT NOT NULL COMMENT '规则评分结果 JSON',
+  `ai_summary` MEDIUMTEXT NULL COMMENT 'AI 深度解读',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` DATETIME NULL COMMENT '软删除时间',
+  UNIQUE KEY `uk_major_planner_plan_no` (`plan_no`),
+  KEY `idx_major_planner_code_fp` (`plan_code_fingerprint`),
+  KEY `idx_major_planner_created` (`created_at`),
+  KEY `idx_major_planner_deleted_created` (`deleted_at`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='专业选择规划结果表';
 
 -- =============================================
 -- 校友共建系统

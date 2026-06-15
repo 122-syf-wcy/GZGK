@@ -54,6 +54,7 @@ public class MePlanController {
         Page<PlanHistory> result = planHistoryMapper.selectPage(new Page<>(page, size),
                 new QueryWrapper<PlanHistory>()
                         .eq("user_id", userId)
+                        .eq("deleted", 0)
                         .orderByDesc("created_at"));
 
         List<Map<String, Object>> items = result.getRecords().stream().map(this::toListItem).toList();
@@ -128,6 +129,7 @@ public class MePlanController {
         }
         PlanHistory row = planHistoryMapper.selectById(planId);
         if (row == null) throw new BizException("方案不存在");
+        if (Integer.valueOf(1).equals(row.getDeleted())) throw new BizException("方案已删除，无法绑定");
         Long currentOwner = row.getUserId();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("planId", planId);
@@ -191,6 +193,7 @@ public class MePlanController {
         if (id == null || id <= 0) throw new BizException("方案 id 不能为空");
         PlanHistory row = planHistoryMapper.selectById(id);
         if (row == null) throw new BizException("方案不存在");
+        if (Integer.valueOf(1).equals(row.getDeleted())) throw new BizException("方案已删除");
         if (row.getUserId() == null || !row.getUserId().equals(userId)) {
             throw new BizException("无权限访问该方案");
         }

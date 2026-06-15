@@ -15,6 +15,11 @@ public class BizUserFeedback {
     private String content;
     private String sourcePage;
     private Integer status;
+    private Integer handleStatus;
+    private Long resultId;
+    private String provinceCode;
+    private String handleNote;
+    private LocalDateTime handledAt;
     private String ipHash;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

@@ -58,5 +58,10 @@ public class PlanHistory {
     private String safetyCodeFingerprint;
     private LocalDateTime safetyCodeCreatedAt;
     private Integer safetyCodeVersion;
+    /** 软删除标记：0=正常，1=已移入删除状态 */
+    private Integer deleted;
+    private LocalDateTime deletedAt;
+    private Long deletedBy;
+    private String deleteReason;
     private LocalDateTime createdAt;
 }

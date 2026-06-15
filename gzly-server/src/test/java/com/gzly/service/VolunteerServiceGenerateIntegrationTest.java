@@ -399,6 +399,47 @@ class VolunteerServiceGenerateIntegrationTest {
     }
 
     @Test
+    void saveQueryOnlyPlanResult_shouldIssueAccessCodeWithoutLeakingPlaintextIntoJson() {
+        GenerateRequest req = baseValidRequest();
+        req.setSafetyCode("query123");
+        req.setBatchCode("GX_BENKE");
+        req.setProvinceCode("GX");
+
+        PlanResult plan = new PlanResult();
+        plan.setProvinceCode("GX");
+        plan.setVolunteerUnitType(ProvincePolicyService.UNIT_NEXT_PROVINCE_QUERY_ONLY);
+        plan.setTargetBatch("普通本科批");
+        plan.setTargetCount(0);
+        plan.setTotalScore(560);
+        plan.setProvinceRank(32000);
+        plan.setFirstSubject("物理");
+        plan.setResubjects(List.of("化学", "生物"));
+        plan.setItems(List.of());
+        plan.setManualReviewItems(List.of());
+        plan.setPolicy(Map.of("supportLevel", "TRIAL_RECOMMEND", "recommendMode", "QUERY_ONLY"));
+        plan.setModelInfo(Map.of("engineName", "QueryOnlyRecommendEngine"));
+        plan.setWarnings(List.of(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING));
+        plan.setRecommendationPhase(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+        plan.setEstimateMode(true);
+        plan.setOfficialDataReady(false);
+
+        PlanResult savedPlan = service.saveQueryOnlyPlanResult(req, plan, null, "127.0.0.1");
+
+        org.mockito.ArgumentCaptor<PlanHistory> captor = org.mockito.ArgumentCaptor.forClass(PlanHistory.class);
+        verify(planHistoryMapper).insert(captor.capture());
+        PlanHistory saved = captor.getValue();
+        assertThat(savedPlan.getId()).isPositive();
+        assertThat(savedPlan.getAccessKey()).isEqualTo("QUERY123");
+        assertThat(saved.getUserId()).isZero();
+        assertThat(saved.getSafetyCodeHash()).isNotBlank();
+        assertThat(saved.getSafetyCodeFingerprint()).isEqualTo(safetyCodeService.fingerprint("QUERY123"));
+        assertThat(saved.getPlanJson()).doesNotContain("QUERY123");
+        assertThat(saved.getRequestSnapshotJson()).doesNotContain("QUERY123");
+        assertThat(saved.getManualReviewJson()).doesNotContain("QUERY123");
+        assertThat(saved.getMetricsJson()).doesNotContain("QUERY123");
+    }
+
+    @Test
     void generate_shouldReleaseGenerateLockByOwnerToken() {
         AtomicReference<String> lockToken = new AtomicReference<>();
         lenient().when(valueOps.setIfAbsent(anyString(), anyString(), any())).thenAnswer(inv -> {
@@ -491,6 +532,78 @@ class VolunteerServiceGenerateIntegrationTest {
                 .isGreaterThan(0);
     }
 
+    @Test
+    void generate_rankScoreMismatchInsufficient_shouldRelaxByScoreRankAndWarn() {
+        // 候选历史最低位次集中在“分数对应的官方位次窗口”（约 2.8w~7.5w）；
+        // 用户却把位次填成 97163（与 450 分严重不一致），主流程按 97163 取窗口几乎查不到候选。
+        List<MajorScoreGz> candidates = new ArrayList<>();
+        for (int i = 0; i < 60; i++) {
+            String sid = "rx-" + i;
+            candidates.add(historyMajor(sid, "放宽学校" + i, "放宽专业" + i, 28000 + i * 800, 2024));
+            stubUniversities(sid, "放宽学校" + i, "贵阳", "公办");
+        }
+        stubCandidatesByRequestedRank(candidates);
+
+        // 450 分历史类官方位次区间约 42332~42769，与用户填的 97163 明显不一致（matched=false）。
+        AlgorithmService.RankEstimate est = new AlgorithmService.RankEstimate();
+        est.setScore(450);
+        est.setSubjectType("历史类");
+        est.setEstimatedRank(42769);
+        est.setRankLow(42332);
+        est.setRankHigh(42769);
+        est.setDataPoints(2);
+        est.setReferenceYear(2025);
+        est.setSource("贵州省招生考试院");
+        lenient().when(provinceRankService.estimateRank(anyString(), anyInt(), anyString(), any()))
+                .thenReturn(est);
+
+        GenerateRequest req = baseValidRequest();
+        req.setTotalScore(450);
+        req.setProvinceRank(97163);
+        req.setFirstSubject("历史");
+        req.setResubjects(List.of("生物", "地理"));
+        req.setSelectedSubjects(List.of("历史", "生物", "地理"));
+        req.setPreferredMajors(List.of("英语", "汉语言文学"));
+        req.setPreferredRegions(List.of("贵州", "四川"));
+
+        PlanResult result = service.generate(req, null, "127.0.0.1");
+
+        // 1) 兜底生效：不再返回空集，避免“点击生成没反应/进不去结果页”。
+        assertThat(result.getItems()).isNotEmpty();
+        // 2) 补充项按“分数位次放宽补位”标记，且为窗口外补位。
+        List<VolunteerItem> relaxed = result.getItems().stream()
+                .filter(item -> "RANK_RELAX_BACKFILL".equals(item.getFillReason()))
+                .collect(Collectors.toList());
+        assertThat(relaxed).isNotEmpty();
+        assertThat(relaxed).allSatisfy(item -> assertThat(item.isOutsideConfiguredRange()).isTrue());
+        // 3) relaxReason 写入 dataQualityWarning，给用户可解释提示。
+        assertThat(result.getDataQualityWarning()).contains("放宽补充");
+        // 4) code 层面成功（PlanResult 正常返回，不抛 500）。
+        assertThat(result.getId()).isPositive();
+    }
+
+    @Test
+    void generate_narrowPreferences_shouldNotThrowAndStillReturnPlan() {
+        // 专业偏好 + 地区偏好都很窄：偏好在后端只做排序加权，不应把候选过滤到 0 或抛 500。
+        List<MajorScoreGz> candidates = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            String sid = "np-" + i;
+            candidates.add(major(sid, "偏好学校" + i, "机械工程" + i, 20000 + i * 500, 2024));
+            stubUniversities(sid, "偏好学校" + i, "六盘水", "公办");
+        }
+        stubCandidatesAcrossGradients(candidates);
+
+        GenerateRequest req = baseValidRequest();
+        req.setPreferredMajors(List.of("英语")); // 候选里没有英语专业
+        req.setPreferredRegions(List.of("贵阳")); // 候选都在六盘水
+
+        PlanResult result = service.generate(req, null, "127.0.0.1");
+
+        // 偏好窄不应导致候选为 0，更不应 500。
+        assertThat(result.getItems()).isNotEmpty();
+        assertThat(result.getId()).isPositive();
+    }
+
     // ───────────── helpers ─────────────
 
     private GenerateRequest baseValidRequest() {
@@ -571,6 +684,15 @@ class VolunteerServiceGenerateIntegrationTest {
         m.setSubjectType("历史类");
         m.setBatch("专科批");
         m.setMinScore(380);
+        return m;
+    }
+
+    private MajorScoreGz historyMajor(String schoolId, String universityName, String majorName,
+                                      int minRank, int year) {
+        MajorScoreGz m = major(schoolId, universityName, majorName, minRank, year);
+        m.setSubjectType("历史类");
+        m.setBatch("普通本科批");
+        m.setMinScore(450);
         return m;
     }
 

@@ -2,6 +2,7 @@ package com.gzly.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.gzly.common.Result;
 import com.gzly.common.exception.BizException;
@@ -423,19 +424,125 @@ public class AdminController {
     public Result<Map<String, Object>> plans(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String search) {
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String provinceCode,
+            @RequestParam(required = false) Integer score,
+            @RequestParam(required = false) Integer rank,
+            @RequestParam(required = false) Boolean itemCountZero,
+            @RequestParam(required = false) Boolean anonymous,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(defaultValue = "false") boolean includeDeleted) {
+        size = Math.min(Math.max(size, 1), 100);
+        page = Math.max(page, 1);
         LambdaQueryWrapper<PlanHistory> qw = new LambdaQueryWrapper<PlanHistory>()
                 .orderByDesc(PlanHistory::getCreatedAt);
+        if (!includeDeleted) {
+            qw.eq(PlanHistory::getDeleted, 0);
+        }
         if (search != null && !search.isBlank()) {
-            qw.and(w -> w.like(PlanHistory::getFirstSubject, search)
-                    .or().eq(PlanHistory::getTotalScore, tryParseInt(search)));
+            String keyword = search.trim();
+            Integer numeric = tryParseInteger(keyword);
+            qw.and(w -> w.like(PlanHistory::getFirstSubject, keyword)
+                    .or().like(PlanHistory::getResubjects, keyword)
+                    .or().like(PlanHistory::getProvinceCode, keyword)
+                    .or().like(PlanHistory::getTargetBatch, keyword)
+                    .or().like(PlanHistory::getStrategyMode, keyword)
+                    .or(numeric != null, n -> n.eq(PlanHistory::getId, numeric.longValue())
+                            .or().eq(PlanHistory::getTotalScore, numeric)
+                            .or().eq(PlanHistory::getProvinceRank, numeric)));
+        }
+        if (provinceCode != null && !provinceCode.isBlank()) {
+            qw.eq(PlanHistory::getProvinceCode, provinceCode.trim().toUpperCase(Locale.ROOT));
+        }
+        if (score != null) {
+            qw.eq(PlanHistory::getTotalScore, score);
+        }
+        if (rank != null) {
+            qw.eq(PlanHistory::getProvinceRank, rank);
+        }
+        if (Boolean.TRUE.equals(itemCountZero)) {
+            qw.and(w -> w.isNull(PlanHistory::getItemCount).or().eq(PlanHistory::getItemCount, 0));
+        }
+        if (Boolean.TRUE.equals(anonymous)) {
+            qw.and(w -> w.isNull(PlanHistory::getUserId).or().eq(PlanHistory::getUserId, 0L));
+        }
+        LocalDateTime start = parseDateTimeParam(startDate, false);
+        LocalDateTime end = parseDateTimeParam(endDate, true);
+        if (start != null) {
+            qw.ge(PlanHistory::getCreatedAt, start);
+        }
+        if (end != null) {
+            qw.le(PlanHistory::getCreatedAt, end);
         }
         Page<PlanHistory> p = planMapper.selectPage(new Page<>(page, size), qw);
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("items", p.getRecords());
+        result.put("items", p.getRecords().stream().map(this::toAdminPlanView).toList());
         result.put("total", p.getTotal());
         result.put("page", page);
         result.put("pageSize", size);
+        return Result.ok(result);
+    }
+
+    @DeleteMapping("/plans/{id}")
+    public Result<Map<String, Object>> deletePlan(@PathVariable Long id,
+                                                  @RequestBody(required = false) PlanDeleteRequest body,
+                                                  HttpServletRequest request) {
+        if (id == null || id <= 0) {
+            throw new BizException("方案 ID 不能为空");
+        }
+        String reason = normalizeDeleteReason(body == null ? null : body.getReason(), "admin-single-delete");
+        int affected = softDeletePlanIds(List.of(id), reason, getAuthUserId(request));
+        if (affected <= 0) {
+            throw new BizException("方案不存在或已删除");
+        }
+        return Result.ok(Map.of("deletedCount", affected, "ids", List.of(id)));
+    }
+
+    @PostMapping("/plans/batch-delete")
+    public Result<Map<String, Object>> batchDeletePlans(@RequestBody(required = false) PlanBatchDeleteRequest body,
+                                                        HttpServletRequest request) {
+        List<Long> ids = sanitizePlanIds(body == null ? null : body.getIds());
+        if (ids.isEmpty()) {
+            throw new BizException("请选择要删除的方案记录");
+        }
+        String reason = normalizeDeleteReason(body == null ? null : body.getReason(), "admin-batch-delete");
+        int affected = softDeletePlanIds(ids, reason, getAuthUserId(request));
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("requestedCount", ids.size());
+        result.put("deletedCount", affected);
+        result.put("ids", ids);
+        return Result.ok(result);
+    }
+
+    @PostMapping("/plans/cleanup-test-records")
+    public Result<Map<String, Object>> cleanupTestPlans(@RequestBody(required = false) PlanCleanupRequest body,
+                                                        HttpServletRequest request) {
+        PlanCleanupRequest req = body == null ? new PlanCleanupRequest() : body;
+        LambdaQueryWrapper<PlanHistory> qw = buildCleanupPlanQuery(req);
+        List<PlanHistory> matched = planMapper.selectList(qw);
+        List<Long> ids = matched.stream().map(PlanHistory::getId).filter(Objects::nonNull).toList();
+        List<Map<String, Object>> sample = matched.stream().limit(50).map(this::toAdminPlanView).toList();
+        boolean dryRun = req.getDryRun() == null || req.getDryRun();
+        int affected = 0;
+        if (!dryRun) {
+            if (!Boolean.TRUE.equals(req.getConfirm())) {
+                throw new BizException("执行清理前需要二次确认");
+            }
+            if (ids.isEmpty()) {
+                affected = 0;
+            } else {
+                affected = softDeletePlanIds(ids, normalizeDeleteReason(req.getReason(), "admin-cleanup-test-records"),
+                        getAuthUserId(request));
+            }
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("dryRun", dryRun);
+        result.put("matchedCount", ids.size());
+        result.put("deletedCount", affected);
+        result.put("ids", ids);
+        result.put("sample", sample);
+        result.put("notice", dryRun ? "dryRun 只返回候选记录，不会修改数据库" : "已执行软删除，不物理删除方案内容");
         return Result.ok(result);
     }
 
@@ -998,6 +1105,160 @@ public class AdminController {
 
     private int tryParseInt(String s) {
         try { return Integer.parseInt(s); } catch (Exception e) { return -1; }
+    }
+
+    private Integer tryParseInteger(String s) {
+        try {
+            return s == null || s.isBlank() ? null : Integer.parseInt(s.trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private LocalDateTime parseDateTimeParam(String value, boolean endOfDay) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String text = value.trim();
+        try {
+            if (text.length() <= 10) {
+                LocalDate date = LocalDate.parse(text);
+                return endOfDay ? date.atTime(23, 59, 59) : date.atStartOfDay();
+            }
+            return LocalDateTime.parse(text.replace(" ", "T"));
+        } catch (Exception e) {
+            throw new BizException("时间格式不正确，请使用 YYYY-MM-DD 或 ISO 时间");
+        }
+    }
+
+    private Map<String, Object> toAdminPlanView(PlanHistory plan) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", plan.getId());
+        row.put("userId", plan.getUserId());
+        row.put("anonymous", plan.getUserId() == null || plan.getUserId() <= 0);
+        row.put("provinceCode", plan.getProvinceCode());
+        row.put("volunteerUnitType", plan.getVolunteerUnitType());
+        row.put("targetBatch", plan.getTargetBatch());
+        row.put("totalScore", plan.getTotalScore());
+        row.put("provinceRank", plan.getProvinceRank());
+        row.put("firstSubject", plan.getFirstSubject());
+        row.put("resubjects", plan.getResubjects());
+        row.put("strategyMode", plan.getStrategyMode());
+        row.put("decisionPriority", plan.getDecisionPriority());
+        row.put("itemCount", plan.getItemCount());
+        row.put("hasAiAnalysis", plan.getAiAnalysis() != null && !plan.getAiAnalysis().isBlank());
+        row.put("hasSafetyCode", plan.getSafetyCodeHash() != null && !plan.getSafetyCodeHash().isBlank());
+        row.put("deleted", Integer.valueOf(1).equals(plan.getDeleted()));
+        row.put("deletedAt", plan.getDeletedAt());
+        row.put("deletedBy", plan.getDeletedBy());
+        row.put("deleteReason", plan.getDeleteReason());
+        row.put("createdAt", plan.getCreatedAt());
+        return row;
+    }
+
+    private List<Long> sanitizePlanIds(List<Long> ids) {
+        if (ids == null) {
+            return List.of();
+        }
+        return ids.stream()
+                .filter(Objects::nonNull)
+                .filter(id -> id > 0)
+                .distinct()
+                .limit(500)
+                .toList();
+    }
+
+    private String normalizeDeleteReason(String value, String fallback) {
+        String reason = value == null ? "" : value.trim();
+        if (reason.isBlank()) {
+            reason = fallback;
+        }
+        return reason.length() > 200 ? reason.substring(0, 200) : reason;
+    }
+
+    private int softDeletePlanIds(List<Long> ids, String reason, Long adminUserId) {
+        List<Long> safeIds = sanitizePlanIds(ids);
+        if (safeIds.isEmpty()) {
+            return 0;
+        }
+        return planMapper.update(null, new LambdaUpdateWrapper<PlanHistory>()
+                .in(PlanHistory::getId, safeIds)
+                .eq(PlanHistory::getDeleted, 0)
+                .set(PlanHistory::getDeleted, 1)
+                .set(PlanHistory::getDeletedAt, LocalDateTime.now())
+                .set(PlanHistory::getDeletedBy, adminUserId == null ? 0L : adminUserId)
+                .set(PlanHistory::getDeleteReason, normalizeDeleteReason(reason, "admin-delete")));
+    }
+
+    private LambdaQueryWrapper<PlanHistory> buildCleanupPlanQuery(PlanCleanupRequest req) {
+        LambdaQueryWrapper<PlanHistory> qw = new LambdaQueryWrapper<PlanHistory>()
+                .eq(PlanHistory::getDeleted, 0)
+                .orderByDesc(PlanHistory::getCreatedAt);
+        List<Long> ids = sanitizePlanIds(req.getIds());
+        boolean hasPreciseScope = false;
+        if (!ids.isEmpty()) {
+            qw.in(PlanHistory::getId, ids);
+            hasPreciseScope = true;
+        } else {
+            if (req.getIdStart() != null && req.getIdStart() > 0) {
+                qw.ge(PlanHistory::getId, req.getIdStart());
+                hasPreciseScope = true;
+            }
+            if (req.getIdEnd() != null && req.getIdEnd() > 0) {
+                qw.le(PlanHistory::getId, req.getIdEnd());
+                hasPreciseScope = true;
+            }
+        }
+        LocalDateTime before = parseDateTimeParam(req.getBefore(), true);
+        if (before != null) {
+            qw.le(PlanHistory::getCreatedAt, before);
+        }
+        if (Boolean.TRUE.equals(req.getOnlyZeroVolunteer())) {
+            qw.and(w -> w.isNull(PlanHistory::getItemCount).or().eq(PlanHistory::getItemCount, 0));
+        }
+        if (Boolean.TRUE.equals(req.getOnlyAnonymous())) {
+            qw.and(w -> w.isNull(PlanHistory::getUserId).or().eq(PlanHistory::getUserId, 0L));
+        }
+        if (req.getProvinceCode() != null && !req.getProvinceCode().isBlank()) {
+            qw.eq(PlanHistory::getProvinceCode, req.getProvinceCode().trim().toUpperCase(Locale.ROOT));
+        }
+        if (req.getScore() != null) {
+            qw.eq(PlanHistory::getTotalScore, req.getScore());
+        }
+        if (req.getRank() != null) {
+            qw.eq(PlanHistory::getProvinceRank, req.getRank());
+        }
+        if (!hasPreciseScope && !Boolean.TRUE.equals(req.getDryRun())) {
+            throw new BizException("执行清理必须指定 ids 或 idStart/idEnd，避免误删真实用户数据");
+        }
+        return qw;
+    }
+
+    @Data
+    public static class PlanDeleteRequest {
+        private String reason;
+    }
+
+    @Data
+    public static class PlanBatchDeleteRequest {
+        private List<Long> ids;
+        private String reason;
+    }
+
+    @Data
+    public static class PlanCleanupRequest {
+        private List<Long> ids;
+        private Long idStart;
+        private Long idEnd;
+        private String before;
+        private Boolean onlyZeroVolunteer = true;
+        private Boolean onlyAnonymous = true;
+        private Boolean dryRun = true;
+        private Boolean confirm;
+        private String provinceCode;
+        private Integer score;
+        private Integer rank;
+        private String reason;
     }
 
     @Data

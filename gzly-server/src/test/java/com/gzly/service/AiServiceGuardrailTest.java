@@ -33,6 +33,17 @@ class AiServiceGuardrailTest {
     }
 
     @Test
+    void sanitizeAiOutput_emptyTextShowsUnavailableInsteadOfSafetyReview() throws Exception {
+        AiService service = new AiService(null, new VolunteerMetricsRecorder());
+
+        String output = invokeSanitize(service, "   ");
+
+        assertThat(output)
+                .contains("AI 服务本次没有返回有效回复")
+                .doesNotContain("触发了安全复核");
+    }
+
+    @Test
     void buildAnalysisUserPrompt_keepsLiteralPercentText() throws Exception {
         AiService service = new AiService(null, new VolunteerMetricsRecorder());
 

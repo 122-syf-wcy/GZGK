@@ -60,6 +60,18 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private int siteStatsOnlineLimit;
     @Value("${gzly.rate-limit.site-stats-online-window-seconds:60}")
     private int siteStatsOnlineWindowSeconds;
+    @Value("${gzly.rate-limit.ai-qa-create-limit:5}")
+    private int aiQaCreateLimit;
+    @Value("${gzly.rate-limit.ai-qa-create-window-seconds:300}")
+    private int aiQaCreateWindowSeconds;
+    @Value("${gzly.rate-limit.ai-qa-restore-limit:10}")
+    private int aiQaRestoreLimit;
+    @Value("${gzly.rate-limit.ai-qa-restore-window-seconds:600}")
+    private int aiQaRestoreWindowSeconds;
+    @Value("${gzly.rate-limit.ai-qa-message-limit:20}")
+    private int aiQaMessageLimit;
+    @Value("${gzly.rate-limit.ai-qa-message-window-seconds:60}")
+    private int aiQaMessageWindowSeconds;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
@@ -111,6 +123,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
                     "algorithm-post", "/api/algorithm/**", "POST", algorithmLimit, algorithmWindowSeconds));
             rules.add(new PublicRateLimitInterceptor.RateLimitRule(
                     "site-stats-online", "/api/site-stats/online", "GET", siteStatsOnlineLimit, siteStatsOnlineWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "ai-qa-create", "/api/ai-qa/sessions", "POST", aiQaCreateLimit, aiQaCreateWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "ai-qa-restore", "/api/ai-qa/sessions/restore", "POST", aiQaRestoreLimit, aiQaRestoreWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "ai-qa-message", "/api/ai-qa/sessions/*/messages", "POST", aiQaMessageLimit, aiQaMessageWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "ai-qa-messages-get", "/api/ai-qa/sessions/*/messages", "GET", aiQaMessageLimit, aiQaMessageWindowSeconds));
             registry.addInterceptor(new PublicRateLimitInterceptor(redisTemplate, rules));
         }
 

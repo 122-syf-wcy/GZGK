@@ -190,3 +190,9 @@ gzly:
     qa-like-window-seconds: 600
     algorithm-limit: 120
     algorithm-window-seconds: 60
+    ai-qa-create-limit: 5
+    ai-qa-create-window-seconds: 300
+    ai-qa-restore-limit: 10
+    ai-qa-restore-window-seconds: 600
+    ai-qa-message-limit: 20
+    ai-qa-message-window-seconds: 60

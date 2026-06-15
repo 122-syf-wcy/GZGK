@@ -82,6 +82,24 @@ public class PolicyRuleService {
             policy.put("engineName", rule.engine());
             policy.put("supportNote", rule.supportNote());
         });
+        HubeiBatchRuleRegistry.find(config.getBatchCode()).ifPresent(rule -> {
+            if (ProvincePolicyService.HB.equals(config.getProvince())) {
+                policy.put("supportLevel", rule.supportLevel());
+                policy.put("recommendMode", rule.recommendMode().name());
+                policy.put("engine", rule.engine());
+                policy.put("engineName", rule.engine());
+                policy.put("supportNote", rule.supportNote());
+            }
+        });
+        NextProvincePolicyRegistry.find(config.getProvince()).ifPresent(profile -> {
+            NextProvincePolicyRegistry.BatchProfile batch = profile.findBatch(config.getBatchCode())
+                    .orElse(null);
+            policy.put("supportLevel", batch == null ? BatchRuleRegistry.SupportLevel.QUERY_ONLY.name() : batch.supportLevel());
+            policy.put("recommendMode", batch == null ? BatchRuleRegistry.RecommendMode.QUERY_ONLY.name() : batch.recommendMode());
+            policy.put("engine", batch == null ? com.gzly.service.recommend.QueryOnlyRecommendEngine.NAME : batch.engineName());
+            policy.put("engineName", batch == null ? com.gzly.service.recommend.QueryOnlyRecommendEngine.NAME : batch.engineName());
+            policy.put("supportNote", batch == null ? profile.supportNote() : batch.supportNote());
+        });
         policy.put("maxVolunteerCount", config.getMaxVolunteerCount());
         policy.put("majorPerSchoolCount", config.getMajorPerSchoolCount());
         policy.put("hasAdjustment", config.getHasAdjustment() != null && config.getHasAdjustment() == 1);
@@ -118,6 +136,13 @@ public class PolicyRuleService {
             return AnhuiBatchRuleRegistry.normalizeBatchCode(
                     blankToDefault(batchCode, AnhuiBatchRuleRegistry.DEFAULT_BATCH_CODE));
         }
+        if (ProvincePolicyService.HB.equals(province)) {
+            return HubeiBatchRuleRegistry.normalizeBatchCode(
+                    blankToDefault(batchCode, HubeiBatchRuleRegistry.DEFAULT_BATCH_CODE));
+        }
+        if (NextProvincePolicyRegistry.find(province).isPresent()) {
+            return NextProvincePolicyRegistry.normalizeBatchCode(province, batchCode);
+        }
         return SichuanBatchRuleRegistry.normalizeBatchCode(
                 blankToDefault(batchCode, SichuanBatchRuleRegistry.DEFAULT_BATCH_CODE));
     }
@@ -128,6 +153,12 @@ public class PolicyRuleService {
         }
         if (ProvincePolicyService.AH.equals(province)) {
             return AnhuiBatchRuleRegistry.normalizeCandidateType(candidateType);
+        }
+        if (ProvincePolicyService.HB.equals(province)) {
+            return HubeiBatchRuleRegistry.normalizeCandidateType(candidateType);
+        }
+        if (NextProvincePolicyRegistry.find(province).isPresent()) {
+            return NextProvincePolicyRegistry.normalizeCandidateType(province, candidateType);
         }
         return SichuanBatchRuleRegistry.normalizeCandidateType(candidateType);
     }
@@ -153,6 +184,27 @@ public class PolicyRuleService {
             }
             return;
         }
+        if (ProvincePolicyService.HB.equals(province)) {
+            HubeiBatchRuleRegistry.BatchRule rule = HubeiBatchRuleRegistry.find(batchCode).orElse(null);
+            if (rule == null) {
+                throw new BizException(400, "当前省份不支持该批次，请重新选择目标批次");
+            }
+            if (!HubeiBatchRuleRegistry.candidateTypeMatches(rule.candidateType(), candidateType)) {
+                throw new BizException(400, "考生类别与目标批次不匹配，请重新选择");
+            }
+            return;
+        }
+        if (NextProvincePolicyRegistry.find(province).isPresent()) {
+            NextProvincePolicyRegistry.Profile profile = NextProvincePolicyRegistry.require(province);
+            NextProvincePolicyRegistry.BatchProfile batch = profile.findBatch(batchCode).orElse(null);
+            if (batch == null) {
+                throw new BizException(400, "当前省份不支持该批次，请重新选择目标批次");
+            }
+            if (!BatchRuleRegistry.candidateTypeMatches(batch.candidateType(), candidateType)) {
+                throw new BizException(400, "考生类别与目标批次不匹配，请重新选择");
+            }
+            return;
+        }
         // 四川 / 湖北 → SichuanBatchRuleRegistry
         SichuanBatchRuleRegistry.BatchRule rule = SichuanBatchRuleRegistry.find(batchCode).orElse(null);
         if (rule == null) {
@@ -174,6 +226,18 @@ public class PolicyRuleService {
                     .map(rule -> syntheticAnhuiConfig(province, year, candidateType, rule))
                     .orElse(null);
         }
+        if (ProvincePolicyService.HB.equals(province)) {
+            return HubeiBatchRuleRegistry.find(batchCode)
+                    .map(rule -> syntheticHubeiConfig(province, year, candidateType, rule))
+                    .orElse(null);
+        }
+        if (NextProvincePolicyRegistry.find(province).isPresent()) {
+            NextProvincePolicyRegistry.Profile profile = NextProvincePolicyRegistry.require(province);
+            if (profile.findBatch(batchCode).isEmpty()) {
+                return null;
+            }
+            return profile.syntheticConfig(year, candidateType, batchCode);
+        }
         return SichuanBatchRuleRegistry.find(batchCode)
                 .map(rule -> syntheticSichuanConfig(province, year, candidateType, rule))
                 .orElse(null);
@@ -191,6 +255,9 @@ public class PolicyRuleService {
         }
         if (ProvincePolicyService.AH.equals(province)) {
             return "当前年度政策待确认，请以安徽省教育招生考试院最新文件为准";
+        }
+        if (NextProvincePolicyRegistry.find(province).isPresent()) {
+            return NextProvincePolicyRegistry.require(province).pendingConfirmWarning();
         }
         return "当前年度政策待确认，请以省级招生考试院最新文件为准";
     }
@@ -237,6 +304,30 @@ public class PolicyRuleService {
         config.setOfficialSourceTitle(SichuanBatchRuleRegistry.OFFICIAL_SOURCE_TITLE);
         config.setOfficialSourceUrl(SichuanBatchRuleRegistry.OFFICIAL_SOURCE_URL);
         config.setOfficialSourceText(SichuanBatchRuleRegistry.OFFICIAL_SOURCE_TEXT);
+        config.setEnabled(1);
+        config.setCreatedAt(LocalDateTime.now());
+        config.setUpdatedAt(LocalDateTime.now());
+        return config;
+    }
+
+    private PolicyRuleConfig syntheticHubeiConfig(String province, int year, String candidateType,
+                                                  HubeiBatchRuleRegistry.BatchRule rule) {
+        PolicyRuleConfig config = new PolicyRuleConfig();
+        config.setProvince(province);
+        config.setYear(year);
+        config.setCandidateType(candidateType);
+        config.setBatchCode(rule.batchCode());
+        config.setBatchName(rule.batchName());
+        config.setVolunteerMode(rule.volunteerMode());
+        config.setMaxVolunteerCount(rule.targetCount());
+        config.setMajorPerSchoolCount(rule.majorsPerGroup());
+        config.setHasAdjustment(rule.hasAdjustment() ? 1 : 0);
+        config.setFilingPrinciple(rule.recommendMode().name());
+        config.setAdmissionOrder(rule.category().name());
+        config.setPolicyStatus("registry_only");
+        config.setOfficialSourceTitle(HubeiBatchRuleRegistry.OFFICIAL_SOURCE_TITLE);
+        config.setOfficialSourceUrl(HubeiBatchRuleRegistry.OFFICIAL_SOURCE_URL);
+        config.setOfficialSourceText(HubeiBatchRuleRegistry.OFFICIAL_SOURCE_TEXT);
         config.setEnabled(1);
         config.setCreatedAt(LocalDateTime.now());
         config.setUpdatedAt(LocalDateTime.now());

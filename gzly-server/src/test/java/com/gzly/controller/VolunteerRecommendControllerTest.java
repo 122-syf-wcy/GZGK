@@ -8,7 +8,10 @@ import com.gzly.service.AnhuiBatchListingService;
 import com.gzly.service.AnhuiBatchSupportService;
 import com.gzly.service.AnhuiCompositeScoreCalculator;
 import com.gzly.service.BatchSupportService;
+import com.gzly.service.HubeiBatchSupportService;
 import com.gzly.service.MlPredictionService;
+import com.gzly.service.NextProvinceBatchSupportService;
+import com.gzly.service.NextProvincePolicyRegistry;
 import com.gzly.service.PolicyRuleService;
 import com.gzly.service.ProfessionalGroupVolunteerService;
 import com.gzly.service.ProvincePolicyService;
@@ -53,11 +56,13 @@ class VolunteerRecommendControllerTest {
     @Mock private MlPredictionService mlPredictionService;
     @Mock private BatchSupportService batchSupportService;
     @Mock private SichuanBatchSupportService sichuanBatchSupportService;
+    @Mock private HubeiBatchSupportService hubeiBatchSupportService;
     @Mock private SichuanBatchListingService sichuanBatchListingService;
     @Mock private SichuanCompositeScoreCalculator sichuanCompositeScoreCalculator;
     @Mock private AnhuiBatchSupportService anhuiBatchSupportService;
     @Mock private AnhuiBatchListingService anhuiBatchListingService;
     @Mock private AnhuiCompositeScoreCalculator anhuiCompositeScoreCalculator;
+    @Mock private NextProvinceBatchSupportService nextProvinceBatchSupportService;
     @Mock private RecommendEngineRouter recommendEngineRouter;
     @Mock private QueryOnlyRecommendEngine queryOnlyRecommendEngine;
     @Mock private SafetyCodeRequestResolver safetyCodeRequestResolver;
@@ -80,11 +85,13 @@ class VolunteerRecommendControllerTest {
                 mlPredictionService,
                 batchSupportService,
                 sichuanBatchSupportService,
+                hubeiBatchSupportService,
                 sichuanBatchListingService,
                 sichuanCompositeScoreCalculator,
                 anhuiBatchSupportService,
                 anhuiBatchListingService,
                 anhuiCompositeScoreCalculator,
+                nextProvinceBatchSupportService,
                 recommendEngineRouter,
                 queryOnlyRecommendEngine,
                 safetyCodeRequestResolver,
@@ -188,7 +195,7 @@ class VolunteerRecommendControllerTest {
     }
 
     @Test
-    void queryOnly_shouldNotCreatePlanHistory() {
+    void queryOnly_shouldPersistPlanHistoryForAccessCode() {
         VolunteerService.GenerateRequest req = request("EARLY_A_B");
         RecommendEngineDecision decision = queryOnlyDecision("EARLY_A_B", "SequentialCollegeEngine", "SEQUENTIAL_COLLEGE", 1);
         VolunteerService.PlanResult queryOnlyPlan = queryOnlyPlan("EARLY_A_B", 1);
@@ -197,8 +204,10 @@ class VolunteerRecommendControllerTest {
         Result<VolunteerService.PlanResult> response = controller.recommend(req, new MockHttpServletRequest());
 
         assertThat(response.getCode()).isZero();
-        assertThat(response.getData().getId()).isZero();
+        assertThat(response.getData().getId()).isPositive();
+        assertThat(response.getData().getAccessKey()).isNotBlank();
         verify(volunteerService, never()).generate(any(), any(), any());
+        verify(volunteerService).saveQueryOnlyPlanResult(eq(req), eq(queryOnlyPlan), any(), any());
         verify(mlPredictionService, never()).applyPredictions(any(), any(), any());
     }
 
@@ -211,7 +220,7 @@ class VolunteerRecommendControllerTest {
 
         Result<VolunteerService.PlanResult> response = controller.recommend(req, new MockHttpServletRequest());
 
-        assertThat(response.getData().getId()).isZero();
+        assertThat(response.getData().getId()).isPositive();
         assertThat(response.getData().getItems()).isEmpty();
         assertThat(response.getData().getTargetCount()).isEqualTo(1);
         assertThat(response.getData().getRecommendMode()).isEqualTo("SEQUENTIAL_COLLEGE");
@@ -227,6 +236,8 @@ class VolunteerRecommendControllerTest {
         Result<VolunteerService.PlanResult> response = controller.recommend(req, new MockHttpServletRequest());
 
         assertThat(response.getData().getSupportLevel()).isEqualTo("QUERY_ONLY");
+        assertThat(response.getData().getId()).isPositive();
+        assertThat(response.getData().getAccessKey()).isNotBlank();
         assertThat(response.getData().getItems()).isEmpty();
         assertThat(response.getData().getEngineName()).isEqualTo("ArtCompositeRecommendEngine");
         verify(volunteerService, never()).generate(any(), any(), any());
@@ -242,9 +253,79 @@ class VolunteerRecommendControllerTest {
         Result<VolunteerService.PlanResult> response = controller.recommend(req, new MockHttpServletRequest());
 
         assertThat(response.getData().getSupportLevel()).isEqualTo("QUERY_ONLY");
+        assertThat(response.getData().getId()).isPositive();
+        assertThat(response.getData().getAccessKey()).isNotBlank();
         assertThat(response.getData().getItems()).isEmpty();
         assertThat(response.getData().getEngineName()).isEqualTo("SportsCompositeRecommendEngine");
         verify(volunteerService, never()).generate(any(), any(), any());
+    }
+
+    @Test
+    void recommend_nextProvinceShouldReturnQueryOnlyWithoutCrossProvinceFallback() {
+        VolunteerService.GenerateRequest req = new VolunteerService.GenerateRequest();
+        req.setProvinceCode("GX");
+        req.setYear(2026);
+        req.setCandidateType("普通类");
+        req.setBatchCode(null);
+        req.setTotalScore(610);
+        req.setProvinceRank(12000);
+        NextProvincePolicyRegistry.Profile profile = NextProvincePolicyRegistry.require("GX");
+        PolicyRuleConfig config = profile.syntheticConfig(2026, "普通类");
+        PolicyRuleService.PolicyContext policy = new PolicyRuleService.PolicyContext();
+        policy.setConfig(config);
+        BatchSupportService.BatchSupportResponse support = nextProvinceSupport(profile);
+
+        when(safetyCodeRequestResolver.resolve(any(HttpServletRequest.class), any(VolunteerService.GenerateRequest.class))).thenReturn("SAFE1234");
+        when(safetyCodeService.normalizeSafetyCode("SAFE1234")).thenReturn("SAFE1234");
+        when(provincePolicyService.normalizeProvinceCode("GX")).thenReturn("GX");
+        when(provincePolicyService.isNextProvinceQueryOnly("GX")).thenReturn(true);
+        when(provincePolicyService.getPolicy("GX")).thenReturn(profile.toProvincePolicy());
+        when(policyRuleService.normalizeBatchCode(eq("GX"), eq(req.getBatchCode()))).thenReturn(profile.defaultBatchCode());
+        when(policyRuleService.requirePolicy(eq("GX"), eq(2026), eq("普通类"), eq(profile.defaultBatchCode()))).thenReturn(policy);
+        when(policyRuleService.toPublicPolicy(config)).thenReturn(new LinkedHashMap<>());
+        when(nextProvinceBatchSupportService.supportMatrix("GX", 2026)).thenReturn(support);
+        stubSavedQueryOnlyPlan(req, 320L, "SAFE1234");
+
+        Result<VolunteerService.PlanResult> response = controller.recommend(req, new MockHttpServletRequest());
+        VolunteerService.PlanResult plan = response.getData();
+
+        assertThat(response.getCode()).isZero();
+        assertThat(plan.getId()).isEqualTo(320L);
+        assertThat(plan.getAccessKey()).isNotBlank();
+        assertThat(plan.getProvinceCode()).isEqualTo("GX");
+        assertThat(plan.getSupportLevel()).isEqualTo("TRIAL_RECOMMEND");
+        assertThat(plan.getRecommendMode()).isEqualTo("QUERY_ONLY");
+        assertThat(plan.getEngineName()).isEqualTo(QueryOnlyRecommendEngine.NAME);
+        assertThat(plan.getPolicy()).containsEntry("batchCode", "GX_BENKE");
+        assertThat(plan.getPolicy()).containsEntry("volunteerUnitType", ProvincePolicyService.UNIT_NEXT_PROVINCE_QUERY_ONLY);
+        assertThat(plan.isEstimateMode()).isTrue();
+        assertThat(plan.isOfficialDataReady()).isFalse();
+        assertThat(plan.getItems()).isEmpty();
+        verify(volunteerService, never()).generate(any(), any(), any());
+        verify(professionalGroupVolunteerService, never()).generate(any(), any(), any());
+        verify(recommendEngineRouter, never()).resolve(any(VolunteerService.GenerateRequest.class), any(PolicyRuleConfig.class));
+        verify(batchSupportService, never()).supportMatrix(eq("GX"), any());
+        verify(sichuanBatchSupportService, never()).supportMatrix(eq("GX"), any());
+        verify(volunteerService).saveQueryOnlyPlanResult(eq(req), any(VolunteerService.PlanResult.class), any(), any());
+    }
+
+    @Test
+    void hbBatchSupport_shouldUseHubeiMatrixAndNeverReturnScBatches() {
+        BatchSupportService.BatchSupportResponse support = new BatchSupportService.BatchSupportResponse();
+        support.setProvinceCode("HB");
+        support.setItems(List.of(supportItem("HB_BENKE", "普通类", "TRIAL_RECOMMEND", "HB 主流程历史估算")));
+        when(hubeiBatchSupportService.supportMatrix(ProvincePolicyService.HB, 2026, true)).thenReturn(support);
+
+        Result<BatchSupportService.BatchSupportResponse> response = controller.hbBatchSupport(null);
+
+        assertThat(response.getCode()).isZero();
+        assertThat(response.getData().getProvinceCode()).isEqualTo("HB");
+        assertThat(response.getData().getItems())
+                .extracting(BatchSupportService.BatchSupportItem::getBatchCode)
+                .containsExactly("HB_BENKE")
+                .doesNotContain("SC_BENKE_B");
+        verify(hubeiBatchSupportService).supportMatrix(ProvincePolicyService.HB, 2026, true);
+        verify(sichuanBatchSupportService, never()).supportMatrix(eq(ProvincePolicyService.HB), any(), eq(true));
     }
 
     @Test
@@ -439,6 +520,38 @@ class VolunteerRecommendControllerTest {
         return readiness;
     }
 
+    private BatchSupportService.BatchSupportResponse nextProvinceSupport(NextProvincePolicyRegistry.Profile profile) {
+        BatchSupportService.BatchSupportResponse response = new BatchSupportService.BatchSupportResponse();
+        response.setProvinceCode(profile.provinceCode());
+        response.setYear(2026);
+        response.setActiveAdmissionYear(2026);
+        response.setLatestOfficialDataYear(2025);
+        response.setTargetYear(2026);
+        response.setFutureImportYear(2026);
+        response.setTrainingYears(List.of(2024, 2025));
+        response.setDataSourceYears(List.of(2024, 2025));
+        response.setRecommendationPhase(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+        response.setEstimateMode(true);
+        response.setOfficialDataReady(false);
+        response.setDataReadiness(dataReadiness(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA, false));
+        response.setItems(List.of(nextProvinceSupportItem(profile)));
+        response.setSummary(Map.of("FULL_RECOMMEND", 0L, "TRIAL_RECOMMEND", 1L, "QUERY_ONLY", 0L, "UNSUPPORTED", 0L));
+        return response;
+    }
+
+    private BatchSupportService.BatchSupportItem nextProvinceSupportItem(NextProvincePolicyRegistry.Profile profile) {
+        BatchSupportService.BatchSupportItem item = new BatchSupportService.BatchSupportItem();
+        item.setBatchCode(profile.defaultBatchCode());
+        item.setBatchName(profile.defaultBatchName());
+        item.setCandidateType("普通类");
+        item.setSupportLevel("TRIAL_RECOMMEND");
+        item.setRecommendMode("QUERY_ONLY");
+        item.setEngineName(QueryOnlyRecommendEngine.NAME);
+        item.setSupportReason(profile.supportNoteForBatch(profile.defaultBatchCode()));
+        item.setWarnings(List.of(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING, profile.supportNoteForBatch(profile.defaultBatchCode())));
+        return item;
+    }
+
     private RecommendEngineDecision queryOnlyDecision(String batchCode, String engineName, String recommendMode, int maxVolunteerCount) {
         return RecommendEngineDecision.builder()
                 .engineName(engineName)
@@ -474,11 +587,36 @@ class VolunteerRecommendControllerTest {
         when(recommendEngineRouter.resolve(any(VolunteerService.GenerateRequest.class), eq(context.getConfig()))).thenReturn(decision);
         when(queryOnlyRecommendEngine.generate(any(VolunteerService.GenerateRequest.class), eq(context.getConfig()), eq(decision))).thenReturn(plan);
         when(policyRuleService.toPublicPolicy(context.getConfig())).thenReturn(new LinkedHashMap<>());
+        stubSavedQueryOnlyPlan(req, 120L, "SAFE1234");
+    }
+
+    private void stubSavedQueryOnlyPlan(VolunteerService.GenerateRequest req, long id, String accessKey) {
+        when(volunteerService.saveQueryOnlyPlanResult(eq(req), any(VolunteerService.PlanResult.class), any(), any()))
+                .thenAnswer(invocation -> {
+                    VolunteerService.PlanResult plan = invocation.getArgument(1);
+                    plan.setId(id);
+                    plan.setAccessKey(accessKey);
+                    plan.setSafetyCode(accessKey);
+                    return plan;
+                });
     }
 
     private PolicyRuleService.PolicyContext policy(String batchCode, String candidateType) {
         PolicyRuleService.PolicyContext context = policy(batchCode);
         context.getConfig().setCandidateType(candidateType);
         return context;
+    }
+
+    private ProvincePolicyService.ProvincePolicy guizhouPolicy() {
+        ProvincePolicyService.ProvincePolicy policy = new ProvincePolicyService.ProvincePolicy();
+        policy.setProvinceCode("GZ");
+        policy.setProvinceName("贵州");
+        policy.setVolunteerUnitType(ProvincePolicyService.UNIT_MAJOR_96);
+        policy.setVolunteerUnitLabel("专业（类）+ 院校");
+        policy.setTargetBatch("普通本科批");
+        policy.setTargetCount(96);
+        policy.setSubjectTypes(List.of("物理类", "历史类"));
+        policy.setOfficialSourceName("贵州省招生考试院");
+        return policy;
     }
 }

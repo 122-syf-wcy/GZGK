@@ -15,6 +15,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.net.SocketTimeoutException;
+import java.util.Locale;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -33,14 +35,18 @@ public class AiService {
     @Autowired(required = false)
     private ComplianceTextGuard complianceTextGuard;
 
+    @Autowired(required = false)
+    private AiCallLogService aiCallLogService;
+
     private final OkHttpClient httpClient = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .build();
     private final OkHttpClient advisorChatHttpClient = httpClient.newBuilder()
-            .callTimeout(80, TimeUnit.SECONDS)
-            .readTimeout(75, TimeUnit.SECONDS)
+            .protocols(List.of(Protocol.HTTP_1_1))
+            .callTimeout(115, TimeUnit.SECONDS)
+            .readTimeout(110, TimeUnit.SECONDS)
             .build();
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -118,6 +124,9 @@ public class AiService {
     private static final String SAFE_AI_FALLBACK =
             "> " + ComplianceConstants.AI_GENERATED_NOTICE + "\n\n"
                     + "AI 解读结果触发了安全复核，系统已停止展示原始输出。请以当前志愿列表、近三年录取记录、官方招生计划、招生章程、专业目录和对应省级考试院信息为准逐条复核。";
+    private static final String AI_UNAVAILABLE_FALLBACK =
+            "> " + ComplianceConstants.AI_GENERATED_NOTICE + "\n\n"
+                    + "AI 服务本次没有返回有效回复。当前志愿方案上下文仍已保留，你可以稍后重试，或先按页面中的志愿表、近三年录取记录、官方招生计划、招生章程和专业目录逐条复核。";
 
     @lombok.Data
     public static class AdvisorSkillChatMessage {
@@ -230,20 +239,16 @@ public class AiService {
                                        List<AdvisorSkillChatMessage> history) {
         metricsRecorder.incr(VolunteerMetricsRecorder.AI_ADVISOR_CHAT_TOTAL);
         boolean failed = false;
+        long startedAt = System.currentTimeMillis();
         try {
             AiConfigService.RuntimeAiConfig config = aiConfigService.currentRuntimeConfig();
             if (!config.isUsable()) {
                 failed = true;
-                return SAFE_AI_FALLBACK;
+                recordAiLog(false, null, null, config.getChatModel(), startedAt, "NOT_CONFIGURED", "AI 通道未配置或已停用");
+                return temporaryUnavailableFallback("AI 通道未配置或已停用");
             }
 
-            ObjectNode requestBody = objectMapper.createObjectNode();
-            requestBody.put("model", config.getChatModel());
-            requestBody.put("max_tokens", Math.min(Math.max(config.getMaxTokens(), 1200), 1800));
-            requestBody.put("temperature", Math.min(0.35D, Math.max(0D, config.getTemperature())));
-            requestBody.put("stream", false);
-
-            ArrayNode messages = requestBody.putArray("messages");
+            ArrayNode messages = objectMapper.createArrayNode();
 
             ObjectNode sysMsg = messages.addObject();
             sysMsg.put("role", "system");
@@ -255,27 +260,23 @@ public class AiService {
             userMsg.put("role", "user");
             userMsg.put("content", buildAdvisorSkillChatPrompt(skillDigest, planSummary, aiReport, userQuestion, history));
 
-            Request request = new Request.Builder()
-                    .url(resolveChatCompletionsUrl(config.getBaseUrl()))
-                    .addHeader("Authorization", "Bearer " + config.getApiKey())
-                    .addHeader("Content-Type", "application/json")
-                    .post(RequestBody.create(requestBody.toString(), MediaType.parse("application/json")))
-                    .build();
-
-            try (Response response = advisorChatHttpClient.newCall(request).execute()) {
-                if (!response.isSuccessful() || response.body() == null) {
-                    failed = true;
-                    log.warn("张雪峰.skills 对话调用失败: status={}", response.code());
-                    return SAFE_AI_FALLBACK;
-                }
-                JsonNode root = objectMapper.readTree(response.body().string());
-                String reply = root.path("choices").path(0).path("message").path("content").asText("");
-                return sanitizeAiOutput(reply);
+            ModelCallResult call = callAdvisorModel(config, messages,
+                    Math.min(Math.max(config.getMaxTokens(), 900), 1200),
+                    Math.min(0.25D, Math.max(0D, config.getTemperature())));
+            recordAiLog(call.success(), call.httpStatus(), call.protocol(), config.getChatModel(),
+                    startedAt, call.errorCode(), call.message());
+            if (!call.success()) {
+                failed = true;
+                log.warn("张雪峰.skills 对话调用失败: protocol={}, status={}, error={}",
+                        call.protocol(), call.httpStatus(), call.errorCode());
+                return temporaryUnavailableFallback(call.userMessage());
             }
+            return sanitizeAiOutput(call.content());
         } catch (Exception e) {
             failed = true;
             log.error("张雪峰.skills 对话异常", e);
-            return SAFE_AI_FALLBACK;
+            recordAiLog(false, null, null, null, startedAt, classifyException(e), friendlyExceptionMessage(e));
+            return temporaryUnavailableFallback(friendlyExceptionMessage(e));
         } finally {
             if (failed) {
                 metricsRecorder.incr(VolunteerMetricsRecorder.AI_ADVISOR_CHAT_FAILURE);
@@ -295,6 +296,52 @@ public class AiService {
             String model = config.getChatModel();
             return model == null ? "" : model.trim();
         } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /**
+     * 专业选择规划 AI 解读：只解释规则评分结果，不生成正式志愿表、不编造院校分数线。
+     */
+    public String chatForMajorPlanner(String plannerContextJson) {
+        long startedAt = System.currentTimeMillis();
+        try {
+            AiConfigService.RuntimeAiConfig config = aiConfigService.currentRuntimeConfig();
+            if (!config.isUsable()) {
+                recordMajorPlannerLog(false, null, null, null, startedAt, "NOT_CONFIGURED", "AI 通道未配置或已停用");
+                return "";
+            }
+            ArrayNode messages = objectMapper.createArrayNode();
+            ObjectNode sysMsg = messages.addObject();
+            sysMsg.put("role", "system");
+            sysMsg.put("content", (config.getSystemPrompt() == null ? "" : config.getSystemPrompt())
+                    + "\n\n你是一名公益高考专业选择规划助手。只能基于用户问卷和系统规则评分结果解释专业方向，"
+                    + "不得编造院校、分数线、招生计划、就业承诺或录取结论。"
+                    + "必须使用 Markdown，结构包含：优势画像、推荐主线、备选方向、需要避开的坑、下一步怎么查学校和专业。"
+                    + "必须使用“更适合优先了解 / 可以重点关注 / 建议谨慎选择”等保守表述。"
+                    + "最后必须提醒：专业规划结果仅供参考，请结合个人兴趣、家庭情况、院校招生章程、选科要求和官方信息综合判断。");
+
+            ObjectNode userMsg = messages.addObject();
+            userMsg.put("role", "user");
+            userMsg.put("content", "请基于下面专业规划 JSON 输出一份简洁、可执行的专业选择解读。"
+                    + "不要生成志愿表，不要生成院校清单，不要输出任何内部 code，不要承诺就业。\n\n```json\n"
+                    + limitText(plannerContextJson == null ? "{}" : plannerContextJson, 18000)
+                    + "\n```");
+
+            ModelCallResult call = callAdvisorModel(config, messages,
+                    Math.min(Math.max(config.getMaxTokens(), 1000), 1800),
+                    Math.min(0.35D, Math.max(0D, config.getTemperature())));
+            recordMajorPlannerLog(call.success(), call.httpStatus(), call.protocol(), config.getChatModel(),
+                    startedAt, call.errorCode(), call.message());
+            if (!call.success()) {
+                log.warn("专业规划 AI 解读调用失败: protocol={}, status={}, error={}",
+                        call.protocol(), call.httpStatus(), call.errorCode());
+                return "";
+            }
+            return sanitizeAiOutput(call.content());
+        } catch (Exception e) {
+            log.warn("专业规划 AI 解读异常: {}", e.getMessage());
+            recordMajorPlannerLog(false, null, null, null, startedAt, classifyException(e), friendlyExceptionMessage(e));
             return "";
         }
     }
@@ -403,7 +450,7 @@ public class AiService {
             }
             String role = "assistant".equalsIgnoreCase(message.getRole()) ? "助手" : "用户";
             builder.append(role).append("：")
-                    .append(limitText(message.getContent(), 1200))
+                    .append(limitText(message.getContent(), 500))
                     .append('\n');
         }
         String rendered = builder.toString().trim();
@@ -420,9 +467,9 @@ public class AiService {
                                                String userQuestion,
                                                List<AdvisorSkillChatMessage> history) {
         return ADVISOR_SKILL_CHAT_TEMPLATE
-                .replace("【skills 摘要】\n%s", "【skills 摘要】\n" + limitText(skillDigest, 8000))
-                .replace("【当前 AI 志愿分析正文，可能为空】\n%s", "【当前 AI 志愿分析正文，可能为空】\n" + limitText(aiReport, 3500))
-                .replace("【结构化志愿方案 JSON】\n```json\n%s", "【结构化志愿方案 JSON】\n```json\n" + limitText(planSummary == null ? "{}" : planSummary, 26000))
+                .replace("【skills 摘要】\n%s", "【skills 摘要】\n" + limitText(skillDigest, 3600))
+                .replace("【当前 AI 志愿分析正文，可能为空】\n%s", "【当前 AI 志愿分析正文，可能为空】\n" + limitText(aiReport, 1800))
+                .replace("【结构化志愿方案 JSON】\n```json\n%s", "【结构化志愿方案 JSON】\n```json\n" + limitText(planSummary == null ? "{}" : planSummary, 12000))
                 .replace("【最近对话】\n%s", "【最近对话】\n" + renderAdvisorHistory(history))
                 .replace("【用户本轮问题】\n%s", "【用户本轮问题】\n" + limitText(userQuestion, 1000));
     }
@@ -438,6 +485,180 @@ public class AiService {
         return normalized.substring(0, Math.max(0, maxLength)) + "\n[内容已截断]";
     }
 
+    private void recordAiLog(boolean success, Integer httpStatus, String protocol, String model,
+                             long startedAt, String errorCode, String message) {
+        if (aiCallLogService != null) {
+            String display = protocol == null || protocol.isBlank() ? message : protocol + " · " + message;
+            long latency = startedAt <= 0 ? 0 : System.currentTimeMillis() - startedAt;
+            aiCallLogService.record(AiCallLogService.SCENE_ADVISOR_CHAT, success, httpStatus, errorCode,
+                    model, (int) Math.min(Integer.MAX_VALUE, Math.max(0, latency)), display);
+        }
+    }
+
+    private void recordMajorPlannerLog(boolean success, Integer httpStatus, String protocol, String model,
+                                       long startedAt, String errorCode, String message) {
+        if (aiCallLogService != null) {
+            String display = protocol == null || protocol.isBlank() ? message : protocol + " · " + message;
+            long latency = startedAt <= 0 ? 0 : System.currentTimeMillis() - startedAt;
+            aiCallLogService.record(AiCallLogService.SCENE_MAJOR_PLANNER, success, httpStatus, errorCode,
+                    model, (int) Math.min(Integer.MAX_VALUE, Math.max(0, latency)), display);
+        }
+    }
+
+    private ModelCallResult callAdvisorModel(AiConfigService.RuntimeAiConfig config,
+                                             ArrayNode messages,
+                                             int maxTokens,
+                                             double temperature) {
+        boolean preferResponses = shouldPreferResponses(config.getBaseUrl(), config.getChatModel());
+        if (preferResponses) {
+            ModelCallResult responses = callResponses(config, messages, maxTokens);
+            if (responses.success() || !responses.unsupported()) {
+                return responses;
+            }
+        }
+        ModelCallResult chat = callChatCompletions(config, messages, maxTokens, temperature);
+        if (chat.success() || preferResponses || !chat.unsupported()) {
+            return chat;
+        }
+        return callResponses(config, messages, maxTokens);
+    }
+
+    private ModelCallResult callChatCompletions(AiConfigService.RuntimeAiConfig config,
+                                                ArrayNode messages,
+                                                int maxTokens,
+                                                double temperature) {
+        ObjectNode requestBody = objectMapper.createObjectNode();
+        requestBody.put("model", config.getChatModel());
+        requestBody.put("max_tokens", maxTokens);
+        requestBody.put("temperature", temperature);
+        requestBody.put("stream", false);
+        requestBody.set("messages", messages);
+        Request request = requestBuilder(config, resolveChatCompletionsUrl(config.getBaseUrl()))
+                .post(RequestBody.create(requestBody.toString(), MediaType.parse("application/json")))
+                .build();
+        try (Response response = advisorChatHttpClient.newCall(request).execute()) {
+            String responseBody = response.body() == null ? "" : response.body().string();
+            if (!response.isSuccessful()) {
+                return ModelCallResult.httpFailure("chat_completions", response.code(), extractErrorCode(responseBody),
+                        friendlyHttpMessage(response.code(), responseBody), briefBody(responseBody));
+            }
+            JsonNode root = objectMapper.readTree(responseBody.isBlank() ? "{}" : responseBody);
+            JsonNode messageNode = root.path("choices").path(0).path("message");
+            String content = messageNode.path("content").asText("");
+            if (content == null || content.isBlank()) {
+                content = messageNode.path("reasoning_content").asText("");
+            }
+            return ModelCallResult.fromContent("chat_completions", response.code(), content);
+        } catch (Exception e) {
+            return ModelCallResult.exception("chat_completions", e);
+        }
+    }
+
+    private ModelCallResult callResponses(AiConfigService.RuntimeAiConfig config,
+                                          ArrayNode messages,
+                                          int maxTokens) {
+        ObjectNode requestBody = objectMapper.createObjectNode();
+        requestBody.put("model", config.getChatModel());
+        requestBody.put("input", renderMessagesForResponses(messages));
+        requestBody.put("max_output_tokens", maxTokens);
+        Request request = requestBuilder(config, resolveResponsesUrl(config.getBaseUrl()))
+                .post(RequestBody.create(requestBody.toString(), MediaType.parse("application/json")))
+                .build();
+        try (Response response = advisorChatHttpClient.newCall(request).execute()) {
+            String responseBody = response.body() == null ? "" : response.body().string();
+            if (!response.isSuccessful()) {
+                return ModelCallResult.httpFailure("responses", response.code(), extractErrorCode(responseBody),
+                        friendlyHttpMessage(response.code(), responseBody), briefBody(responseBody));
+            }
+            JsonNode root = objectMapper.readTree(responseBody.isBlank() ? "{}" : responseBody);
+            return ModelCallResult.fromContent("responses", response.code(), extractResponsesText(root));
+        } catch (Exception e) {
+            return ModelCallResult.exception("responses", e);
+        }
+    }
+
+    private Request.Builder requestBuilder(AiConfigService.RuntimeAiConfig config, String url) {
+        return new Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer " + config.getApiKey())
+                .addHeader("Content-Type", "application/json")
+                .addHeader("User-Agent", "GZLY-AI-Provider/1.0");
+    }
+
+    private boolean shouldPreferResponses(String baseUrl, String model) {
+        String normalizedUrl = baseUrl == null ? "" : baseUrl.toLowerCase(Locale.ROOT);
+        String normalizedModel = model == null ? "" : model.toLowerCase(Locale.ROOT);
+        return normalizedUrl.endsWith("/responses")
+                || normalizedModel.startsWith("gpt-5")
+                || normalizedModel.contains("gpt-5.");
+    }
+
+    private String renderMessagesForResponses(ArrayNode messages) {
+        StringBuilder builder = new StringBuilder();
+        for (JsonNode message : messages) {
+            String role = message.path("role").asText("user");
+            String content = message.path("content").asText("");
+            if (!content.isBlank()) {
+                builder.append(role).append(":\n").append(content).append("\n\n");
+            }
+        }
+        return builder.toString().trim();
+    }
+
+    private String extractResponsesText(JsonNode root) {
+        String outputText = root.path("output_text").asText("");
+        if (!outputText.isBlank()) {
+            return outputText;
+        }
+        JsonNode output = root.path("output");
+        if (output.isArray()) {
+            StringBuilder builder = new StringBuilder();
+            for (JsonNode item : output) {
+                JsonNode content = item.path("content");
+                if (content.isArray()) {
+                    for (JsonNode part : content) {
+                        String text = part.path("text").asText("");
+                        if (text.isBlank()) {
+                            text = part.path("content").asText("");
+                        }
+                        if (!text.isBlank()) {
+                            builder.append(text).append('\n');
+                        }
+                    }
+                }
+            }
+            return builder.toString().trim();
+        }
+        return root.path("choices").path(0).path("message").path("content").asText("");
+    }
+
+    private String extractErrorCode(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            String code = root.path("code").asText("");
+            if (code.isBlank()) {
+                code = root.path("error").path("code").asText("");
+            }
+            if (code.isBlank()) {
+                code = root.path("error").path("type").asText("");
+            }
+            return code.isBlank() ? null : code;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String briefBody(String body) {
+        if (body == null) {
+            return "";
+        }
+        String trimmed = body.replaceAll("\\s+", " ").trim();
+        return trimmed.length() > 300 ? trimmed.substring(0, 300) : trimmed;
+    }
+
     private String resolveChatCompletionsUrl(String rawBaseUrl) {
         String normalized = rawBaseUrl == null ? "" : rawBaseUrl.trim();
         while (normalized.endsWith("/")) {
@@ -446,16 +667,85 @@ public class AiService {
         if (normalized.endsWith("/chat/completions")) {
             return normalized;
         }
+        if (normalized.endsWith("/responses")) {
+            normalized = normalized.substring(0, normalized.length() - "/responses".length());
+        }
         if (normalized.endsWith("/v1")) {
             return normalized + "/chat/completions";
         }
         return normalized + "/v1/chat/completions";
     }
 
+    private String resolveResponsesUrl(String rawBaseUrl) {
+        String normalized = rawBaseUrl == null ? "" : rawBaseUrl.trim();
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (normalized.endsWith("/responses")) {
+            return normalized;
+        }
+        if (normalized.endsWith("/chat/completions")) {
+            normalized = normalized.substring(0, normalized.length() - "/chat/completions".length());
+        }
+        if (normalized.endsWith("/v1")) {
+            return normalized + "/responses";
+        }
+        return normalized + "/v1/responses";
+    }
+
+    private String temporaryUnavailableFallback(String reason) {
+        String suffix = reason == null || reason.isBlank() ? "" : "\n\n本次状态：" + reason;
+        return AI_UNAVAILABLE_FALLBACK + suffix;
+    }
+
+    private String friendlyHttpMessage(int status, String responseBody) {
+        String lower = responseBody == null ? "" : responseBody.toLowerCase(Locale.ROOT);
+        if (status == 401 || status == 403 || lower.contains("invalid_api_key") || lower.contains("insufficient_balance")) {
+            return "AI 服务返回鉴权、权限或余额错误，请在后台检查 API Key、模型权限和账户余额。";
+        }
+        if (status == 404 || status == 405 || status == 501) {
+            return "当前服务商不支持本次尝试的 API 协议，系统已尝试兼容调用。";
+        }
+        return "AI 服务返回 HTTP " + status + "，请稍后重试或检查服务商状态。";
+    }
+
+    private String friendlyExceptionMessage(Exception e) {
+        if (isTimeout(e)) {
+            return "AI 服务响应超时，请稍后重试；如果连续出现，请在后台测试连接或更换服务商线路。";
+        }
+        String message = e.getMessage();
+        if (message == null || message.isBlank()) {
+            return "AI 服务暂时不可用，请稍后重试。";
+        }
+        return "AI 服务连接失败：" + message;
+    }
+
+    private String classifyException(Exception e) {
+        if (isTimeout(e)) {
+            return "TIMEOUT";
+        }
+        return "EXCEPTION";
+    }
+
+    private boolean isTimeout(Throwable e) {
+        Throwable cur = e;
+        while (cur != null) {
+            if (cur instanceof SocketTimeoutException) {
+                return true;
+            }
+            String message = cur.getMessage();
+            if (message != null && message.toLowerCase(Locale.ROOT).contains("timeout")) {
+                return true;
+            }
+            cur = cur.getCause();
+        }
+        return false;
+    }
+
     private String sanitizeAiOutput(String raw) {
         String output = raw == null ? "" : raw.trim();
         if (output.isBlank()) {
-            return SAFE_AI_FALLBACK;
+            return temporaryUnavailableFallback("AI 返回空内容，请稍后重试。");
         }
         boolean missingNotice = !AI_NOTICE_PATTERN.matcher(output).find();
         if (missingNotice) {
@@ -470,5 +760,32 @@ public class AiService {
             return SAFE_AI_FALLBACK;
         }
         return output + "\n\n" + ComplianceConstants.SAFE_ASSISTANT_NOTICE;
+    }
+
+    private record ModelCallResult(String protocol, boolean success, boolean unsupported, Integer httpStatus,
+                                   String errorCode, String content, String userMessage, String message) {
+        static ModelCallResult fromContent(String protocol, Integer httpStatus, String content) {
+            if (content == null || content.isBlank()) {
+                return new ModelCallResult(protocol, false, false, httpStatus, "EMPTY_CONTENT", "",
+                        "AI 返回空内容，请稍后重试。", "AI 返回空内容");
+            }
+            return new ModelCallResult(protocol, true, false, httpStatus, null, content, "", "OK");
+        }
+
+        static ModelCallResult httpFailure(String protocol, int status, String errorCode, String userMessage, String body) {
+            boolean unsupported = status == 404 || status == 405 || status == 501;
+            String code = errorCode == null || errorCode.isBlank() ? "HTTP_" + status : errorCode;
+            return new ModelCallResult(protocol, false, unsupported, status, code, "", userMessage, body);
+        }
+
+        static ModelCallResult exception(String protocol, Exception e) {
+            boolean timeout = e instanceof SocketTimeoutException
+                    || (e.getMessage() != null && e.getMessage().toLowerCase(Locale.ROOT).contains("timeout"));
+            String userMessage = timeout
+                    ? "AI 服务响应超时，请稍后重试；如果连续出现，请在后台测试连接或更换服务商线路。"
+                    : "AI 服务连接失败：" + (e.getMessage() == null ? "未知错误" : e.getMessage());
+            return new ModelCallResult(protocol, false, false, null, timeout ? "TIMEOUT" : "EXCEPTION",
+                    "", userMessage, userMessage);
+        }
     }
 }
