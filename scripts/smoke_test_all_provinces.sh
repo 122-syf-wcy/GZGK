@@ -98,7 +98,7 @@ try:
     d=json.load(sys.stdin); dt=d.get('data') or {}
     print(f\"code={d.get('code')} batches={len(dt.get('items',[]))} summary={dt.get('summary')}\")
 except: print('PARSE_ERR')" 2>/dev/null)
-  echo "  ${prov^^}: $c"
+  echo "  $(echo "$prov" | tr '[:lower:]' '[:upper:]'): $c"
   sleep 2
 done
 

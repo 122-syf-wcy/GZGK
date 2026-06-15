@@ -1,24 +1,33 @@
 {
   "provinceCode": "SC",
-  "sourceDir": "/Users/dongsiwei/Desktop/skliis/projects/GZLY/scripts/server/sichuan_2025/reviewed",
+  "sourceDir": "/root/gzly_scraper/sichuan_2025/reviewed",
   "overwrite": true,
   "copied": [
     {
-      "source": "/Users/dongsiwei/Desktop/skliis/projects/GZLY/scripts/server/sichuan_2025/reviewed/group_lines_sc_2025_reviewed.csv",
-      "target": "/Users/dongsiwei/Desktop/skliis/projects/GZLY/scripts/server/province_group_2025/reviewed/SC/group_lines_sc_2025_reviewed.csv",
+      "source": "/root/gzly_scraper/sichuan_2025/reviewed/score_rank_sc_2025_历史类_reviewed.csv",
+      "target": "/root/gzly_scraper/province_group_2025/reviewed/SC/score_rank_sc_2025_历史类_reviewed.csv",
+      "rows": 514,
+      "defaultSourceLevel": "manual_verified"
+    },
+    {
+      "source": "/root/gzly_scraper/sichuan_2025/reviewed/score_rank_sc_2025_物理类_reviewed.csv",
+      "target": "/root/gzly_scraper/province_group_2025/reviewed/SC/score_rank_sc_2025_物理类_reviewed.csv",
+      "rows": 541,
+      "defaultSourceLevel": "manual_verified"
+    },
+    {
+      "source": "/root/gzly_scraper/sichuan_2025/reviewed/group_lines_sc_2025_reviewed.csv",
+      "target": "/root/gzly_scraper/province_group_2025/reviewed/SC/group_lines_sc_2025_reviewed.csv",
       "rows": 22,
       "defaultSourceLevel": "school_verified"
     },
     {
-      "source": "/Users/dongsiwei/Desktop/skliis/projects/GZLY/scripts/server/sichuan_2025/reviewed/group_plans_sc_2025_reviewed.csv",
-      "target": "/Users/dongsiwei/Desktop/skliis/projects/GZLY/scripts/server/province_group_2025/reviewed/SC/group_plans_sc_2025_reviewed.csv",
+      "source": "/root/gzly_scraper/sichuan_2025/reviewed/group_plans_sc_2025_reviewed.csv",
+      "target": "/root/gzly_scraper/province_group_2025/reviewed/SC/group_plans_sc_2025_reviewed.csv",
       "rows": 140,
       "defaultSourceLevel": "school_verified"
     }
   ],
   "skipped": [],
-  "missing": [
-    "/Users/dongsiwei/Desktop/skliis/projects/GZLY/scripts/server/sichuan_2025/reviewed/score_rank_sc_2025_历史类_reviewed.csv",
-    "/Users/dongsiwei/Desktop/skliis/projects/GZLY/scripts/server/sichuan_2025/reviewed/score_rank_sc_2025_物理类_reviewed.csv"
-  ]
+  "missing": []
 }

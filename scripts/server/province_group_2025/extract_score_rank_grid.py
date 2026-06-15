@@ -137,8 +137,12 @@ def load_score_images(province_code: str) -> list[dict[str, Any]]:
     audit_path = REPORTS_DIR / province_code / "official_source_audit.json"
     payload = json.loads(audit_path.read_text(encoding="utf-8"))
     items: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
     for record in payload.get("officialSources", []):
         if record.get("dataType") != "score_rank":
+            continue
+        subject = record.get("subjectType") or ""
+        if province_code == "HB" and subject not in {"物理类", "历史类"}:
             continue
         for child in record.get("children", []):
             raw_path = child.get("rawPath", "")
@@ -147,10 +151,14 @@ def load_score_images(province_code: str) -> list[dict[str, Any]]:
                 continue
             if not is_score_rank_image(province_code, source_url, raw_path):
                 continue
+            key = (subject or child.get("subjectType") or "", source_url)
+            if key in seen:
+                continue
+            seen.add(key)
             items.append({
                 "provinceCode": province_code,
                 "rawPath": raw_path,
-                "subjectType": child.get("subjectType") or record.get("subjectType") or "",
+                "subjectType": child.get("subjectType") or subject,
                 "sourcePageUrl": record.get("url", ""),
                 "sourceUrl": source_url,
                 "sourceHash": child.get("sourceHash") or "",
@@ -162,7 +170,10 @@ def is_score_rank_image(province_code: str, source_url: str, raw_path: str) -> b
     lower = source_url.lower()
     size = Path(raw_path).stat().st_size if Path(raw_path).exists() else 0
     if province_code == "HB":
-        return "/uploadfile/2025/0625/" in lower and size > 100_000
+        # 2025 Hubei score-rank official pages contain six table images for each
+        # subject. The final history image is only ~83KB, so a 100KB cutoff drops
+        # valid rows.
+        return "/uploadfile/2025/0625/20250625" in lower and size > 75_000
     if province_code == "AH":
         return "/kszx/gk/gzdt/202506/w020250625" in lower and size > 100_000
     return False

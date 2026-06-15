@@ -310,6 +310,14 @@ def parse_json_response(raw: str) -> dict[str, Any]:
     if body.startswith("```"):
         body = re.sub(r"^```(?:json)?", "", body, flags=re.I).strip()
         body = re.sub(r"```$", "", body).strip()
+    body = body.strip()
+    if body.startswith('"') and body.endswith('"'):
+        try:
+            nested = json.loads(body)
+            if isinstance(nested, str):
+                body = nested.strip()
+        except json.JSONDecodeError:
+            pass
     try:
         parsed = json.loads(body)
     except json.JSONDecodeError:
@@ -352,6 +360,33 @@ def call_model(item: dict[str, Any], max_tokens: int, timeout: int) -> dict[str,
     parsed["sourceMeta"] = item
     parsed["rawResponse"] = raw
     return parsed
+
+
+def expand_image_slices(items: list[dict[str, Any]], image_slices: int) -> list[dict[str, Any]]:
+    if image_slices <= 1:
+        return items
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise RuntimeError("Pillow is required for image slicing") from exc
+    sliced_items: list[dict[str, Any]] = []
+    slice_dir = DRAFT_DIR / "group_line_slices"
+    slice_dir.mkdir(parents=True, exist_ok=True)
+    for item in items:
+        path = Path(item["rawPath"])
+        with Image.open(path) as image:
+            overlap = max(60, image.height // 80)
+            for slice_index in range(image_slices):
+                top = max(0, image.height * slice_index // image_slices - (overlap if slice_index else 0))
+                bottom = min(image.height, image.height * (slice_index + 1) // image_slices + (overlap if slice_index < image_slices - 1 else 0))
+                out = slice_dir / f"{path.stem}_slice{slice_index + 1:02d}{path.suffix}"
+                image.crop((0, top, image.width, bottom)).save(out)
+                next_item = dict(item)
+                next_item["rawPath"] = str(out)
+                next_item["imageIndex"] = f"{item.get('imageIndex')}.{slice_index + 1}"
+                next_item["parserSliceOf"] = str(path)
+                sliced_items.append(next_item)
+    return sliced_items
 
 
 def clean_school_name(value: str) -> str:
@@ -599,7 +634,7 @@ def normalize_rows(extractions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows.sort(key=lambda item: (
         item.get("provinceCode", ""),
         item.get("subjectType", ""),
-        int(item.get("imageIndex") or 0),
+        tuple(int(part) for part in re.findall(r"\d+", str(item.get("imageIndex") or "0"))[:2]),
         item.get("schoolId", ""),
         item.get("groupCode", ""),
     ))
@@ -697,20 +732,41 @@ def summarize(rows: list[dict[str, Any]], items: list[dict[str, Any]], errors: l
     }
 
 
+def rebuild_from_jsonl(path: Path, provinces: set[str]) -> int:
+    extractions: list[dict[str, Any]] = []
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                extractions.append(json.loads(line))
+    rows = normalize_rows(extractions)
+    write_csv(DRAFT_DIR / "group_line_vision_draft.csv", DRAFT_HEADERS, rows)
+    write_csv(REPORTS_DIR / "group_line_review_queue.csv", DRAFT_HEADERS, rows)
+    summary = summarize(rows, [extraction.get("sourceMeta") or {} for extraction in extractions], [])
+    write_province_outputs(rows, provinces, summary)
+    write_json(REPORTS_DIR / "group_line_vision_summary.json", summary)
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--province", default="ALL", help="HB|AH|ALL|HB,AH")
     parser.add_argument("--refresh", action="store_true", help="Refetch source pages/images")
     parser.add_argument("--limit-images", type=int, default=0, help="Limit images per run, 0 means no limit")
+    parser.add_argument("--image-slices", type=int, default=1, help="Split each source image vertically before vision extraction")
     parser.add_argument("--timeout", type=int, default=45)
     parser.add_argument("--max-tokens", type=int, default=4096)
     parser.add_argument("--backend", choices=["auto", "vision", "tesseract"], default="auto")
     parser.add_argument("--write-reviewed", action="store_true", help="Write extracted rows into reviewed CSVs")
     parser.add_argument("--overwrite-reviewed", action="store_true")
     parser.add_argument("--confirm-reviewed-write", default="", help="Must be OFFICIAL_GROUP_LINE_REVIEWED when --write-reviewed is used")
+    parser.add_argument("--rebuild-from-jsonl", default="", help="Rebuild draft/report outputs from an existing extraction JSONL")
     args = parser.parse_args()
 
     provinces = selected_provinces(args.province)
+    if args.rebuild_from_jsonl:
+        return rebuild_from_jsonl(Path(args.rebuild_from_jsonl), provinces)
+
     sources = [source for source in SOURCES if source.province_code in provinces]
     if not sources:
         raise SystemExit("No group-line image sources selected.")
@@ -720,6 +776,7 @@ def main() -> int:
         items.extend(source_items(source, args.timeout, args.refresh))
     if args.limit_images > 0:
         items = items[: args.limit_images]
+    items = expand_image_slices(items, args.image_slices)
 
     errors: list[dict[str, Any]] = []
     extractions: list[dict[str, Any]] = []

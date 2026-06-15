@@ -1,6 +1,7 @@
 # 安徽 ML 训练基地（baseline）操作手册
 
 > 起草时间：2026-05-18 14:55（v7.50 ProvinceBatchEngineMatrix + AH 14 批次专用 engine 全部上线后）
+> 最近更新：2026-05-20 10:50（v7.57 新增 `build_training_csv_ah.py` + `zjzw_pull_ah_year.py`，AH 2025 baseline 4702 行落盘 + 启动 AH 2024 全量回扫）
 > 适用：安徽 AH（与 `sichuan_ml_baseline_runbook.md` 同款，传 `--province-code AH` 即可）
 > 目标：把"安徽院校专业组 ML 训练管线"流程跑通到 baseline，等 2026 官方数据出来后立即可重训
 
@@ -39,48 +40,82 @@
 | **B2** | 6 月下旬 | 安徽考试院发布 2026 实施办法 + 一分一段 + 招生计划 | 跑全量 AH 2026 ETL；用 GZ 模板训练 AH rank-prediction 模型；激活到 `ml_model_registry` |
 | **B3** | 7 月 | AH 模型在线 + 用户反馈 | 调整 AH `BatchSupportService` supportLevel 阈值；对外暴露"AH 全推荐"FULL_RECOMMEND |
 
-## 三、AH ETL 建设（待办）
+## 三、AH ETL 建设（v7.57 已实施 baseline）
 
-新增 `ml-service/scripts/build_training_csv_ah.py`（沿用 SC 同款 200 行结构）：
+`ml-service/scripts/build_training_csv_ah.py` 已就绪（460 行，沿用 SC 同款结构）：
 
 - 数据源：`data_admission_group_line × data_admission_group_plan × sys_university WHERE province_code='AH'`
 - 训练单元：`(school_id, group_code, subject_type)`（与 SC 一致）
-- 批次代码映射：`AH_*` 前缀（与 `AnhuiBatchRuleRegistry` 严格对齐）
-- `subject_regime`：new(2025+) / old(2024-)
+- 批次代码映射 `_batch_code_ah(batch)`：`AH_*` 前缀，覆盖 14 批次，与 `AnhuiBatchRuleRegistry` 严格对齐（先匹配窄关键词避免误命中：国家专项 / 地方专项 / 高校专项 / 本科提前批顺序 / 本科提前批平行 / 高职提前批顺序 / 高职提前批平行 / 艺术校考 / 艺术统考专科 / 艺术统考本科 / 体育专科 / 体育本科 / 高职专科 / 普通本科）
+- `subject_regime`：`new(year>=2024)` / `old(year<=2023)`（**注意**与 SC 不同：安徽 2024 是新高考首年）
 - `--allow-no-lag`：允许单年数据 baseline 跑通流程
 - `--min-rows 10`：低门槛（与 SC 一致）
-- 输出 quality report：`reports/ah_training_quality_baseline.md`
+- 输出 quality report：`reports/ah_training_quality_baseline.md`，含 batch 分布与 official context inventory
 
-### Phase B1 一键命令（待一分一段补齐后跑）
+### Phase B1 baseline 验证（已跑通，2026-05-20 10:44）
 
 ```bash
-cd /opt/gzly/ml-service
-source venv/bin/activate
-python -m scripts.build_training_csv_ah \
+cd /opt/gzly/ml-service && source .venv/bin/activate
+set -a; source /etc/gzly/gzly.env; set +a
+python scripts/build_training_csv_ah.py \
   --province-code AH \
   --train-years 2025 \
   --allow-no-lag \
   --strict \
   --min-rows 10 \
-  --output reports/training_rank_ah_2025_baseline.csv
+  --output data/training_rank_ah_2025_baseline.csv \
+  --quality-report reports/ah_training_quality_baseline.md
 ```
 
-### Phase B2 完整命令（待 2026 数据齐全后跑）
+**实测产物**：4702 行 / 31 列，覆盖 7 批次（AH_BENKE 4309 / AH_NATIONAL_SPECIAL 252 / AH_TIQIAN_BENKE_PARALLEL 87 / AH_LOCAL_SPECIAL 25 / AH_UNIVERSITY_SPECIAL 24 / AH_ZHUANKE 4 / AH_TIQIAN_ZHUANKE_PARALLEL 1）；`min_rank_lag_1` 完整度 0.13%（同 SC，单年数据天然缺 lag），其它关键列 100%。
+
+### Phase B2 AH 2024 回扫（已启动 zjzw 后台任务）
+
+`scripts/server/sichuan_2025/zjzw_pull_ah_year.py` 接受 `--year` 参数，覆盖 2024 / 2025 / 2026 同款拉取：
 
 ```bash
-# 1. 重新 ETL
-python -m scripts.build_training_csv_ah \
+cd /root/gzly_scraper/sichuan_2025 && set -a; source /etc/gzly/gzly.env; set +a
+nohup python3.11 zjzw_pull_ah_year.py --year 2024 --sleep 1.2 \
+  --output draft/zjzw_full_ah_2024_$(date +%Y%m%d_%H%M%S).csv \
+  > logs/zjzw_ah_2024.log 2>&1 &
+```
+
+**预期产物**：约 2400 院校 × 1.2 s ≈ 50 分钟，draft CSV 约 4000-7000 行；之后跑：
+
+1. `merge_zjzw_to_reviewed_ah.py --draft <draft.csv> --output reviewed/AH/group_lines_ah_2024_reviewed.csv`（要把模板里的 2025 改成 2024，沿用 OPTION A URL 净化）
+2. `import_province_group_lines.py --reviewed reviewed/AH/group_lines_ah_2024_reviewed.csv --year 2024 --province-code AH --no-dry-run`
+3. （专项 / 提前批 / 专科批）`import_special_to_group_plan.py --reviewed <plan.csv> --year 2024 --province-code AH`
+4. 一分一段：先去安徽教育招生考试院（www.ahzsks.cn）/ 中安在线 / 合肥本地宝 (m.hf.bendibao.com) 取 2024 物理类、历史类一分一段，按 `import_ah_score_rank.py` 同款 3 列格式落到 `data/ah_2024_score_rank_{physics,history}.txt`，把脚本里的 2025 改成 2024 跑入库。
+
+完成后即可跑 lag 训练（去掉 `--allow-no-lag`）：
+
+```bash
+python scripts/build_training_csv_ah.py \
   --province-code AH \
-  --train-years 2025,2026 \
-  --target-year 2026 \
+  --train-years 2024,2025 \
   --strict \
   --min-rows 50 \
-  --output reports/training_rank_ah_2026.csv
+  --output data/training_rank_ah.csv \
+  --quality-report reports/ah_training_quality.md
+```
 
-# 2. 训练
-python -m scripts.train_models_on_server \
+### Phase B3 完整命令（待 2026 数据齐全后跑）
+
+```bash
+# 1. 重新 ETL（注意 AH 新高考从 2024 起，2024+2025+2026 共 3 年，可形成完整 3 年 lag）
+python scripts/build_training_csv_ah.py \
   --province-code AH \
-  --training-csv reports/training_rank_ah_2026.csv \
+  --train-years 2024,2025,2026 \
+  --require-train-years \
+  --strict \
+  --min-rows 50 \
+  --output data/training_rank_ah_2026.csv \
+  --quality-report reports/ah_training_quality_2026.md
+
+# 2. 训练（模型命名 ah_rank_prediction_2026，独立 active）
+python scripts/train_models_on_server.py \
+  --province-code AH \
+  --training-csv data/training_rank_ah_2026.csv \
   --output-dir /opt/gzly/ml-service/models/ah_2026
 
 # 3. 激活
@@ -88,7 +123,8 @@ mysql -uroot gzly -e "UPDATE ml_model_registry SET status='active' WHERE model_n
 mysql -uroot gzly -e "UPDATE data_year_readiness SET ml_training_ready=1, recommendation_phase='MODEL_RETRAINED' WHERE province_code='AH' AND year=2026;"
 
 # 4. 验证
-curl -sS 'http://39.97.232.141/api/volunteer/ah/batch-support?year=2026' | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["summary"])'
+curl -sS 'http://127.0.0.1:8090/api/volunteer/ah/batch-support?year=2026' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["summary"])'
 # 应当显示 {FULL_RECOMMEND: >=1, TRIAL_RECOMMEND: ..., QUERY_ONLY: ...}
 ```
 
@@ -142,12 +178,16 @@ curl -sS 'http://39.97.232.141/api/volunteer/ah/batch-support?year=2026' | pytho
 
 带 ✅ 已就位，带 ⚠️ 代码就位+等数据。
 
-## 七、补数依赖（外部）
+## 七、补数依赖（外部，2026-05-20 更新）
 
 | 数据项 | 依赖 | 状态 |
 |---|---|---|
-| AH 2025 一分一段 OCR | vision 模型 API key | **缺**（待运维提供 OpenAI 或国内豆包 / qwen-vl 凭据）|
-| AH 2025 招生计划 | 安徽考试院专业目录 PDF | **缺**（zjzw 实测 planCount 100% 空，需另寻数据源）|
-| AH 2025 选科要求 | 安徽专业目录 PDF（同上）| **缺** |
-| AH 非主流程 13 批次 group_line | 安徽考试院艺术/体育/专项专题页爬虫 | **缺**（zjzw 仅返回"普通本科批"4282 行）|
-| 2026 全量数据 | 6 月下旬安徽实施办法发布 | **等** |
+| AH 2025 一分一段 | 中安在线 / 合肥本地宝 web 表格 | ✅ 已导入 961 行（物理类 492 + 历史类 469） |
+| AH 2025 院校专业组线 | zjzw `score/province` API + uni_official_link URL 净化 | ✅ 4702 行 / 7 批次（main: 4309 行 AH_BENKE） |
+| AH 2025 招生计划 | zjzw `special_query` 端点 + `subjectInfo` resubject 回填 | ✅ 14238 行 / 7 批次（resubject 100% 落库 v7.56） |
+| AH 2025 选科要求 | zjzw `subjectInfo` 已回填到 `data_admission_group_plan.resubject_requirement` | ✅ 14558 行（含 SC 6006 + AH 8552），独立 `data_major_requirement` 表暂不需要 |
+| AH 非主流程批次（艺术/体育）group_line | 安徽考试院专题页爬虫 + 综合分公式 | ⚠️ zjzw 不返艺术 / 体育，需考试院专题页（暂无；规则与综合分计算已就绪） |
+| **AH 2024 院校专业组线** | `zjzw_pull_ah_year.py --year 2024` | 🟡 **后台拉取中**（PID 585113 @ 2026-05-20 10:44，预计 ≤1h，draft 落到 sichuan_2025/draft/） |
+| **AH 2024 一分一段** | 中安在线 2024 高考一分一段 / m.hf.bendibao.com | ⏳ 待手工取 3 列 tab 数据落 `data/ah_2024_score_rank_*.txt` 后 `import_ah_score_rank.py` 改年份跑 |
+| **AH 2024 招生计划** | zjzw special CSV（同 2025 套路）/ 考试院 PDF | ⏳ 待 2024 group_line 入库后 `import_special_to_group_plan.py --year 2024` |
+| 2026 全量数据 | 6 月下旬安徽实施办法发布 + `zjzw_pull_ah_year.py --year 2026` | ⏳ 等 |

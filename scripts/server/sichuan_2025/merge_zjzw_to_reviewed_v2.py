@@ -23,12 +23,27 @@ OUT_HEADERS = [
 BLOCKED_HINTS = {"eol.cn","gaokao.cn","youzy.cn","dxsbb.com","zhiyuan","sczjw.com.cn","scedu.net"}
 
 # zjzw local_batch_name → 入库 batch
+# v7.56：与 import_special_to_group_plan.py BATCH_NORM_MAP 对齐
+# 值必须落在 SichuanBatchRuleRegistry / AnhuiBatchRuleRegistry 的 batchName/aliases 集合内
 BATCH_NORM = {
     "本科批B段": "普通本科批B段",
     "本科批A段": "普通本科批A段",
     "本科批A段（国家专项）": "本科批A段国家专项",
     "本科批A段（地方专项）": "本科批A段地方专项",
     "本科批（高校专项）": "本科批高校专项",
+    "本科批": "普通本科批",
+    "国家专项计划批": "国家专项计划",
+    "国家专项计划本科批": "国家专项计划",
+    "本科一批": "普通本科批",
+    # v7.56 新增（与 import_special_to_group_plan.py 对齐）
+    "本科提前批A段": "本科提前批A段",
+    "本科提前批B段": "本科提前批B段",
+    "本科提前批": "本科提前批",
+    "本科提前批（高校专项）": "提前批高校专项",
+    "专科批": "专科批",
+    "专科提前批": "专科提前批",
+    "地方专项计划批": "地方专项计划",
+    "高校专项计划批": "高校专项计划",
 }
 
 def host_of(u):
