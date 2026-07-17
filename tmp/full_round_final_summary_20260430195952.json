@@ -1,0 +1,190 @@
+{
+  "generatedAt": "2026-04-30T19:59:52",
+  "provinceCode": "SC",
+  "year": 2025,
+  "officialBasis": {
+    "scheme": "https://www.sceea.cn/Html/202501/Newsdetail_4130.html",
+    "historyScoreRank": "https://www.sceea.cn/Html/202506/Newsdetail_4334.html",
+    "physicsScoreRank": "https://www.sceea.cn/Html/202506/Newsdetail_4335.html",
+    "batchBNews": "https://www.sceea.cn/Html/202507/Newsdetail_4405.html"
+  },
+  "officialLinkCoverage": {
+    "total": 2198,
+    "schoolSite": 2182,
+    "admissionSite": 1961,
+    "admissionBrochureUrl": 2162,
+    "majorCatalogUrl": 2160,
+    "tuitionInfoUrl": 2153
+  },
+  "schoolDiscovery": {
+    "rows": 17496,
+    "highConfidenceRows": 409,
+    "reviewQueueRows": 409,
+    "reviewQueueStatus": null
+  },
+  "visionExtraction": {
+    "watchLog": "/root/gzly_scraper/sichuan_2025/reports/vision_after_school_watch_20260430194556.log",
+    "strictCandidateRows": 6,
+    "strictSchools": 5,
+    "normalizedGroupLines": 0,
+    "normalizedGroupPlans": 0,
+    "reason": "严格候选多数为首页/查询页或无明确院校专业组结构；新余学院详情页后续人工复核导入专业组线，招生计划接口无组码未导入。"
+  },
+  "reviewed": {
+    "validation": {
+      "errors": 0,
+      "warnings": 6,
+      "counts": {
+        "score_rank": {
+          "rowsBySubject": {
+            "历史类": 514,
+            "物理类": 541
+          }
+        },
+        "group_lines": {
+          "rows": 27,
+          "groupsBySubject": {
+            "历史类": 9,
+            "物理类": 18
+          }
+        },
+        "group_plans": {
+          "rows": 140,
+          "groupsBySubject": {
+            "历史类": 7,
+            "物理类": 14
+          }
+        }
+      }
+    },
+    "payloadManifestCount": 44
+  },
+  "production": {
+    "generationReady": false,
+    "targetGroupCountPerSubject": 45,
+    "subjects": {
+      "物理类": {
+        "subjectType": "物理类",
+        "scoreRankRows": 541,
+        "groupLineGroups": 18,
+        "groupPlanGroups": 14,
+        "groupLineOriginalRankGroups": 15,
+        "groupLineConvertedRankGroups": 3,
+        "groupLineSchoolVerifiedGroups": 18,
+        "groupPlanSchoolVerifiedGroups": 14,
+        "groupLineRemainingGroups": 27,
+        "groupPlanRemainingGroups": 31,
+        "generationReady": false,
+        "lockReason": "四川2025官方一分一段、普通本科批B段院校专业组线或招生计划尚未完整核验"
+      },
+      "历史类": {
+        "subjectType": "历史类",
+        "scoreRankRows": 514,
+        "groupLineGroups": 9,
+        "groupPlanGroups": 7,
+        "groupLineOriginalRankGroups": 7,
+        "groupLineConvertedRankGroups": 2,
+        "groupLineSchoolVerifiedGroups": 9,
+        "groupPlanSchoolVerifiedGroups": 7,
+        "groupLineRemainingGroups": 36,
+        "groupPlanRemainingGroups": 38,
+        "generationReady": false,
+        "lockReason": "四川2025官方一分一段、普通本科批B段院校专业组线或招生计划尚未完整核验"
+      }
+    },
+    "sourceCompleteness": {
+      "score_rank": {
+        "dataType": "score_rank",
+        "label": "官方一分一段",
+        "sourceCompleteness": "ready",
+        "blockingReason": "",
+        "importedRows": 1055,
+        "importedGroups": 2,
+        "expectedMinimum": 2,
+        "remainingRows": 0,
+        "remainingGroups": 0,
+        "officialSourceRegistered": true,
+        "ready": true
+      },
+      "group_line": {
+        "dataType": "group_line",
+        "label": "普通本科批B段院校专业组调档线",
+        "sourceCompleteness": "official_source_registered",
+        "blockingReason": "四川省教育考试院公开页为普通本科批B段投档汇总新闻，未发现完整院校专业组调档线明细；不写生产表",
+        "importedRows": 27,
+        "importedGroups": 27,
+        "expectedMinimum": 90,
+        "remainingRows": 63,
+        "remainingGroups": 63,
+        "officialSourceRegistered": true,
+        "ready": false
+      },
+      "group_plan": {
+        "dataType": "group_plan",
+        "label": "普通本科批B段院校专业组招生计划",
+        "sourceCompleteness": "official_source_registered",
+        "blockingReason": "四川省教育考试院公开页目前为招生计划更正通知，未发现普通本科批B段全量结构化招生计划；不写生产表",
+        "importedRows": 140,
+        "importedGroups": 21,
+        "expectedMinimum": 90,
+        "remainingRows": 69,
+        "remainingGroups": 69,
+        "officialSourceRegistered": true,
+        "ready": false
+      }
+    },
+    "groupLineRowsBySubject": [
+      {
+        "subjectType": "历史类",
+        "rows": 9,
+        "groups": 9
+      },
+      {
+        "subjectType": "物理类",
+        "rows": 18,
+        "groups": 18
+      }
+    ],
+    "groupPlanRowsBySubject": [
+      {
+        "subjectType": "历史类",
+        "rows": 32,
+        "groups": 7
+      },
+      {
+        "subjectType": "物理类",
+        "rows": 108,
+        "groups": 14
+      }
+    ],
+    "rankSourceRows": [
+      {
+        "rankSourceType": "original",
+        "rows": 22
+      },
+      {
+        "rankSourceType": "score_rank_converted",
+        "rows": 5
+      }
+    ]
+  },
+  "manualImports": [
+    {
+      "universityName": "新余学院",
+      "sourceUrl": "http://zb.xyc.edu.cn/info/1013/4761.htm",
+      "rows": 5,
+      "dryRunReport": "/root/gzly_scraper/sichuan_2025/reports/manual_xinyu_group_lines_dry_run.json",
+      "importReport": "/root/gzly_scraper/sichuan_2025/reports/manual_xinyu_group_lines_import.json",
+      "rankSourceType": "score_rank_converted",
+      "note": "学校官网公布最低分但无最低位次，后端按四川官方一分一段换算并显式标记。"
+    }
+  ],
+  "remainingGap": {
+    "groupLineGroups": 63,
+    "groupPlanGroups": 69,
+    "lockReason": [
+      "四川省教育考试院公开页为普通本科批B段投档汇总新闻，未发现完整院校专业组调档线明细；不写生产表",
+      "四川省教育考试院公开页目前为招生计划更正通知，未发现普通本科批B段全量结构化招生计划；不写生产表"
+    ]
+  }
+}
