@@ -21,6 +21,9 @@ public class ProvincePolicyService {
     public static final String HI = "HI";
     public static final String YN = "YN";
     public static final String HA = "HA";
+    public static final String CQ = "CQ";
+    public static final String GS = "GS";
+    public static final String XJ = "XJ";
     public static final String UNIT_MAJOR_96 = "MAJOR_96";
     public static final String UNIT_PROFESSIONAL_GROUP_45 = "PROFESSIONAL_GROUP_45";
     public static final String UNIT_NEXT_PROVINCE_QUERY_ONLY = "NEXT_PROVINCE_QUERY_ONLY";
@@ -53,6 +56,15 @@ public class ProvincePolicyService {
         }
         if ("河南".equals(raw) || "河南省".equals(raw)) {
             return HA;
+        }
+        if ("重庆".equals(raw) || "重庆市".equals(raw)) {
+            return CQ;
+        }
+        if ("甘肃".equals(raw) || "甘肃省".equals(raw)) {
+            return GS;
+        }
+        if ("新疆".equals(raw) || "新疆维吾尔自治区".equals(raw)) {
+            return XJ;
         }
         String value = raw.toUpperCase(Locale.ROOT);
         if (value.isBlank()) {

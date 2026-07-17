@@ -517,7 +517,8 @@ public class AiService {
             }
         }
         ModelCallResult chat = callChatCompletions(config, messages, maxTokens, temperature);
-        if (chat.success() || preferResponses || !chat.unsupported()) {
+        if (chat.success() || AiProviderErrorClassifier.isAccountOrPermission(chat.errorCode())
+                || preferResponses || !chat.unsupported()) {
             return chat;
         }
         return callResponses(config, messages, maxTokens);
@@ -587,10 +588,7 @@ public class AiService {
 
     private boolean shouldPreferResponses(String baseUrl, String model) {
         String normalizedUrl = baseUrl == null ? "" : baseUrl.toLowerCase(Locale.ROOT);
-        String normalizedModel = model == null ? "" : model.toLowerCase(Locale.ROOT);
-        return normalizedUrl.endsWith("/responses")
-                || normalizedModel.startsWith("gpt-5")
-                || normalizedModel.contains("gpt-5.");
+        return normalizedUrl.endsWith("/responses");
     }
 
     private String renderMessagesForResponses(ArrayNode messages) {
@@ -699,32 +697,17 @@ public class AiService {
     }
 
     private String friendlyHttpMessage(int status, String responseBody) {
-        String lower = responseBody == null ? "" : responseBody.toLowerCase(Locale.ROOT);
-        if (status == 401 || status == 403 || lower.contains("invalid_api_key") || lower.contains("insufficient_balance")) {
-            return "AI 服务返回鉴权、权限或余额错误，请在后台检查 API Key、模型权限和账户余额。";
-        }
-        if (status == 404 || status == 405 || status == 501) {
-            return "当前服务商不支持本次尝试的 API 协议，系统已尝试兼容调用。";
-        }
-        return "AI 服务返回 HTTP " + status + "，请稍后重试或检查服务商状态。";
+        String code = AiProviderErrorClassifier.classifyHttp(status, extractErrorCode(responseBody), responseBody);
+        return AiProviderErrorClassifier.userMessage(code, status, "AI");
     }
 
     private String friendlyExceptionMessage(Exception e) {
-        if (isTimeout(e)) {
-            return "AI 服务响应超时，请稍后重试；如果连续出现，请在后台测试连接或更换服务商线路。";
-        }
-        String message = e.getMessage();
-        if (message == null || message.isBlank()) {
-            return "AI 服务暂时不可用，请稍后重试。";
-        }
-        return "AI 服务连接失败：" + message;
+        String code = AiProviderErrorClassifier.classifyException(e);
+        return AiProviderErrorClassifier.userMessage(code, null, "AI");
     }
 
     private String classifyException(Exception e) {
-        if (isTimeout(e)) {
-            return "TIMEOUT";
-        }
-        return "EXCEPTION";
+        return AiProviderErrorClassifier.classifyException(e);
     }
 
     private boolean isTimeout(Throwable e) {
@@ -766,26 +749,24 @@ public class AiService {
                                    String errorCode, String content, String userMessage, String message) {
         static ModelCallResult fromContent(String protocol, Integer httpStatus, String content) {
             if (content == null || content.isBlank()) {
-                return new ModelCallResult(protocol, false, false, httpStatus, "EMPTY_CONTENT", "",
-                        "AI 返回空内容，请稍后重试。", "AI 返回空内容");
+                return new ModelCallResult(protocol, false, false, httpStatus, AiProviderErrorClassifier.NO_VALID_RESPONSE, "",
+                        AiProviderErrorClassifier.userMessage(AiProviderErrorClassifier.NO_VALID_RESPONSE, httpStatus, protocol),
+                        "AI 返回空内容");
             }
             return new ModelCallResult(protocol, true, false, httpStatus, null, content, "", "OK");
         }
 
         static ModelCallResult httpFailure(String protocol, int status, String errorCode, String userMessage, String body) {
             boolean unsupported = status == 404 || status == 405 || status == 501;
-            String code = errorCode == null || errorCode.isBlank() ? "HTTP_" + status : errorCode;
-            return new ModelCallResult(protocol, false, unsupported, status, code, "", userMessage, body);
+            String code = AiProviderErrorClassifier.classifyHttp(status, errorCode, body);
+            return new ModelCallResult(protocol, false, unsupported, status, code, "",
+                    AiProviderErrorClassifier.userMessage(code, status, protocol), body);
         }
 
         static ModelCallResult exception(String protocol, Exception e) {
-            boolean timeout = e instanceof SocketTimeoutException
-                    || (e.getMessage() != null && e.getMessage().toLowerCase(Locale.ROOT).contains("timeout"));
-            String userMessage = timeout
-                    ? "AI 服务响应超时，请稍后重试；如果连续出现，请在后台测试连接或更换服务商线路。"
-                    : "AI 服务连接失败：" + (e.getMessage() == null ? "未知错误" : e.getMessage());
-            return new ModelCallResult(protocol, false, false, null, timeout ? "TIMEOUT" : "EXCEPTION",
-                    "", userMessage, userMessage);
+            String code = AiProviderErrorClassifier.classifyException(e);
+            String userMessage = AiProviderErrorClassifier.userMessage(code, null, protocol);
+            return new ModelCallResult(protocol, false, false, null, code, "", userMessage, userMessage);
         }
     }
 }

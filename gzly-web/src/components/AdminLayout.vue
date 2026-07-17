@@ -74,8 +74,10 @@ const secondaryNav = [
   { key: 'announcements', label: '公告管理', iconImg: '/admin-dashboard.png', path: '/admin/announcements' },
   { key: 'ai-config', label: 'AI配置', iconImg: '/admin-dashboard.png', path: '/admin/ai-config' },
   { key: 'ai-qa', label: 'AI问答', iconImg: '/admin-dashboard.png', path: '/admin/ai-qa' },
+  { key: 'data-review-cq-gs-xj', label: 'CQ/GS/XJ审核', iconImg: '/admin-dashboard.png', path: '/admin/data-review/cq-gs-xj' },
   { key: 'feedbacks', label: '反馈管理', iconImg: '/admin-users.png', path: '/admin/feedbacks' },
   { key: 'ops', label: '巡检状态', iconImg: '/admin-dashboard.png', path: '/admin/ops' },
+  { key: 'server-security', label: '服务器安全', iconImg: '/admin-dashboard.png', path: '/admin/security/server' },
 ]
 
 // 历史保留：以下功能此前已开发，但和主志愿流程关联较弱，仅保留路由可访问、不在

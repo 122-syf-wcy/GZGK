@@ -176,6 +176,21 @@ public class VolunteerRecommendController {
         return nextProvinceBatchSupport(ProvincePolicyService.HA, year);
     }
 
+    @GetMapping("/cq/batch-support")
+    public Result<BatchSupportService.BatchSupportResponse> cqBatchSupport(@RequestParam(required = false) Integer year) {
+        return nextProvinceBatchSupport(ProvincePolicyService.CQ, year);
+    }
+
+    @GetMapping("/gs/batch-support")
+    public Result<BatchSupportService.BatchSupportResponse> gsBatchSupport(@RequestParam(required = false) Integer year) {
+        return nextProvinceBatchSupport(ProvincePolicyService.GS, year);
+    }
+
+    @GetMapping("/xj/batch-support")
+    public Result<BatchSupportService.BatchSupportResponse> xjBatchSupport(@RequestParam(required = false) Integer year) {
+        return nextProvinceBatchSupport(ProvincePolicyService.XJ, year);
+    }
+
     private Result<BatchSupportService.BatchSupportResponse> nextProvinceBatchSupport(String provinceCode,
                                                                                        Integer year) {
         int publicYear = admissionYearService.normalizePublicYear(year);

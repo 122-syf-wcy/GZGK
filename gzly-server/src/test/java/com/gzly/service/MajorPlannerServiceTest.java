@@ -3,6 +3,7 @@ package com.gzly.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gzly.entity.MajorPlannerResult;
 import com.gzly.mapper.MajorPlannerResultMapper;
+import com.gzly.common.exception.BizException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -11,7 +12,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -19,6 +22,7 @@ class MajorPlannerServiceTest {
 
     private MajorPlannerResultMapper mapper;
     private MajorPlannerCodeService codeService;
+    private CredentialAttemptLimiter credentialAttemptLimiter;
     private MajorPlannerService service;
 
     @BeforeEach
@@ -26,8 +30,9 @@ class MajorPlannerServiceTest {
         mapper = mock(MajorPlannerResultMapper.class);
         codeService = new MajorPlannerCodeService();
         ReflectionTestUtils.setField(codeService, "jwtSecret", "unit-test-secret-key-at-least-32-characters-long");
+        credentialAttemptLimiter = new CredentialAttemptLimiter();
         AiService aiService = mock(AiService.class);
-        service = new MajorPlannerService(mapper, codeService, aiService, new ObjectMapper());
+        service = new MajorPlannerService(mapper, codeService, credentialAttemptLimiter, aiService, new ObjectMapper());
     }
 
     @Test
@@ -74,6 +79,26 @@ class MajorPlannerServiceTest {
                 .doesNotContain("临床医学类");
         assertThat(view.getResult().getNotRecommended())
                 .anyMatch(item -> item.getDirection().contains("临床") || item.getDirection().contains("口腔"));
+    }
+
+    @Test
+    void detail_withWrongPlanCode_shouldLockAfterFiveFailures() {
+        String rightCode = "ABCD2345EFGH";
+        MajorPlannerResult row = new MajorPlannerResult();
+        row.setId(21L);
+        row.setPlanNo("MP202606130021");
+        row.setPlanCodeHash(codeService.hash(rightCode));
+        when(mapper.selectById(anyLong())).thenReturn(row);
+
+        for (int i = 0; i < 5; i++) {
+            assertThatThrownBy(() -> service.detail(21L, "WRONG2345", "203.0.113.9"))
+                    .isInstanceOf(BizException.class)
+                    .hasMessageContaining("规划码错误");
+        }
+
+        assertThatThrownBy(() -> service.detail(21L, rightCode, "203.0.113.9"))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("尝试次数过多");
     }
 
     private MajorPlannerService.EvaluateRequest request() {

@@ -10,7 +10,7 @@ import java.util.Set;
  * 未上线地区白名单注册表。
  *
  * <p>本注册表只服务“尚未接入完整志愿推荐”的地区，<b>显式排除已上线 8 省</b>
- * （GZ/SC/AH/HB/GX/HI/YN/HA）。已上线 8 省的志愿推荐 / 分数线 / 策略建议
+ * （GZ/SC/AH/HB/GX/HI/YN/HA/CQ/GS/XJ）。已上线地区的志愿推荐 / 分数线 / 策略建议
  * 继续走 {@link ProvincePolicyService} 链路，本类不参与，也不复用其 normalize 逻辑。</p>
  *
  * <p>注意：河南 = HA（已上线），陕西 = SN，湖南 = HN，湖北 = HB（已上线），河北 = HE。</p>
@@ -20,9 +20,9 @@ public final class AiQaRegionRegistry {
     private AiQaRegionRegistry() {
     }
 
-    /** 已上线 8 省，必须排除。 */
+    /** 已上线地区，必须排除未上线地区列表。 */
     public static final Set<String> LAUNCHED_REGIONS = Set.of(
-            "GZ", "SC", "AH", "HB", "GX", "HI", "YN", "HA");
+            "GZ", "SC", "AH", "HB", "GX", "HI", "YN", "HA", "CQ", "GS", "XJ");
 
     /** 未上线地区代码 -> 名称（全国其余省/市/区，排除已上线 8 省与港澳台）。 */
     public static final Map<String, String> UNLAUNCHED_REGIONS;
@@ -45,13 +45,10 @@ public final class AiQaRegionRegistry {
         regions.put("SD", "山东");
         regions.put("HN", "湖南");
         regions.put("GD", "广东");
-        regions.put("CQ", "重庆");
         regions.put("XZ", "西藏");
         regions.put("SN", "陕西");
-        regions.put("GS", "甘肃");
         regions.put("QH", "青海");
         regions.put("NX", "宁夏");
-        regions.put("XJ", "新疆");
         UNLAUNCHED_REGIONS = Collections.unmodifiableMap(regions);
     }
 

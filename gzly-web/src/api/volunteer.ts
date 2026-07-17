@@ -1,6 +1,6 @@
 import http from './request'
 import type { BatchSupportResponse, CandidateType, GradientRanges, Result, VolunteerPlan, RankCheckResponse } from '@/types'
-import { normalizeProvinceCode, type ProvinceCode } from '@/constants/provinces'
+import { isKnownProvinceCode, normalizeProvinceCode, type ProvinceCode } from '@/constants/provinces'
 
 /** 生成志愿方案：公共入口只允许当前激活招生年份，历史年份仅用于后台回测 */
 export function generateVolunteerPlan(data: {
@@ -74,16 +74,32 @@ export function getHaBatchSupport() {
   return http.get<Result<BatchSupportResponse>>('/volunteer/ha/batch-support')
 }
 
+export function getCqBatchSupport() {
+  return http.get<Result<BatchSupportResponse>>('/volunteer/cq/batch-support')
+}
+
+export function getGsBatchSupport() {
+  return http.get<Result<BatchSupportResponse>>('/volunteer/gs/batch-support')
+}
+
+export function getXjBatchSupport() {
+  return http.get<Result<BatchSupportResponse>>('/volunteer/xj/batch-support')
+}
+
 export function hasBatchSupportEndpoint(provinceCode: ProvinceCode | string): boolean {
+  if (!isKnownProvinceCode(provinceCode)) return false
   const code = normalizeProvinceCode(provinceCode)
-  return ['GZ', 'SC', 'AH', 'HB', 'GX', 'HI', 'YN', 'HA'].includes(code)
+  return ['GZ', 'SC', 'AH', 'HB', 'GX', 'HI', 'YN', 'HA', 'CQ', 'GS', 'XJ'].includes(code)
 }
 
 /**
  * 按 provinceCode 自动分发到本省批次支持矩阵接口。
- * 不允许把 HB/GX/HI/YN/HA 静默发送到 SC/GZ。
+ * 不允许把 HB/GX/HI/YN/HA/CQ/GS/XJ 或未知省份静默发送到 SC/GZ。
  */
 export function getBatchSupportByProvince(provinceCode: ProvinceCode | string): ReturnType<typeof getGzBatchSupport> {
+  if (!isKnownProvinceCode(provinceCode)) {
+    return Promise.reject(new Error(`未知省份暂未配置批次支持接口：${String(provinceCode || '')}`)) as ReturnType<typeof getGzBatchSupport>
+  }
   const code = normalizeProvinceCode(provinceCode)
   if (code === 'GZ') return getGzBatchSupport()
   if (code === 'AH') return getAhBatchSupport()
@@ -93,7 +109,10 @@ export function getBatchSupportByProvince(provinceCode: ProvinceCode | string): 
   if (code === 'HI') return getHiBatchSupport()
   if (code === 'YN') return getYnBatchSupport()
   if (code === 'HA') return getHaBatchSupport()
-  return getGzBatchSupport()
+  if (code === 'CQ') return getCqBatchSupport()
+  if (code === 'GS') return getGsBatchSupport()
+  if (code === 'XJ') return getXjBatchSupport()
+  return Promise.reject(new Error(`省份暂未配置批次支持接口：${code}`)) as ReturnType<typeof getGzBatchSupport>
 }
 
 /**

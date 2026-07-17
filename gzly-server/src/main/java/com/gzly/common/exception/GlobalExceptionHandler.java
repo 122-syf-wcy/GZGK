@@ -1,6 +1,7 @@
 package com.gzly.common.exception;
 
 import com.gzly.common.Result;
+import com.gzly.service.SecurityAuditCounterService;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -20,10 +21,14 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.io.IOException;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @Autowired(required = false)
+    private SecurityAuditCounterService securityAuditCounterService;
 
     @ExceptionHandler(BizException.class)
     public ResponseEntity<Result<?>> handleBiz(BizException e) {
@@ -134,6 +139,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataAccessException.class)
     @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
     public Result<?> handleDataAccess(DataAccessException e) {
+        record5xx();
         log.error("DB异常", e);
         return Result.fail(503, "数据访问暂不可用，请稍后再试");
     }
@@ -153,6 +159,7 @@ public class GlobalExceptionHandler {
             log.debug("客户端断开: {} {}", type, e.getMessage());
             return ResponseEntity.status(HttpStatus.OK).build();
         }
+        record5xx();
         log.error("IO异常", e);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Result.fail(500, "服务暂不可用"));
@@ -161,7 +168,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<?> handleGeneral(Exception e) {
+        record5xx();
         log.error("系统异常", e);
         return Result.fail(500, "服务器内部错误");
+    }
+
+    private void record5xx() {
+        if (securityAuditCounterService != null) {
+            securityAuditCounterService.record(SecurityAuditCounterService.APP_5XX);
+        }
     }
 }

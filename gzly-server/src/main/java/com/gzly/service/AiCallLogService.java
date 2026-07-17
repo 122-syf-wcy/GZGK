@@ -66,6 +66,18 @@ public class AiCallLogService {
         }
     }
 
+    public long failureCountSince(LocalDateTime since) {
+        try {
+            Long count = aiCallLogMapper.selectCount(new LambdaQueryWrapper<AiCallLog>()
+                    .eq(AiCallLog::getSuccess, 0)
+                    .ge(AiCallLog::getCreatedAt, since));
+            return count == null ? 0L : count;
+        } catch (Exception e) {
+            log.debug("查询 AI 失败计数失败: {}", e.getMessage());
+            return 0L;
+        }
+    }
+
     /** 基于最近一条日志推断 AI 通道整体状态。 */
     public StatusSummary statusSummary() {
         StatusSummary summary = new StatusSummary();
@@ -98,6 +110,14 @@ public class AiCallLogService {
                 || blob.contains("quota") || blob.contains("欠费")) {
             summary.setOverall("insufficient_balance");
             summary.setDetail("AI 中转账户余额不足/配额用尽");
+        } else if (blob.contains("group_not_allowed") || blob.contains("group not allowed")
+                || blob.contains("分组") || blob.contains("无权使用")) {
+            summary.setOverall("group_not_allowed");
+            summary.setDetail("当前账号/分组无权使用该模型，请换模型或开通权限");
+        } else if (blob.contains("handshake") || blob.contains("ssl") || blob.contains("remote host terminated")
+                || blob.contains("tls") || blob.contains("certificate") || blob.contains("pkix")) {
+            summary.setOverall("handshake_error");
+            summary.setDetail("AI 中转 TLS/网络握手失败，请检查 Base URL 或更换中转线路");
         } else if (blob.contains("timeout") || blob.contains("timed out") || blob.contains("超时")) {
             summary.setOverall("timeout");
             summary.setDetail("AI 服务响应超时，可稍后重试；若连续出现请检查服务商线路或模型协议");
@@ -111,6 +131,9 @@ public class AiCallLogService {
                 || blob.contains("不存在") || blob.contains("unavailable"))) {
             summary.setOverall("model_unavailable");
             summary.setDetail("模型不可用或不存在");
+        } else if (blob.contains("no_valid_response") || blob.contains("empty_content") || blob.contains("空内容")) {
+            summary.setOverall("no_valid_response");
+            summary.setDetail("AI 未返回有效内容，请检查模型名或协议兼容性");
         } else {
             summary.setOverall("error");
             summary.setDetail("AI 调用失败：" + (latest.getMessage() == null ? "未知错误" : latest.getMessage()));

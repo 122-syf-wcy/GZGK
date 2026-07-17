@@ -156,16 +156,17 @@ public class AiConfigService {
             recordTestLog(probe.success(), probe.httpStatus(), probe.errorCode(), config.getChatModel(),
                     elapsedMs, probe.message());
             if (probe.success()) {
-                return AiConfigTestResult.ok("连接成功，模型可正常响应（" + probe.protocol() + "）",
-                        elapsedMs, defaultIfBlank(probe.model(), config.getChatModel()));
+                return AiConfigTestResult.ok("连接成功，模型可正常响应", elapsedMs,
+                        defaultIfBlank(probe.model(), config.getChatModel()), probe.protocol(), probe.errorCode());
             }
-            return AiConfigTestResult.fail(probe.userMessage(), elapsedMs, config.getChatModel());
+            return AiConfigTestResult.fail(probe.userMessage(), elapsedMs, config.getChatModel(),
+                    probe.protocol(), probe.errorCode());
         } catch (Exception e) {
             long elapsedMs = System.currentTimeMillis() - startedAt;
-            String code = isTimeout(e) ? "TIMEOUT" : "EXCEPTION";
+            String code = AiProviderErrorClassifier.classifyException(e);
             String message = friendlyExceptionMessage(e);
             recordTestLog(false, null, code, config.getChatModel(), elapsedMs, message);
-            return AiConfigTestResult.fail(message, elapsedMs, config.getChatModel());
+            return AiConfigTestResult.fail(message, elapsedMs, config.getChatModel(), "", code);
         }
     }
 
@@ -178,7 +179,8 @@ public class AiConfigService {
             }
         }
         ModelProbeResult chat = probeChatCompletions(config);
-        if (chat.success() || preferResponses || !chat.unsupported()) {
+        if (chat.success() || AiProviderErrorClassifier.isAccountOrPermission(chat.errorCode())
+                || preferResponses || !chat.unsupported()) {
             return chat;
         }
         return probeResponses(config);
@@ -299,7 +301,8 @@ public class AiConfigService {
                     return AiModelListResult.ok("已获取 " + models.size() + " 个模型", models);
                 }
             } catch (Exception e) {
-                lastFailure = "查询模型失败：" + e.getMessage();
+                String code = AiProviderErrorClassifier.classifyException(e);
+                lastFailure = AiProviderErrorClassifier.userMessage(code, null, "模型列表接口");
             }
         }
         if (gotSuccessfulEmptyResponse) {
@@ -313,6 +316,16 @@ public class AiConfigService {
         List<String> urls = new ArrayList<>();
         if (normalized.endsWith("/models")) {
             urls.add(normalized);
+            return urls;
+        }
+        if (normalized.endsWith("/responses")) {
+            String apiRoot = normalized.substring(0, normalized.length() - "/responses".length());
+            addIfAbsent(urls, normalizeUrl(apiRoot) + "/models");
+            if (apiRoot.endsWith("/v1")) {
+                addIfAbsent(urls, normalizeUrl(apiRoot.substring(0, apiRoot.length() - 3)) + "/models");
+            } else {
+                addIfAbsent(urls, normalizeUrl(apiRoot) + "/v1/models");
+            }
             return urls;
         }
         if (normalized.endsWith("/chat/completions")) {
@@ -422,10 +435,7 @@ public class AiConfigService {
 
     private boolean shouldPreferResponses(String baseUrl, String model) {
         String normalizedUrl = baseUrl == null ? "" : baseUrl.toLowerCase(Locale.ROOT);
-        String normalizedModel = model == null ? "" : model.toLowerCase(Locale.ROOT);
-        return normalizedUrl.endsWith("/responses")
-                || normalizedModel.startsWith("gpt-5")
-                || normalizedModel.contains("gpt-5.");
+        return normalizedUrl.endsWith("/responses");
     }
 
     private String extractResponsesText(JsonNode root) {
@@ -655,14 +665,8 @@ public class AiConfigService {
     }
 
     private String friendlyExceptionMessage(Exception e) {
-        if (isTimeout(e)) {
-            return "连接失败：AI 服务响应超时，请稍后重试；如果连续出现，请确认服务商线路或模型是否可用。";
-        }
-        String message = e.getMessage();
-        if (message == null || message.isBlank()) {
-            return "连接失败：AI 服务暂时不可用";
-        }
-        return "连接失败：" + message;
+        String code = AiProviderErrorClassifier.classifyException(e);
+        return AiProviderErrorClassifier.userMessage(code, null, null);
     }
 
     private boolean isTimeout(Throwable e) {
@@ -747,22 +751,32 @@ public class AiConfigService {
         private String message;
         private Long latencyMs;
         private String model;
+        private String endpoint;
+        private String errorCode;
 
-        static AiConfigTestResult ok(String message, Long latencyMs, String model) {
+        static AiConfigTestResult ok(String message, Long latencyMs, String model, String endpoint, String errorCode) {
             AiConfigTestResult result = new AiConfigTestResult();
             result.setSuccess(true);
             result.setMessage(message);
             result.setLatencyMs(latencyMs);
             result.setModel(model);
+            result.setEndpoint(endpoint);
+            result.setErrorCode(errorCode);
             return result;
         }
 
         static AiConfigTestResult fail(String message, Long latencyMs, String model) {
+            return fail(message, latencyMs, model, "", "");
+        }
+
+        static AiConfigTestResult fail(String message, Long latencyMs, String model, String endpoint, String errorCode) {
             AiConfigTestResult result = new AiConfigTestResult();
             result.setSuccess(false);
             result.setMessage(message);
             result.setLatencyMs(latencyMs);
             result.setModel(model);
+            result.setEndpoint(endpoint);
+            result.setErrorCode(errorCode);
             return result;
         }
     }
@@ -808,36 +822,28 @@ public class AiConfigService {
                                     String errorCode, String model, String message, String userMessage) {
         static ModelProbeResult success(String protocol, Integer httpStatus, String model, String content) {
             boolean ok = content != null && !content.isBlank();
-            return new ModelProbeResult(protocol, ok, false, httpStatus, ok ? null : "EMPTY_CONTENT",
+            return new ModelProbeResult(protocol, ok, false, httpStatus, ok ? null : AiProviderErrorClassifier.NO_VALID_RESPONSE,
                     model, ok ? "OK" : "AI 返回空内容",
-                    ok ? "" : "连接失败：AI 返回空内容，请检查模型名或协议模式。");
+                    ok ? "" : AiProviderErrorClassifier.userMessage(AiProviderErrorClassifier.NO_VALID_RESPONSE, httpStatus, protocol));
         }
 
         static ModelProbeResult httpFailure(String protocol, int status, String errorCode, String detail) {
             boolean unsupported = status == 404 || status == 405 || status == 501;
-            String code = errorCode == null || errorCode.isBlank() ? "HTTP_" + status : errorCode;
+            String code = AiProviderErrorClassifier.classifyHttp(status, errorCode, detail);
             String message = "HTTP " + status + detail;
-            String userMessage;
-            if (status == 401 || status == 403 || "INSUFFICIENT_BALANCE".equalsIgnoreCase(code)) {
-                userMessage = "连接失败：API Key 无效、模型无权限或账户余额不足。";
-            } else if (unsupported) {
-                userMessage = "连接失败：该服务商不支持本次尝试的 API 协议，可手动填写模型后再测试。";
-            } else {
-                userMessage = "连接失败：" + message;
-            }
+            String userMessage = AiProviderErrorClassifier.userMessage(code, status, protocol);
             return new ModelProbeResult(protocol, false, unsupported, status, code, "", message, userMessage);
         }
 
         static ModelProbeResult exception(String protocol, Exception e) {
-            boolean timeout = e instanceof SocketTimeoutException
-                    || (e.getMessage() != null && e.getMessage().toLowerCase(Locale.ROOT).contains("timeout"));
-            String message = timeout
+            String code = AiProviderErrorClassifier.classifyException(e);
+            String message = code.equals(AiProviderErrorClassifier.TIMEOUT)
                     ? "AI 服务响应超时"
+                    : code.equals(AiProviderErrorClassifier.HANDSHAKE_ERROR)
+                    ? "TLS 握手失败"
                     : e.getMessage() == null ? "未知异常" : e.getMessage();
-            String userMessage = timeout
-                    ? "连接失败：AI 服务响应超时，请稍后重试；如果连续出现，请确认服务商线路或模型是否可用。"
-                    : "连接失败：" + message;
-            return new ModelProbeResult(protocol, false, false, null, timeout ? "TIMEOUT" : "EXCEPTION",
+            String userMessage = AiProviderErrorClassifier.userMessage(code, null, protocol);
+            return new ModelProbeResult(protocol, false, false, null, code,
                     "", message, userMessage);
         }
     }

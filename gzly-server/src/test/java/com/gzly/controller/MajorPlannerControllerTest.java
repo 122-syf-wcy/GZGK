@@ -8,6 +8,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -42,21 +43,22 @@ class MajorPlannerControllerTest {
         MajorPlannerService service = Mockito.mock(MajorPlannerService.class);
         MajorPlannerService.MajorPlannerView view = new MajorPlannerService.MajorPlannerView();
         view.setId(7L);
-        when(service.detail(7L, "ABCD2345EFGH")).thenReturn(view);
+        when(service.detail(org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.eq("ABCD2345EFGH"), anyString())).thenReturn(view);
         MockMvc mvc = mvc(service);
 
         mvc.perform(get("/major-planner/results/7").header("X-Major-Plan-Code", "ABCD2345EFGH"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(7));
 
-        verify(service).detail(7L, "ABCD2345EFGH");
+        verify(service).detail(org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.eq("ABCD2345EFGH"), anyString());
     }
 
     @Test
     void aiAnalysis_shouldNotRequireCodeInUrl() throws Exception {
         MajorPlannerService service = Mockito.mock(MajorPlannerService.class);
         MajorPlannerService.AiAnalysisResult result = MajorPlannerService.AiAnalysisResult.ok("OK", true, false, "");
-        when(service.aiAnalysis(7L, "ABCD2345EFGH", true)).thenReturn(result);
+        when(service.aiAnalysis(org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.eq("ABCD2345EFGH"),
+                org.mockito.ArgumentMatchers.eq(true), anyString())).thenReturn(result);
         MockMvc mvc = mvc(service);
 
         mvc.perform(post("/major-planner/results/7/ai-analysis")
@@ -65,7 +67,8 @@ class MajorPlannerControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content").value("OK"));
 
-        verify(service).aiAnalysis(7L, "ABCD2345EFGH", true);
+        verify(service).aiAnalysis(org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.eq("ABCD2345EFGH"),
+                org.mockito.ArgumentMatchers.eq(true), anyString());
     }
 
     private MockMvc mvc(MajorPlannerService service) {

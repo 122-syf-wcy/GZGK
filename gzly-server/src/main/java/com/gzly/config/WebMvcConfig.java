@@ -1,6 +1,7 @@
 package com.gzly.config;
 
 import com.gzly.util.JwtUtil;
+import com.gzly.service.SecurityAuditCounterService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     private final JwtUtil jwtUtil;
     private final StringRedisTemplate redisTemplate;
+    private final SecurityAuditCounterService securityAuditCounterService;
 
     @Value("${gzly.rate-limit.enabled:true}")
     private boolean rateLimitEnabled;
@@ -72,6 +74,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private int aiQaMessageLimit;
     @Value("${gzly.rate-limit.ai-qa-message-window-seconds:60}")
     private int aiQaMessageWindowSeconds;
+    @Value("${gzly.rate-limit.major-planner-evaluate-limit:10}")
+    private int majorPlannerEvaluateLimit;
+    @Value("${gzly.rate-limit.major-planner-evaluate-window-seconds:60}")
+    private int majorPlannerEvaluateWindowSeconds;
+    @Value("${gzly.rate-limit.major-planner-restore-limit:5}")
+    private int majorPlannerRestoreLimit;
+    @Value("${gzly.rate-limit.major-planner-restore-window-seconds:300}")
+    private int majorPlannerRestoreWindowSeconds;
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
@@ -131,10 +141,28 @@ public class WebMvcConfig implements WebMvcConfigurer {
                     "ai-qa-message", "/api/ai-qa/sessions/*/messages", "POST", aiQaMessageLimit, aiQaMessageWindowSeconds));
             rules.add(new PublicRateLimitInterceptor.RateLimitRule(
                     "ai-qa-messages-get", "/api/ai-qa/sessions/*/messages", "GET", aiQaMessageLimit, aiQaMessageWindowSeconds));
-            registry.addInterceptor(new PublicRateLimitInterceptor(redisTemplate, rules));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "major-planner-evaluate", "/api/major-planner/evaluate", "POST", majorPlannerEvaluateLimit, majorPlannerEvaluateWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "major-planner-restore", "/api/major-planner/restore", "POST", majorPlannerRestoreLimit, majorPlannerRestoreWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "major-planner-detail", "/api/major-planner/results/*", "GET", majorPlannerRestoreLimit, majorPlannerRestoreWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "major-planner-ai-analysis", "/api/major-planner/results/*/ai-analysis", "POST", aiAnalysisLimit, aiAnalysisWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "volunteer-plan-detail", "/api/volunteer/plans/*", "GET", aiQaRestoreLimit, aiQaRestoreWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "volunteer-plan-list", "/api/volunteer/plans", "GET", aiQaRestoreLimit, aiQaRestoreWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "volunteer-plan-verify", "/api/volunteer/plans/*/verify-safety-code", "POST", aiQaRestoreLimit, aiQaRestoreWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "volunteer-plan-export-image", "/api/volunteer/plans/*/export-long-image", "POST", aiAnalysisLimit, aiAnalysisWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "volunteer-plan-export-excel", "/api/volunteer/plans/*/export-excel", "POST", aiAnalysisLimit, aiAnalysisWindowSeconds));
+            registry.addInterceptor(new PublicRateLimitInterceptor(redisTemplate, rules, securityAuditCounterService));
         }
 
-        registry.addInterceptor(new AuthInterceptor(jwtUtil, "admin"))
+        registry.addInterceptor(new AuthInterceptor(jwtUtil, securityAuditCounterService, "admin"))
                 .addPathPatterns("/admin/**")
                 .addPathPatterns("/alumni/admin/**")
                 .addPathPatterns("/alumni/media/pending")
@@ -145,7 +173,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/alumni/content/review/**")
                 .excludePathPatterns("/admin/login");
 
-        registry.addInterceptor(new AuthInterceptor(jwtUtil, "admin", "alumni"))
+        registry.addInterceptor(new AuthInterceptor(jwtUtil, securityAuditCounterService, "admin", "alumni"))
                 .addPathPatterns("/alumni/media/**")
                 .addPathPatterns("/alumni/content/edit")
                 .addPathPatterns("/alumni/content/my-edits")
@@ -157,16 +185,22 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/alumni/qa/pending");
 
         // 卡密激活后的"我的空间"端点：user 与 admin 都允许（admin 可代查），但必须有 token
-        registry.addInterceptor(new AuthInterceptor(jwtUtil, "user", "admin"))
+        registry.addInterceptor(new AuthInterceptor(jwtUtil, securityAuditCounterService, "user", "admin"))
                 .addPathPatterns("/me/**");
     }
 
     static class AuthInterceptor implements HandlerInterceptor {
         private final JwtUtil jwtUtil;
+        private final SecurityAuditCounterService securityAuditCounterService;
         private final String[] allowedRoles;
 
         AuthInterceptor(JwtUtil jwtUtil, String... allowedRoles) {
+            this(jwtUtil, null, allowedRoles);
+        }
+
+        AuthInterceptor(JwtUtil jwtUtil, SecurityAuditCounterService securityAuditCounterService, String... allowedRoles) {
             this.jwtUtil = jwtUtil;
+            this.securityAuditCounterService = securityAuditCounterService;
             this.allowedRoles = allowedRoles;
         }
 
@@ -190,6 +224,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         }
                     }
                     if (!roleAllowed) {
+                        if (securityAuditCounterService != null) {
+                            securityAuditCounterService.record(SecurityAuditCounterService.ADMIN_FORBIDDEN);
+                        }
                         response.setStatus(403);
                         response.setContentType("application/json;charset=UTF-8");
                         response.getWriter().write("{\"code\":403,\"message\":\"无权限访问该资源\"}");

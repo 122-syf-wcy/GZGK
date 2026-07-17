@@ -8,6 +8,7 @@ import {
   testAdminAiConfig,
   testAdminAiQa,
   testAdminAiVolunteer,
+  testAdminMajorPlanner,
 } from '@/api/admin'
 import type { AdminAiConfigTestResult, SaveAdminAiConfigRequest } from '@/types'
 import { showSuccessToast, showToast } from 'vant'
@@ -37,12 +38,16 @@ const aiStatus = ref<AiOpsStatus | null>(null)
 const loadingStatus = ref(false)
 const testingVolunteer = ref(false)
 const testingAiQa = ref(false)
+const testingMajorPlanner = ref(false)
 
 const STATUS_TEXT: Record<string, string> = {
   ok: '正常',
   insufficient_balance: '余额不足',
+  group_not_allowed: '模型权限不足',
+  handshake_error: 'TLS 握手失败',
   key_error: 'Key 无效/无权限',
   model_unavailable: '模型不可用',
+  no_valid_response: '无有效回复',
   timeout: '响应超时',
   error: '调用失败',
   unknown: '暂无记录',
@@ -52,6 +57,7 @@ const SCENE_TEXT: Record<string, string> = {
   ai_qa: '未上线问答',
   volunteer_analysis: '志愿解读',
   advisor_chat: '顾问对话',
+  major_planner: '专业规划',
   test_connection: '测试连接',
   test_volunteer: '测试-志愿解读',
   test_ai_qa: '测试-未上线问答',
@@ -96,6 +102,21 @@ async function runTestAiQa() {
     showToast(error?.message || '测试失败')
   } finally {
     testingAiQa.value = false
+  }
+}
+
+async function runTestMajorPlanner() {
+  testingMajorPlanner.value = true
+  try {
+    const res = await testAdminMajorPlanner()
+    const r = res.data?.data
+    if (r?.success) showSuccessToast('专业规划通道测试成功')
+    else showToast(r?.message || '专业规划通道测试失败')
+    await loadAiStatus()
+  } catch (error: any) {
+    showToast(error?.message || '测试失败')
+  } finally {
+    testingMajorPlanner.value = false
   }
 }
 
@@ -308,6 +329,8 @@ onMounted(() => {
             :class="{ 'test-result--ok': testResult.success, 'test-result--fail': !testResult.success }"
           >
             {{ testResult.message }}
+            <span v-if="testResult.endpoint"> · {{ testResult.endpoint }}</span>
+            <span v-if="testResult.errorCode"> · {{ testResult.errorCode }}</span>
             <span v-if="testResult.latencyMs"> · {{ testResult.latencyMs }}ms</span>
             <span v-if="testResult.model"> · {{ testResult.model }}</span>
           </div>
@@ -326,6 +349,9 @@ onMounted(() => {
             </button>
             <button class="secondary-btn" :disabled="testingAiQa" @click="runTestAiQa">
               {{ testingAiQa ? '测试中…' : '测试未上线地区 AI 问答' }}
+            </button>
+            <button class="secondary-btn" :disabled="testingMajorPlanner" @click="runTestMajorPlanner">
+              {{ testingMajorPlanner ? '测试中…' : '测试专业规划' }}
             </button>
             <button class="secondary-btn" :disabled="loadingStatus" @click="loadAiStatus">刷新状态</button>
           </div>
@@ -392,14 +418,20 @@ onMounted(() => {
 
             <div class="field-block">
               <label>Base URL</label>
-              <input v-model="form.baseUrl" class="text-input" placeholder="https://example.com/v1" />
-              <small>请填写 OpenAI-Compatible API 地址，建议以 `/v1` 结尾；后端会自动兼容 `/responses` 和 `/chat/completions`。</small>
+                <input v-model="form.baseUrl" class="text-input" placeholder="https://example.com/v1" />
+              <small>请填写 OpenAI-Compatible API 地址，建议以 `/v1` 结尾；默认优先使用 `/chat/completions`，仅 Base URL 明确写到 `/responses` 时使用 Responses API。</small>
             </div>
 
             <div class="field-block">
               <label>API Key</label>
               <div class="key-row">
-                <input v-model="apiKeyInput" class="text-input" type="password" placeholder="留空则保留现有密钥" />
+                <input
+                  v-model="apiKeyInput"
+                  class="text-input"
+                  type="password"
+                  autocomplete="new-password"
+                  placeholder="留空则保留现有密钥"
+                />
                 <button
                   class="secondary-btn key-query-btn"
                   :disabled="loadingModels || saving || testing || !canQueryModels"
@@ -660,8 +692,12 @@ onMounted(() => {
 .ops-pill { padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; }
 .ops-pill--ok { background: #dcfce7; color: #166534; }
 .ops-pill--insufficient_balance { background: #fef3c7; color: #92400e; }
+.ops-pill--group_not_allowed { background: #ffedd5; color: #9a3412; }
+.ops-pill--handshake_error { background: #e0f2fe; color: #075985; }
 .ops-pill--key_error { background: #fee2e2; color: #991b1b; }
 .ops-pill--model_unavailable { background: #fde68a; color: #92400e; }
+.ops-pill--no_valid_response { background: #f1f5f9; color: #475569; }
+.ops-pill--timeout { background: #fef3c7; color: #92400e; }
 .ops-pill--error { background: #fee2e2; color: #991b1b; }
 .ops-pill--unknown { background: #f1f5f9; color: #64748b; }
 .ops-detail { font-weight: 700; color: #334155; }

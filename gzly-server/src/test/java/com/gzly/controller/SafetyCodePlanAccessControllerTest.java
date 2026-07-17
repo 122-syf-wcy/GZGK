@@ -18,6 +18,7 @@ import com.gzly.service.SkillsRagService;
 import com.gzly.service.VolunteerExportService;
 import com.gzly.service.VolunteerMetricsRecorder;
 import com.gzly.service.VolunteerService;
+import com.gzly.service.CredentialAttemptLimiter;
 import com.gzly.mapper.SafetyCodeIdentityMapper;
 import com.gzly.service.SafetyCodeIdentityService;
 import com.gzly.service.recommend.QueryOnlyRecommendEngine;
@@ -105,7 +106,7 @@ class SafetyCodePlanAccessControllerTest {
     void getPlan_withHeaderSafetyCode_shouldPass() throws Exception {
         FakeSafetyCodeService safetyCodeService = new FakeSafetyCodeService(true);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                        new VolunteerPlanController(new FakeVolunteerService(planResult("")), new SafetyCodeRequestResolver(), safetyCodeService, new SafetyCodeIdentityService(Mockito.mock(SafetyCodeIdentityMapper.class), safetyCodeService), Mockito.mock(com.gzly.mapper.PlanHistoryMapper.class)))
+                        volunteerPlanController(safetyCodeService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -119,7 +120,7 @@ class SafetyCodePlanAccessControllerTest {
     @Test
     void getPlan_withWrongSafetyCode_shouldReturn403() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                        new VolunteerPlanController(new FakeVolunteerService(planResult("")), new SafetyCodeRequestResolver(), new FakeSafetyCodeService(false), new SafetyCodeIdentityService(Mockito.mock(SafetyCodeIdentityMapper.class), new FakeSafetyCodeService(false)), Mockito.mock(com.gzly.mapper.PlanHistoryMapper.class)))
+                        volunteerPlanController(new FakeSafetyCodeService(false)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -131,7 +132,7 @@ class SafetyCodePlanAccessControllerTest {
     @Test
     void verifySafetyCode_withCorrectSafetyCode_shouldReturnOnlyValidity() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                        new VolunteerPlanController(new FakeVolunteerService(planResult("")), new SafetyCodeRequestResolver(), new FakeSafetyCodeService(true), new SafetyCodeIdentityService(Mockito.mock(SafetyCodeIdentityMapper.class), new FakeSafetyCodeService(true)), Mockito.mock(com.gzly.mapper.PlanHistoryMapper.class)))
+                        volunteerPlanController(new FakeSafetyCodeService(true)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -150,7 +151,7 @@ class SafetyCodePlanAccessControllerTest {
     @Test
     void verifySafetyCode_withWrongSafetyCode_shouldReturn403() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                        new VolunteerPlanController(new FakeVolunteerService(planResult("")), new SafetyCodeRequestResolver(), new FakeSafetyCodeService(false), new SafetyCodeIdentityService(Mockito.mock(SafetyCodeIdentityMapper.class), new FakeSafetyCodeService(false)), Mockito.mock(com.gzly.mapper.PlanHistoryMapper.class)))
+                        volunteerPlanController(new FakeSafetyCodeService(false)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -165,19 +166,19 @@ class SafetyCodePlanAccessControllerTest {
     @Test
     void protectedPlanAiSkillsAndExportEndpoints_withoutSafetyCode_shouldReturn403() throws Exception {
         MockMvc planMvc = MockMvcBuilders.standaloneSetup(
-                        new VolunteerPlanController(new FakeVolunteerService(planResult("")), new SafetyCodeRequestResolver(), new FakeSafetyCodeService(false), new SafetyCodeIdentityService(Mockito.mock(SafetyCodeIdentityMapper.class), new FakeSafetyCodeService(false)), Mockito.mock(com.gzly.mapper.PlanHistoryMapper.class)))
+                        volunteerPlanController(new FakeSafetyCodeService(false)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
         MockMvc aiMvc = MockMvcBuilders.standaloneSetup(
-                        new AiAnalysisController(new FakeAiDeepAnalysisService(), new SafetyCodeRequestResolver(), new FakeSafetyCodeService(false)))
+                        aiAnalysisController(new FakeSafetyCodeService(false)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
         MockMvc skillsMvc = MockMvcBuilders.standaloneSetup(
-                        new SkillsQaController(new FakeSkillsRagService(), new SafetyCodeRequestResolver(), new FakeSafetyCodeService(false)))
+                        skillsController(new FakeSafetyCodeService(false)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
         MockMvc exportMvc = MockMvcBuilders.standaloneSetup(
-                        new VolunteerExportController(new FakeVolunteerExportService(), new SafetyCodeRequestResolver(), new FakeSafetyCodeService(false)))
+                        exportController(new FakeSafetyCodeService(false)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -207,15 +208,15 @@ class SafetyCodePlanAccessControllerTest {
     @Test
     void protectedAiSkillsAndExportEndpoints_withHeaderSafetyCode_shouldReturn200() throws Exception {
         MockMvc aiMvc = MockMvcBuilders.standaloneSetup(
-                        new AiAnalysisController(new FakeAiDeepAnalysisService(), new SafetyCodeRequestResolver(), new FakeSafetyCodeService(true)))
+                        aiAnalysisController(new FakeSafetyCodeService(true)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
         MockMvc skillsMvc = MockMvcBuilders.standaloneSetup(
-                        new SkillsQaController(new FakeSkillsRagService(), new SafetyCodeRequestResolver(), new FakeSafetyCodeService(true)))
+                        skillsController(new FakeSafetyCodeService(true)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
         MockMvc exportMvc = MockMvcBuilders.standaloneSetup(
-                        new VolunteerExportController(new FakeVolunteerExportService(), new SafetyCodeRequestResolver(), new FakeSafetyCodeService(true)))
+                        exportController(new FakeSafetyCodeService(true)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -245,7 +246,7 @@ class SafetyCodePlanAccessControllerTest {
     @Test
     void aiAnalysis_withQuerySafetyCode_shouldPass() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                        new AiAnalysisController(new FakeAiDeepAnalysisService(), new SafetyCodeRequestResolver(), new FakeSafetyCodeService(true)))
+                        aiAnalysisController(new FakeSafetyCodeService(true)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -258,7 +259,7 @@ class SafetyCodePlanAccessControllerTest {
     @Test
     void skillsAsk_withBodyWrongSafetyCode_shouldReturn403() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                        new SkillsQaController(new FakeSkillsRagService(), new SafetyCodeRequestResolver(), new FakeSafetyCodeService(false)))
+                        skillsController(new FakeSafetyCodeService(false)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -272,7 +273,7 @@ class SafetyCodePlanAccessControllerTest {
     @Test
     void exportLongImage_withBodySafetyCode_shouldPass() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(
-                        new VolunteerExportController(new FakeVolunteerExportService(), new SafetyCodeRequestResolver(), new FakeSafetyCodeService(true)))
+                        exportController(new FakeSafetyCodeService(true)))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -343,6 +344,40 @@ class SafetyCodePlanAccessControllerTest {
                 safety,
                 identity,
                 new AdmissionYearService());
+    }
+
+    private VolunteerPlanController volunteerPlanController(FakeSafetyCodeService safetyCodeService) {
+        return new VolunteerPlanController(
+                new FakeVolunteerService(planResult("")),
+                new SafetyCodeRequestResolver(),
+                safetyCodeService,
+                new SafetyCodeIdentityService(Mockito.mock(SafetyCodeIdentityMapper.class), safetyCodeService),
+                new CredentialAttemptLimiter(),
+                Mockito.mock(com.gzly.mapper.PlanHistoryMapper.class));
+    }
+
+    private AiAnalysisController aiAnalysisController(FakeSafetyCodeService safetyCodeService) {
+        return new AiAnalysisController(
+                new FakeAiDeepAnalysisService(),
+                new SafetyCodeRequestResolver(),
+                safetyCodeService,
+                new CredentialAttemptLimiter());
+    }
+
+    private SkillsQaController skillsController(FakeSafetyCodeService safetyCodeService) {
+        return new SkillsQaController(
+                new FakeSkillsRagService(),
+                new SafetyCodeRequestResolver(),
+                safetyCodeService,
+                new CredentialAttemptLimiter());
+    }
+
+    private VolunteerExportController exportController(FakeSafetyCodeService safetyCodeService) {
+        return new VolunteerExportController(
+                new FakeVolunteerExportService(),
+                new SafetyCodeRequestResolver(),
+                safetyCodeService,
+                new CredentialAttemptLimiter());
     }
 
     private SafetyCodeService safetyCodeService(PlanHistory history) {

@@ -7,6 +7,7 @@ import com.gzly.common.exception.BizException;
 import com.gzly.entity.PlanHistory;
 import com.gzly.service.AiService;
 import com.gzly.service.AlgorithmService;
+import com.gzly.service.CredentialAttemptLimiter;
 import com.gzly.service.ProvincePolicyService;
 import com.gzly.service.ProvinceRankService;
 import com.gzly.service.ProfessionalGroupVolunteerService;
@@ -46,6 +47,7 @@ public class VolunteerController {
     private final ProvincePolicyService provincePolicyService;
     private final ProvinceRankService provinceRankService;
     private final VolunteerMetricsRecorder metricsRecorder;
+    private final CredentialAttemptLimiter credentialAttemptLimiter;
     private final JwtUtil jwtUtil;
     private final ObjectMapper objectMapper;
     /**
@@ -100,8 +102,9 @@ public class VolunteerController {
                                    @RequestParam(required = false) String safetyCode,
                                    @RequestParam(required = false) String accessKey,
                                    @RequestHeader(value = "X-Plan-Safety-Code", required = false) String headerSafetyCode,
-                                   @RequestHeader(value = "X-Plan-Access-Key", required = false) String headerAccessKey) {
-        return doFetchPlan(planId, firstNonBlank(safetyCode, headerSafetyCode, accessKey, headerAccessKey));
+                                   @RequestHeader(value = "X-Plan-Access-Key", required = false) String headerAccessKey,
+                                   HttpServletRequest httpReq) {
+        return doFetchPlan(planId, firstNonBlank(safetyCode, headerSafetyCode, accessKey, headerAccessKey), httpReq);
     }
 
     /**
@@ -109,17 +112,20 @@ public class VolunteerController {
      * GET 版本仅保留兼容旧链接，新前端统一走该接口。
      */
     @PostMapping("/plan")
-    public Result<PlanResult> planByBody(@RequestBody PlanAccessRequest req) {
+    public Result<PlanResult> planByBody(@RequestBody PlanAccessRequest req, HttpServletRequest httpReq) {
         if (req == null) {
             throw new BizException("方案参数不能为空");
         }
-        return doFetchPlan(req.getPlanId(), firstNonBlank(req.getSafetyCode(), req.getAccessKey()));
+        return doFetchPlan(req.getPlanId(), firstNonBlank(req.getSafetyCode(), req.getAccessKey()), httpReq);
     }
 
-    private Result<PlanResult> doFetchPlan(Long planId, String accessKey) {
+    private Result<PlanResult> doFetchPlan(Long planId, String accessKey, HttpServletRequest httpReq) {
+        if (!verifyPlanAccess(planId, accessKey, httpReq, "volunteer-plan-legacy")) {
+            throw new BizException(403, SAFETY_CODE_FORBIDDEN_MESSAGE);
+        }
         PlanResult result = volunteerService.getPlanResult(planId, accessKey);
         if (result == null) {
-            throw new BizException("方案不存在或访问密钥无效");
+            throw new BizException(403, SAFETY_CODE_FORBIDDEN_MESSAGE);
         }
         return Result.ok(result);
     }
@@ -220,13 +226,14 @@ public class VolunteerController {
      * EventSource 只能发 GET，因此 query 中只放短效 ticket，不再暴露长期 accessKey。
      */
     @PostMapping("/ai-analysis-ticket")
-    public Result<AiAnalysisTicketResponse> aiAnalysisTicket(@RequestBody AiAnalysisTicketRequest req) {
+    public Result<AiAnalysisTicketResponse> aiAnalysisTicket(@RequestBody AiAnalysisTicketRequest req,
+                                                            HttpServletRequest httpReq) {
         String credential = req == null ? "" : firstNonBlank(req.getSafetyCode(), req.getAccessKey());
         if (req == null || req.getPlanId() == null || credential.isBlank()) {
             throw new BizException(403, SAFETY_CODE_FORBIDDEN_MESSAGE);
         }
         PlanHistory plan = volunteerService.getPlanById(req.getPlanId());
-        if (plan == null || !volunteerService.isValidPlanAccessKey(req.getPlanId(), credential)) {
+        if (plan == null || !verifyPlanAccess(req.getPlanId(), credential, httpReq, "volunteer-ai-ticket")) {
             throw new BizException(403, SAFETY_CODE_FORBIDDEN_MESSAGE);
         }
         String ticket = UUID.randomUUID().toString().replace("-", "");
@@ -279,7 +286,7 @@ public class VolunteerController {
         }
 
         PlanHistory plan = volunteerService.getPlanById(req.getPlanId());
-        if (plan == null || !volunteerService.isValidPlanAccessKey(req.getPlanId(), credential)) {
+        if (plan == null || !verifyPlanAccess(req.getPlanId(), credential, httpReq, "volunteer-zxf-chat")) {
             throw new BizException(403, SAFETY_CODE_FORBIDDEN_MESSAGE);
         }
 
@@ -354,7 +361,17 @@ public class VolunteerController {
         }
 
         PlanHistory plan = volunteerService.getPlanById(planId);
-        if (plan == null || !volunteerService.isValidPlanAccessKey(planId, credential)) {
+        boolean authorized;
+        try {
+            authorized = plan != null && verifyPlanAccess(planId, credential, httpReq, "volunteer-sse-ai-analysis");
+        } catch (BizException e) {
+            try {
+                emitter.send(SseEmitter.event().data("[ERROR] 方案访问过于频繁，请稍后再试"));
+                emitter.complete();
+            } catch (Exception ignored) {}
+            return emitter;
+        }
+        if (!authorized) {
             try {
                 emitter.send(SseEmitter.event().data("[ERROR] 方案不存在"));
                 emitter.complete();
@@ -417,6 +434,19 @@ public class VolunteerController {
         }
 
         return emitter;
+    }
+
+    private boolean verifyPlanAccess(Long planId, String credential, HttpServletRequest request, String namespace) {
+        String clientIp = credentialAttemptLimiter.clientIp(request);
+        String target = planId == null ? "*" : String.valueOf(planId);
+        credentialAttemptLimiter.ensureNotLocked(namespace, clientIp, target);
+        boolean ok = volunteerService.isValidPlanAccessKey(planId, credential);
+        if (!ok) {
+            credentialAttemptLimiter.recordFailure(namespace, clientIp, target);
+            return false;
+        }
+        credentialAttemptLimiter.reset(namespace, clientIp, target);
+        return true;
     }
 
     private AiTicketPayload consumeAiTicket(String ticket) {

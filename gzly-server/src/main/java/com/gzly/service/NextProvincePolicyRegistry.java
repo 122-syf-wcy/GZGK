@@ -1,6 +1,7 @@
 package com.gzly.service;
 
 import com.gzly.entity.PolicyRuleConfig;
+import com.gzly.service.recommend.QueryOnlyRecommendEngine;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -19,6 +20,9 @@ public final class NextProvincePolicyRegistry {
     public static final String HI = ProvincePolicyService.HI;
     public static final String YN = ProvincePolicyService.YN;
     public static final String HA = ProvincePolicyService.HA;
+    public static final String CQ = ProvincePolicyService.CQ;
+    public static final String GS = ProvincePolicyService.GS;
+    public static final String XJ = ProvincePolicyService.XJ;
     public static final String DEFAULT_CANDIDATE_TYPE = "普通类";
 
     private static final Map<String, Profile> PROFILES = buildProfiles();
@@ -36,6 +40,14 @@ public final class NextProvincePolicyRegistry {
 
     public static List<Profile> allProfiles() {
         return List.copyOf(PROFILES.values());
+    }
+
+    public static boolean isLevelOneAiQaOnly(String provinceCode) {
+        if (provinceCode == null || provinceCode.isBlank()) {
+            return false;
+        }
+        String normalized = provinceCode.trim().toUpperCase(Locale.ROOT);
+        return CQ.equals(normalized) || GS.equals(normalized) || XJ.equals(normalized);
     }
 
     public static Map<String, ProvincePolicyService.ProvincePolicy> provincePolicies() {
@@ -174,7 +186,57 @@ public final class NextProvincePolicyRegistry {
                 "河南 2026 计划、线表、组级投档线、同分密度惩罚参数与大省波动口径仍待核验；当前只使用 2024/2025 历史窗口估算。",
                 "河南首年新高考适配已就位，位次优先且风险更保守，非普通批只查策略。"
         ));
+        register(profiles, levelOneProfile(
+                CQ,
+                "重庆",
+                "重庆市教育考试院",
+                "重庆当前地区正在接入历史数据，暂不开放完整志愿表生成，可先使用 AI 志愿问答和方向参考。"
+        ));
+        register(profiles, levelOneProfile(
+                GS,
+                "甘肃",
+                "甘肃省教育考试院",
+                "甘肃当前地区正在接入历史数据，暂不开放完整志愿表生成，可先使用 AI 志愿问答和方向参考。"
+        ));
+        register(profiles, levelOneProfile(
+                XJ,
+                "新疆",
+                "新疆维吾尔自治区教育考试院",
+                "新疆当前地区正在接入历史数据，暂不开放完整志愿表生成，可先使用 AI 志愿问答和方向参考。"
+        ));
         return Collections.unmodifiableMap(profiles);
+    }
+
+    private static Profile levelOneProfile(String provinceCode,
+                                           String provinceName,
+                                           String officialSourceName,
+                                           String dataStatusNote) {
+        return profile(
+                provinceCode,
+                provinceName,
+                List.of(
+                        aiQaOnlyBatch(provinceCode, "BENKE", "普通本科批", 45,
+                                dataStatusNote + " 当前不生成院校清单。"),
+                        aiQaOnlyBatch(provinceCode, "ZHUANKE", "普通高职（专科）批", 45,
+                                dataStatusNote + " 专科批历史数据补齐前不生成院校清单。"),
+                        queryOnlyBatch(provinceCode, "EARLY", "普通类提前批", "EARLY", 20,
+                                provinceName + "提前批涉及顺序志愿、资格审核和单独计划，当前仅展示政策与数据缺口说明。"),
+                        queryOnlyBatch(provinceCode, "SPECIAL", "专项计划", "SPECIAL_PROGRAM", 20,
+                                provinceName + "专项计划需户籍、学籍、报名审核与单独计划数据，当前只查策略和资格提示。"),
+                        queryOnlyBatch(provinceCode, "ART", "艺术类批次", "ART", 45,
+                                provinceName + "艺术类需统考成绩、综合分规则和院校章程复核，不套普通位次模型。"),
+                        queryOnlyBatch(provinceCode, "SPORTS", "体育类批次", "SPORTS", 45,
+                                provinceName + "体育类需体育专业成绩、综合分或排序规则复核，不套普通位次模型。")
+                ),
+                ProvincePolicyService.UNIT_NEXT_PROVINCE_QUERY_ONLY,
+                ProvincePolicyService.UNIT_NEXT_PROVINCE_QUERY_ONLY_LABEL,
+                45,
+                List.of("物理类", "历史类"),
+                officialSourceName,
+                provinceName + " 2026 招生政策（待核实）",
+                dataStatusNote,
+                dataStatusNote
+        );
     }
 
     private static BatchProfile ordinaryBatch(String provinceCode,
@@ -201,6 +263,33 @@ public final class NextProvincePolicyRegistry {
                         provinceCode + "_2026_score_line",
                         provinceCode + "_2026_score_rank",
                         provinceCode + "_2026_major_requirement")
+        );
+    }
+
+    private static BatchProfile aiQaOnlyBatch(String provinceCode,
+                                              String suffix,
+                                              String batchName,
+                                              int targetCount,
+                                              String supportNote) {
+        String batchCode = provinceCode + "_" + suffix;
+        return new BatchProfile(
+                batchCode,
+                batchName,
+                DEFAULT_CANDIDATE_TYPE,
+                BatchRuleRegistry.CandidateCategory.ORDINARY.name(),
+                BatchRuleRegistry.SupportLevel.QUERY_ONLY.name(),
+                BatchRuleRegistry.RecommendMode.QUERY_ONLY.name(),
+                QueryOnlyRecommendEngine.NAME,
+                targetCount,
+                6,
+                true,
+                "院校专业组（接入中）",
+                supportNote,
+                List.of(
+                        "官方历史一分一段表",
+                        "官方历史投档线",
+                        "官方历史招生计划",
+                        "官方选科要求")
         );
     }
 
@@ -370,7 +459,7 @@ public final class NextProvincePolicyRegistry {
         }
 
         public String referenceNotice() {
-            return provinceName + "当前处于 PRE_OFFICIAL_DATA 阶段，普通主批仅展示历史估算和数据缺口，不构成录取承诺。";
+            return provinceName + "当前处于 2026 官方数据待发布阶段，仅展示历史参考、策略说明和数据缺口，不构成录取承诺。";
         }
 
         public String supportNoteForBatch(String batchCode) {

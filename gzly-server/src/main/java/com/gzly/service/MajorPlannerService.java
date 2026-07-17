@@ -34,6 +34,7 @@ public class MajorPlannerService {
 
     private final MajorPlannerResultMapper resultMapper;
     private final MajorPlannerCodeService codeService;
+    private final CredentialAttemptLimiter credentialAttemptLimiter;
     private final AiService aiService;
     private final ObjectMapper objectMapper;
 
@@ -59,10 +60,11 @@ public class MajorPlannerService {
         return toView(row, result, planCode, true, false, "");
     }
 
-    public MajorPlannerView restore(RestoreRequest req) {
+    public MajorPlannerView restore(RestoreRequest req, String clientIp) {
         if (req == null || isBlank(req.getPlanCode())) {
             throw new BizException(403, "请输入规划码");
         }
+        credentialAttemptLimiter.ensureNotLocked("major-planner-restore", clientIp, safeTarget(req.getPlanNo()));
         String normalizedCode = codeService.normalize(req.getPlanCode());
         String fingerprint = codeService.fingerprint(normalizedCode);
         LambdaQueryWrapper<MajorPlannerResult> wrapper = new LambdaQueryWrapper<MajorPlannerResult>()
@@ -75,18 +77,20 @@ public class MajorPlannerService {
         }
         MajorPlannerResult row = resultMapper.selectOne(wrapper);
         if (row == null || !codeService.verify(normalizedCode, row.getPlanCodeHash())) {
+            credentialAttemptLimiter.recordFailure("major-planner-restore", clientIp, safeTarget(req.getPlanNo()));
             throw new BizException(403, "规划码错误或结果不存在");
         }
+        credentialAttemptLimiter.reset("major-planner-restore", clientIp, safeTarget(req.getPlanNo()));
         return toView(row, readResult(row), null, false, false, "");
     }
 
-    public MajorPlannerView detail(Long id, String planCode) {
-        MajorPlannerResult row = requireAuthorizedRow(id, planCode);
+    public MajorPlannerView detail(Long id, String planCode, String clientIp) {
+        MajorPlannerResult row = requireAuthorizedRow(id, planCode, clientIp, "major-planner-detail");
         return toView(row, readResult(row), null, false, false, "");
     }
 
-    public AiAnalysisResult aiAnalysis(Long id, String planCode, boolean forceRefresh) {
-        MajorPlannerResult row = requireAuthorizedRow(id, planCode);
+    public AiAnalysisResult aiAnalysis(Long id, String planCode, boolean forceRefresh, String clientIp) {
+        MajorPlannerResult row = requireAuthorizedRow(id, planCode, clientIp, "major-planner-ai-analysis");
         EvaluationResult result = readResult(row);
         if (!forceRefresh && row.getAiSummary() != null && !row.getAiSummary().isBlank()) {
             return AiAnalysisResult.ok(row.getAiSummary(), false, false, "");
@@ -112,18 +116,26 @@ public class MajorPlannerService {
         return AiAnalysisResult.ok(summary, true, fallback, fallbackReason);
     }
 
-    private MajorPlannerResult requireAuthorizedRow(Long id, String planCode) {
+    private MajorPlannerResult requireAuthorizedRow(Long id, String planCode, String clientIp, String namespace) {
         if (id == null || id <= 0) {
             throw new BizException(400, "规划结果 id 不能为空");
         }
+        String target = id == null ? "*" : String.valueOf(id);
+        credentialAttemptLimiter.ensureNotLocked(namespace, clientIp, target);
         if (isBlank(planCode)) {
             throw new BizException(403, "请先输入规划码");
         }
         MajorPlannerResult row = resultMapper.selectById(id);
         if (row == null || row.getDeletedAt() != null || !codeService.verify(planCode, row.getPlanCodeHash())) {
+            credentialAttemptLimiter.recordFailure(namespace, clientIp, target);
             throw new BizException(403, "规划码错误或无权访问该结果");
         }
+        credentialAttemptLimiter.reset(namespace, clientIp, target);
         return row;
+    }
+
+    private String safeTarget(String planNo) {
+        return isBlank(planNo) ? "*" : planNo.trim();
     }
 
     private EvaluateRequest normalizeAndValidate(EvaluateRequest req) {

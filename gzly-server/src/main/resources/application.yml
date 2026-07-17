@@ -32,7 +32,7 @@ management:
       exposure:
         include: health,info,metrics,prometheus
       cors:
-        allowed-origins: "*"
+        allowed-origins: "http://127.0.0.1"
         allowed-methods: GET
   endpoint:
     health:
@@ -124,6 +124,10 @@ gzly:
     login-window-seconds: ${GZLY_ADMIN_LOGIN_WINDOW_SECONDS:300}
     login-lock-seconds: ${GZLY_ADMIN_LOGIN_LOCK_SECONDS:900}
 
+  cors:
+    allowed-origins: ${GZLY_CORS_ALLOWED_ORIGINS:https://gzly.dongsiwei.com,http://39.97.232.141}
+    allow-localhost: ${GZLY_CORS_ALLOW_LOCALHOST:false}
+
   # ---- AI (OpenAI 格式) ----
   ai:
     base-url: ${GZLY_AI_BASE_URL:}
@@ -196,3 +200,7 @@ gzly:
     ai-qa-restore-window-seconds: 600
     ai-qa-message-limit: 20
     ai-qa-message-window-seconds: 60
+    major-planner-evaluate-limit: 10
+    major-planner-evaluate-window-seconds: 60
+    major-planner-restore-limit: 5
+    major-planner-restore-window-seconds: 300

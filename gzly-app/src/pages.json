@@ -1,0 +1,148 @@
+{
+  "easycom": {
+    "autoscan": true,
+    "custom": {
+      "^wd-(.*)": "wot-design-uni/components/wd-$1/wd-$1.vue"
+    }
+  },
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "高考志愿助手"
+      }
+    },
+    {
+      "path": "pages/university/university",
+      "style": {
+        "navigationBarTitleText": "院校查询"
+      }
+    },
+    {
+      "path": "pages/scoreline/scoreline",
+      "style": {
+        "navigationBarTitleText": "分数线查询"
+      }
+    },
+    {
+      "path": "pages/mine/mine",
+      "style": {
+        "navigationBarTitleText": "我的"
+      }
+    },
+    {
+      "path": "pages/university-detail/university-detail",
+      "style": {
+        "navigationBarTitleText": "院校详情"
+      }
+    },
+    {
+      "path": "pages/volunteer/volunteer",
+      "style": {
+        "navigationBarTitleText": "志愿生成"
+      }
+    },
+    {
+      "path": "pages/volunteer-result/volunteer-result",
+      "style": {
+        "navigationBarTitleText": "志愿参考方案"
+      }
+    },
+    {
+      "path": "pages/ai-analysis/ai-analysis",
+      "style": {
+        "navigationBarTitleText": "AI 解读"
+      }
+    },
+    {
+      "path": "pages/ai-chat/ai-chat",
+      "style": {
+        "navigationBarTitleText": "AI 问答"
+      }
+    },
+    {
+      "path": "pages/major-planner/major-planner",
+      "style": {
+        "navigationBarTitleText": "专业规划师"
+      }
+    },
+    {
+      "path": "pages/major-planner-result/major-planner-result",
+      "style": {
+        "navigationBarTitleText": "专业规划结果"
+      }
+    },
+    {
+      "path": "pages/special-admissions/special-admissions",
+      "style": {
+        "navigationBarTitleText": "特殊类型招生"
+      }
+    },
+    {
+      "path": "pages/encouragement/encouragement",
+      "style": {
+        "navigationBarTitleText": "考生加油墙"
+      }
+    },
+    {
+      "path": "pages/my-plans/my-plans",
+      "style": {
+        "navigationBarTitleText": "我的方案"
+      }
+    },
+    {
+      "path": "pages/region/region",
+      "style": {
+        "navigationBarTitleText": "省份专区"
+      }
+    },
+    {
+      "path": "pages/compare/compare",
+      "style": {
+        "navigationBarTitleText": "院校对比"
+      }
+    },
+    {
+      "path": "pages/poster/poster",
+      "style": {
+        "navigationBarTitleText": "导出志愿表"
+      }
+    },
+    {
+      "path": "pages/legal/legal",
+      "style": {
+        "navigationBarTitleText": "用户协议与免责声明"
+      }
+    }
+  ],
+  "tabBar": {
+    "color": "#7a7e83",
+    "selectedColor": "#1a4fff",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/university/university",
+        "text": "院校"
+      },
+      {
+        "pagePath": "pages/scoreline/scoreline",
+        "text": "分数线"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "我的"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "GZLY 高考志愿助手",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f7f9fc"
+  }
+}

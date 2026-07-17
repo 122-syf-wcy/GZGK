@@ -12,6 +12,10 @@ import type {
   AdminPlanListParams,
   Announcement,
   DataYearReadinessDto,
+  DataReviewDecisionRequest,
+  DataReviewExportResponse,
+  DataReviewListData,
+  DataReviewListParams,
   Result,
   SaveAdminAiConfigRequest,
 } from '@/types'
@@ -158,6 +162,20 @@ export function fetchAdminDataYearReadiness(provinceCode = 'GZ', year = 2026) {
   })
 }
 
+export function fetchAdminCqGsXjDataReview(params: DataReviewListParams = {}) {
+  return request.get<Result<DataReviewListData>>('/admin/data-review/cq-gs-xj', {
+    params: { page: 1, size: 50, ...params },
+  })
+}
+
+export function saveAdminCqGsXjDataReviewDecision(data: DataReviewDecisionRequest) {
+  return request.post<Result<unknown>>('/admin/data-review/cq-gs-xj/decision', data)
+}
+
+export function exportAdminCqGsXjDataReview() {
+  return request.post<Result<DataReviewExportResponse>>('/admin/data-review/cq-gs-xj/export')
+}
+
 // ── 运营收口：AI 问答会话、AI 状态、反馈工单、方案恢复、巡检 ──
 
 export function fetchAdminAiQaSessions(page = 1, size = 20, regionCode?: string) {
@@ -174,6 +192,10 @@ export function testAdminAiVolunteer() {
 
 export function testAdminAiQa() {
   return request.post('/admin/ai-ops/test-ai-qa')
+}
+
+export function testAdminMajorPlanner() {
+  return request.post('/admin/ai-ops/test-major-planner')
 }
 
 export function fetchAdminFeedbackOps(page = 1, size = 20, handleStatus?: number) {
@@ -194,4 +216,8 @@ export function batchRestoreAdminPlans(ids: number[]) {
 
 export function fetchAdminOpsHealthCheck() {
   return request.get('/admin/ops/health-check')
+}
+
+export function fetchAdminServerSecurityStatus() {
+  return request.get('/admin/security/server/status')
 }

@@ -209,10 +209,22 @@ const router = createRouter({
           meta: { title: '巡检状态 - 管理后台' },
         },
         {
+          path: 'security/server',
+          name: 'AdminServerSecurity',
+          component: () => import('@/views/admin/ServerSecurity.vue'),
+          meta: { title: '服务器安全防护 - 管理后台' },
+        },
+        {
           path: 'data-year-readiness',
           name: 'AdminDataYearReadiness',
           component: () => import('@/views/admin/DataYearReadiness.vue'),
           meta: { title: '数据准备进度 - 管理后台' },
+        },
+        {
+          path: 'data-review/cq-gs-xj',
+          name: 'AdminCqGsXjDataReview',
+          component: () => import('@/views/admin/CqGsXjDataReview.vue'),
+          meta: { title: 'CQ/GS/XJ 人工审核 - 管理后台' },
         },
         {
           path: 'feedbacks',

@@ -7,8 +7,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AiQaRegionRegistryTest {
 
     @Test
-    void launchedEightProvinces_shouldBeExcludedFromUnlaunched() {
-        for (String launched : new String[]{"GZ", "SC", "AH", "HB", "GX", "HI", "YN", "HA"}) {
+    void launchedRegions_shouldBeExcludedFromUnlaunched() {
+        for (String launched : new String[]{"GZ", "SC", "AH", "HB", "GX", "HI", "YN", "HA", "CQ", "GS", "XJ"}) {
             assertThat(AiQaRegionRegistry.isLaunched(launched)).isTrue();
             assertThat(AiQaRegionRegistry.isUnlaunched(launched)).isFalse();
             assertThat(AiQaRegionRegistry.UNLAUNCHED_REGIONS).doesNotContainKey(launched);
@@ -19,7 +19,7 @@ class AiQaRegionRegistryTest {
     void unlaunchedRegions_shouldContainExpectedSamplesWithCorrectCodes() {
         assertThat(AiQaRegionRegistry.isUnlaunched("GD")).isTrue();
         assertThat(AiQaRegionRegistry.isUnlaunched("JS")).isTrue();
-        assertThat(AiQaRegionRegistry.isUnlaunched("CQ")).isTrue();
+        assertThat(AiQaRegionRegistry.isUnlaunched("CQ")).isFalse();
         assertThat(AiQaRegionRegistry.nameOf("GD")).isEqualTo("广东");
         assertThat(AiQaRegionRegistry.nameOf("SN")).isEqualTo("陕西");
         assertThat(AiQaRegionRegistry.nameOf("HN")).isEqualTo("湖南");
@@ -41,7 +41,7 @@ class AiQaRegionRegistryTest {
     }
 
     @Test
-    void unlaunchedRegions_shouldCoverTwentyThreeRegions() {
-        assertThat(AiQaRegionRegistry.UNLAUNCHED_REGIONS).hasSize(23);
+    void unlaunchedRegions_shouldCoverTwentyRegions() {
+        assertThat(AiQaRegionRegistry.UNLAUNCHED_REGIONS).hasSize(20);
     }
 }

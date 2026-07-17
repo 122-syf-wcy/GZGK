@@ -73,6 +73,12 @@ public class AdminAiOpsController {
                 "你是未上线地区 AI 志愿问答测试探针，只需简短回应以确认通道可用。"));
     }
 
+    @PostMapping("/test-major-planner")
+    public Result<TestResult> testMajorPlanner() {
+        return Result.ok(runTest(AiCallLogService.SCENE_MAJOR_PLANNER,
+                "你是专业选择规划 AI 解读测试探针，只需简短回应以确认通道可用。"));
+    }
+
     private TestResult runTest(String scene, String systemPrompt) {
         List<AiQaChatClient.ChatTurn> turns = List.of(new AiQaChatClient.ChatTurn("user", "ping，请回复 ok"));
         AiQaChatClient.ChatResult chat = aiQaChatClient.complete(scene, systemPrompt, turns, 64, 0.0D);

@@ -129,7 +129,8 @@ public class AiQaChatClient {
             }
         }
         ModelCallResult chat = callChatCompletions(config, messages, maxTokens, temperature);
-        if (chat.success() || preferResponses || !chat.unsupported()) {
+        if (chat.success() || AiProviderErrorClassifier.isAccountOrPermission(chat.errorCode())
+                || preferResponses || !chat.unsupported()) {
             return chat;
         }
         return callResponses(config, messages, maxTokens);
@@ -228,10 +229,7 @@ public class AiQaChatClient {
 
     private boolean shouldPreferResponses(String baseUrl, String model) {
         String normalizedUrl = baseUrl == null ? "" : baseUrl.toLowerCase(Locale.ROOT);
-        String normalizedModel = model == null ? "" : model.toLowerCase(Locale.ROOT);
-        return normalizedUrl.endsWith("/responses")
-                || normalizedModel.startsWith("gpt-5")
-                || normalizedModel.contains("gpt-5.");
+        return normalizedUrl.endsWith("/responses");
     }
 
     private String renderMessagesForResponses(ArrayNode messages) {
@@ -308,10 +306,8 @@ public class AiQaChatClient {
     }
 
     private String friendlyExceptionMessage(Exception e) {
-        if (isTimeout(e)) {
-            return "AI 服务响应超时";
-        }
-        return e.getMessage() == null || e.getMessage().isBlank() ? "AI 服务调用异常" : e.getMessage();
+        String code = AiProviderErrorClassifier.classifyException(e);
+        return AiProviderErrorClassifier.userMessage(code, null, "AI");
     }
 
     private boolean isTimeout(Throwable e) {
@@ -356,23 +352,22 @@ public class AiQaChatClient {
                                    String errorCode, String content, String message) {
         static ModelCallResult fromContent(String protocol, Integer httpStatus, String content) {
             if (content == null || content.isBlank()) {
-                return new ModelCallResult(protocol, false, false, httpStatus, "EMPTY_CONTENT", "", "AI 返回空内容");
+                return new ModelCallResult(protocol, false, false, httpStatus, AiProviderErrorClassifier.NO_VALID_RESPONSE,
+                        "", "AI 返回空内容");
             }
             return new ModelCallResult(protocol, true, false, httpStatus, null, content, "OK");
         }
 
         static ModelCallResult httpFailure(String protocol, int status, String errorCode, String body) {
             boolean unsupported = status == 404 || status == 405 || status == 501;
-            String code = errorCode == null || errorCode.isBlank() ? "HTTP_" + status : errorCode;
+            String code = AiProviderErrorClassifier.classifyHttp(status, errorCode, body);
             return new ModelCallResult(protocol, false, unsupported, status, code, "", body.isBlank() ? "HTTP " + status : body);
         }
 
         static ModelCallResult exception(String protocol, Exception e) {
-            boolean timeout = e instanceof SocketTimeoutException
-                    || (e.getMessage() != null && e.getMessage().toLowerCase(Locale.ROOT).contains("timeout"));
-            String message = timeout ? "AI 服务响应超时"
-                    : e.getMessage() == null ? "AI 服务调用异常" : e.getMessage();
-            return new ModelCallResult(protocol, false, false, null, timeout ? "TIMEOUT" : "EXCEPTION", "", message);
+            String code = AiProviderErrorClassifier.classifyException(e);
+            String message = AiProviderErrorClassifier.userMessage(code, null, protocol);
+            return new ModelCallResult(protocol, false, false, null, code, "", message);
         }
     }
 }

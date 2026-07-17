@@ -2,8 +2,8 @@ package com.gzly.config;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.gzly.service.SecurityAuditCounterService;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -14,12 +14,24 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
-@RequiredArgsConstructor
 public class PublicRateLimitInterceptor implements HandlerInterceptor {
 
     private final StringRedisTemplate redisTemplate;
     private final List<RateLimitRule> rules;
+    private final SecurityAuditCounterService securityAuditCounterService;
     private final Map<String, LocalBucket> localBuckets = new ConcurrentHashMap<>();
+
+    public PublicRateLimitInterceptor(StringRedisTemplate redisTemplate, List<RateLimitRule> rules) {
+        this(redisTemplate, rules, null);
+    }
+
+    public PublicRateLimitInterceptor(StringRedisTemplate redisTemplate,
+                                      List<RateLimitRule> rules,
+                                      SecurityAuditCounterService securityAuditCounterService) {
+        this.redisTemplate = redisTemplate;
+        this.rules = rules;
+        this.securityAuditCounterService = securityAuditCounterService;
+    }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -36,6 +48,7 @@ public class PublicRateLimitInterceptor implements HandlerInterceptor {
             String key = "ratelimit:" + rule.key() + ":" + clientIp;
             if (redisTemplate == null) {
                 if (!allowByLocalBucket(key, rule)) {
+                    recordRateLimit();
                     reject(response, rule.windowSeconds());
                     return false;
                 }
@@ -47,18 +60,26 @@ public class PublicRateLimitInterceptor implements HandlerInterceptor {
                     redisTemplate.expire(key, Duration.ofSeconds(rule.windowSeconds()));
                 }
                 if (count != null && count > rule.limit()) {
+                    recordRateLimit();
                     reject(response, rule.windowSeconds());
                     return false;
                 }
             } catch (Exception e) {
                 log.warn("Redis限流检查失败，启用本地降级限流: key={}, error={}", key, e.toString());
                 if (!allowByLocalBucket(key, rule)) {
+                    recordRateLimit();
                     reject(response, rule.windowSeconds());
                     return false;
                 }
             }
         }
         return true;
+    }
+
+    private void recordRateLimit() {
+        if (securityAuditCounterService != null) {
+            securityAuditCounterService.record(SecurityAuditCounterService.RATE_LIMIT);
+        }
     }
 
     private void reject(HttpServletResponse response, int retrySeconds) throws Exception {

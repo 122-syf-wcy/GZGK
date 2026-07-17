@@ -72,6 +72,8 @@ const visibleRangeText = computed(() => {
 })
 const activeTypeLabel = computed(() => activeTypeConfig.value?.label || '院校投档线')
 const sourceTables = computed(() => activeTypeConfig.value?.sourceTables?.join(' / ') || '待补官方源')
+const dataStatusLabel = computed(() => statusLabel(capability.value?.dataStatus || 'OFFICIAL_DATA_PENDING'))
+const policyModeLabel = computed(() => policyModeText(capability.value?.policyMode || currentProvince.value.volunteerUnit))
 const pageSubtitle = computed(() => {
   if (isHainan.value) return '海南按 3+3 selectedSubjects 与 requiredSubjects 匹配，不显示物理/历史分轨。'
   if (isFirstYearNewGaokao.value) return `${currentProvince.value.shortName}为首年新高考口径，旧文理数据仅作参考，不进入主查询逻辑。`
@@ -208,6 +210,29 @@ function formatScore(value?: number | null): string {
   return value && value > 0 ? `${value}` : '-'
 }
 
+function statusLabel(code?: string | null): string {
+  return ({
+    AVAILABLE: '可查询',
+    READY: '数据就绪',
+    MISSING: '暂无数据',
+    PRE_OFFICIAL_DATA: '官方数据待发布',
+    OFFICIAL_DATA_PENDING: '官方数据待发布',
+    AI_QA_ONLY: 'AI 问答开放',
+    HISTORY_ESTIMATE_READY: '历史估算可用',
+    OFFICIAL_DATA_PARTIAL: '数据导入中',
+  } as Record<string, string>)[String(code || '').trim().toUpperCase()] || '待核验'
+}
+
+function policyModeText(code?: string | null): string {
+  return ({
+    AI_QA_ONLY: 'AI 问答与缺口说明',
+    OFFICIAL_DATA_PENDING: '官方数据待发布',
+    HISTORY_ESTIMATE_READY: '历史估算',
+    PROFESSIONAL_GROUP_45: '院校专业组',
+    MAJOR_96: '专业（类）+ 院校',
+  } as Record<string, string>)[String(code || '').trim().toUpperCase()] || (code || currentProvince.value.volunteerUnit)
+}
+
 function recordTitle(record: ProvinceScoreLineRecord): string {
   if (activeType.value === 'score_rank') return `${record.score ?? '-'} 分`
   return record.schoolName || record.majorName || record.batchName || '分数线记录'
@@ -261,13 +286,13 @@ watch(() => route.query.provinceCode, () => {
     <main class="gz-shell-main score-main">
       <section class="gz-shell-hero score-hero">
         <div class="score-hero__copy">
-          <span class="gz-shell-kicker">province score-line adapter</span>
+          <span class="gz-shell-kicker">分数线查询</span>
           <h1 class="gz-shell-hero-title">{{ currentProvince.shortName }}{{ activeTypeLabel }}</h1>
           <p class="gz-shell-hero-desc">
-            UI 和接口结构可以共用，但查询逻辑按 {{ currentProvince.shortName }} adapter 执行；没有官方结构化数据时返回缺口说明，不跨省、不回退、不伪造 2026。
+            查询入口按 {{ currentProvince.shortName }} 本省口径执行；没有官方结构化数据时返回缺口说明，不跨省、不回退、不伪造 2026。
           </p>
           <div class="gz-shell-chip-row">
-            <span class="gz-shell-chip is-soft-active">{{ capability?.dataStatus || 'PRE_OFFICIAL_DATA' }}</span>
+            <span class="gz-shell-chip is-soft-active">{{ dataStatusLabel }}</span>
             <span class="gz-shell-chip is-soft-active">目标 {{ capability?.targetYear || 2026 }}</span>
             <span class="gz-shell-chip is-soft-active">历史 {{ capability?.latestOfficialDataYear || 2025 }}</span>
           </div>
@@ -277,7 +302,7 @@ watch(() => route.query.provinceCode, () => {
           <div class="gz-shell-metric">
             <span class="gz-shell-metric-label">当前省份</span>
             <span class="gz-shell-metric-value">{{ currentProvince.shortName }}</span>
-            <span class="gz-shell-metric-note">{{ capability?.policyMode || currentProvince.volunteerUnit }}</span>
+            <span class="gz-shell-metric-note">{{ policyModeLabel }}</span>
           </div>
           <div class="gz-shell-metric">
             <span class="gz-shell-metric-label">基准年份</span>
@@ -302,7 +327,7 @@ watch(() => route.query.provinceCode, () => {
           <div class="toolbar-block">
             <div class="gz-shell-panel-head">
               <div class="gz-shell-panel-title">省份</div>
-              <div class="gz-shell-panel-desc">每个省份独立 adapter，切换后保留 provinceCode，不串省。</div>
+              <div class="gz-shell-panel-desc">每个省份独立查询口径，切换后保留省份参数，不串省。</div>
             </div>
             <div class="score-province-grid">
               <button

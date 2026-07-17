@@ -1,0 +1,39 @@
+/**
+ * uni.scss 会被自动注入到每个组件的 <style lang="scss"> 中。
+ * 这里对齐 gzly-web 的设计系统（global.css）：暖纸底色 + 深蓝主色 + 琥珀点缀 + 四套梯度渐变。
+ */
+
+/* 主色 */
+$gz-primary: #1d4ed8;
+$gz-primary-deep: #1e40af;
+$gz-primary-light: #e8efff;
+$gz-primary-50: #eef4ff;
+$gz-accent: #b45309;
+$gz-success: #10b981;
+
+/* 表面 —— 1:1 还原 web global.css：暖纸底 + 干净暖白卡片 */
+$gz-bg: #f5f3ee;
+$gz-bg-subtle: #fbfaf7;
+$gz-card: #fffdfa;
+$gz-card-solid: #fffdfa;
+$gz-border: rgba(15, 23, 42, 0.08);
+
+/* 文字 */
+$gz-text: #111827;
+$gz-text-sub: #475569;
+$gz-text-weak: #8b98aa;
+
+/* 警示 */
+$gz-warn: #854d0e;
+$gz-warn-bg: #fefce8;
+$gz-warn-border: #fde047;
+
+/* 梯度（冲/稳/保/垫，对齐 web gradient tags） */
+$gz-chong: #dc2626;
+$gz-wen: #2563eb;
+$gz-bao: #059669;
+$gz-dian: #d97706;
+
+/* 圆角（rpx，约等于 web 的 14-20px） */
+$gz-radius: 28rpx;
+$gz-radius-lg: 36rpx;

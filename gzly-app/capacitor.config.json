@@ -1,0 +1,10 @@
+{
+  "appId": "com.gzly.app",
+  "appName": "高考志愿助手",
+  "webDir": "dist/build/h5",
+  "server": {
+    "url": "http://39.97.232.141/app/",
+    "androidScheme": "http",
+    "cleartext": true
+  }
+}

@@ -4,11 +4,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.gzly.common.PageResult;
+import com.gzly.entity.BatchLineGz;
 import com.gzly.entity.DataAdmissionGroupLine;
 import com.gzly.entity.DataScoreRank;
 import com.gzly.entity.MajorScoreGz;
 import com.gzly.entity.ScoreRankGz;
 import com.gzly.entity.ScoreLineGz;
+import com.gzly.mapper.BatchLineGzMapper;
 import com.gzly.mapper.DataAdmissionGroupLineMapper;
 import com.gzly.mapper.DataScoreRankMapper;
 import com.gzly.mapper.MajorScoreGzMapper;
@@ -43,10 +45,11 @@ public class ProvinceScoreLineAdapterRegistry {
                                             MajorScoreGzMapper majorScoreGzMapper,
                                             ScoreRankGzMapper scoreRankGzMapper,
                                             DataAdmissionGroupLineMapper groupLineMapper,
-                                            DataScoreRankMapper dataScoreRankMapper) {
+                                            DataScoreRankMapper dataScoreRankMapper,
+                                            BatchLineGzMapper batchLineGzMapper) {
         this.provincePolicyService = provincePolicyService;
         Map<String, ProvinceScoreLineAdapter> map = new LinkedHashMap<>();
-        put(map, new GuizhouAdapter(provincePolicyService, scoreLineGzMapper, majorScoreGzMapper, scoreRankGzMapper));
+        put(map, new GuizhouAdapter(provincePolicyService, scoreLineGzMapper, majorScoreGzMapper, scoreRankGzMapper, batchLineGzMapper));
         put(map, new ProfessionalGroupAdapter(provincePolicyService, groupLineMapper, dataScoreRankMapper,
                 "SC", "四川", "四川省教育考试院", "https://www.sceea.cn/", "FIRST_YEAR_312",
                 "2025 首年新高考，旧文理数据只作历史参考，不进入新高考主查询。"));
@@ -66,6 +69,15 @@ public class ProvinceScoreLineAdapterRegistry {
         put(map, new ProfessionalGroupAdapter(provincePolicyService, groupLineMapper, dataScoreRankMapper,
                 "HA", "河南", "河南省教育考试院", "https://www.haeea.cn/", "FIRST_YEAR_312",
                 "河南 2025 首年新高考，大省同分密度和位次波动风险较高，旧文理数据不直接映射。"));
+        put(map, new LevelOneMissingAdapter(provincePolicyService,
+                "CQ", "重庆", "重庆市教育考试院", "https://www.cqksy.cn/",
+                "重庆当前地区正在接入历史数据，暂不开放完整志愿表生成，可先使用 AI 志愿问答和方向参考。"));
+        put(map, new LevelOneMissingAdapter(provincePolicyService,
+                "GS", "甘肃", "甘肃省教育考试院", "https://www.ganseea.cn/",
+                "甘肃当前地区正在接入历史数据，暂不开放完整志愿表生成，可先使用 AI 志愿问答和方向参考。"));
+        put(map, new LevelOneMissingAdapter(provincePolicyService,
+                "XJ", "新疆", "新疆维吾尔自治区教育考试院", "https://www.xjzk.gov.cn/",
+                "新疆当前地区正在接入历史数据，暂不开放完整志愿表生成，可先使用 AI 志愿问答和方向参考。"));
         this.adapters = Map.copyOf(map);
     }
 
@@ -136,7 +148,7 @@ public class ProvinceScoreLineAdapterRegistry {
             capability.setNotices(buildNotices());
             capability.setMissingReasonByType(buildMissingReasonMap());
             capability.setScoreLineTypes(List.of(
-                    typeCapability(TYPE_CONTROL_LINE, "省控线", "批次控制线 / 特殊类型控制线", hasControlLine(), List.of()),
+                    typeCapability(TYPE_CONTROL_LINE, "省控线", "批次控制线 / 特殊类型控制线", hasControlLine(), controlLineSourceTables()),
                     typeCapability(TYPE_SCORE_RANK, "一分一段", "按本省官方一分一段口径展示分数、同分人数和累计位次", hasScoreRank(), scoreRankSourceTables()),
                     typeCapability(TYPE_ADMISSION_LINE, "院校投档线", "院校级或院校专业组投档线，按本省志愿单位展示", hasAdmissionLine(), admissionSourceTables()),
                     typeCapability(TYPE_MAJOR_GROUP_LINE, "专业组投档线", "院校专业组最低分和最低位次", hasMajorGroupLine(), admissionSourceTables()),
@@ -261,6 +273,10 @@ public class ProvinceScoreLineAdapterRegistry {
             return false;
         }
 
+        protected List<String> controlLineSourceTables() {
+            return List.of();
+        }
+
         protected List<String> scoreRankSourceTables() {
             return List.of();
         }
@@ -293,11 +309,13 @@ public class ProvinceScoreLineAdapterRegistry {
         private final ScoreLineGzMapper scoreLineGzMapper;
         private final MajorScoreGzMapper majorScoreGzMapper;
         private final ScoreRankGzMapper scoreRankGzMapper;
+        private final BatchLineGzMapper batchLineGzMapper;
 
         GuizhouAdapter(ProvincePolicyService provincePolicyService,
                        ScoreLineGzMapper scoreLineGzMapper,
                        MajorScoreGzMapper majorScoreGzMapper,
-                       ScoreRankGzMapper scoreRankGzMapper) {
+                       ScoreRankGzMapper scoreRankGzMapper,
+                       BatchLineGzMapper batchLineGzMapper) {
             super(provincePolicyService, "GZ", "贵州", "贵州省招生考试院",
                     "https://zsksy.guizhou.gov.cn/", "MAJOR_96", "FIRST_CHOICE_312",
                     List.of("物理类", "历史类"), List.of(),
@@ -305,6 +323,7 @@ public class ProvinceScoreLineAdapterRegistry {
             this.scoreLineGzMapper = scoreLineGzMapper;
             this.majorScoreGzMapper = majorScoreGzMapper;
             this.scoreRankGzMapper = scoreRankGzMapper;
+            this.batchLineGzMapper = batchLineGzMapper;
         }
 
         @Override
@@ -350,6 +369,32 @@ public class ProvinceScoreLineAdapterRegistry {
         @Override
         protected List<String> majorScoreSourceTables() {
             return List.of("data_major_score_gz");
+        }
+
+        @Override
+        protected boolean hasControlLine() {
+            return batchLineGzMapper.selectCount(null) > 0;
+        }
+
+        @Override
+        protected List<String> controlLineSourceTables() {
+            return List.of("data_batch_line_gz");
+        }
+
+        @Override
+        public ScoreLineModels.QueryResult queryControlLine(ScoreLineModels.Query query) {
+            String subject = normalizeSubject(query);
+            LambdaQueryWrapper<BatchLineGz> wrapper = new LambdaQueryWrapper<>();
+            if (query.getYear() != null) {
+                wrapper.eq(BatchLineGz::getYear, query.getYear());
+            }
+            if (StringUtils.isNotBlank(subject)) {
+                wrapper.eq(BatchLineGz::getSubjectType, subject);
+            }
+            wrapper.orderByDesc(BatchLineGz::getYear).orderByDesc(BatchLineGz::getControlScore);
+            Page<BatchLineGz> page = batchLineGzMapper.selectPage(new Page<>(safePage(query), safePageSize(query)), wrapper);
+            List<ScoreLineModels.Record> items = page.getRecords().stream().map(this::toRecord).toList();
+            return pagedResult(query, TYPE_CONTROL_LINE, items, page.getTotal(), subject);
         }
 
         @Override
@@ -423,7 +468,7 @@ public class ProvinceScoreLineAdapterRegistry {
         @Override
         public String getMissingDataReason(String scoreLineType) {
             if (TYPE_CONTROL_LINE.equals(scoreLineType)) {
-                return "当前未建立贵州省控线结构化查询表，需在服务器侧补 official source、staging、reviewed 后开放。";
+                return "贵州该年份/科类暂无已入库的省控线记录（目前已收录普通类 2025 本科线/特控线/专科线）。";
             }
             if (TYPE_MAJOR_GROUP_LINE.equals(scoreLineType)) {
                 return "贵州普通类按“专业（类）+院校”投档，不使用院校专业组作为主查询单位。";
@@ -442,6 +487,25 @@ public class ProvinceScoreLineAdapterRegistry {
             result.setMissingReason(total > 0 ? "" : getMissingDataReason(type));
             result.setPageResult(PageResult.of(items, total, safePage(query), safePageSize(query)));
             return result;
+        }
+
+        private ScoreLineModels.Record toRecord(BatchLineGz line) {
+            ScoreLineModels.Record record = new ScoreLineModels.Record();
+            record.setId(line.getId());
+            record.setProvinceCode("GZ");
+            record.setProvinceName("贵州");
+            record.setYear(line.getYear());
+            record.setScoreLineType(TYPE_CONTROL_LINE);
+            record.setSubjectCategory(line.getSubjectType());
+            record.setBatchCode(line.getBatchCode());
+            record.setBatchName(line.getBatchName());
+            record.setMinScore(line.getControlScore());
+            record.setScore(line.getControlScore());
+            record.setSourceUrl(line.getSourceUrl());
+            record.setSourcePage(line.getSourcePageUrl());
+            record.setSourceFile(line.getSourceFile());
+            record.setDataStatus("AVAILABLE");
+            return record;
         }
 
         private ScoreLineModels.Record toRecord(ScoreRankGz rank) {
@@ -823,6 +887,92 @@ public class ProvinceScoreLineAdapterRegistry {
                 return true;
             }
             return selected.stream().anyMatch(normalized::contains);
+        }
+    }
+
+    private static class LevelOneMissingAdapter extends BaseAdapter {
+
+        LevelOneMissingAdapter(ProvincePolicyService provincePolicyService,
+                               String provinceCode,
+                               String provinceName,
+                               String officialSourceName,
+                               String officialSourceUrl,
+                               String notice) {
+            super(provincePolicyService, provinceCode, provinceName, officialSourceName, officialSourceUrl,
+                    "AI_QA_ONLY", "OFFICIAL_DATA_PENDING", List.of("物理类", "历史类"), List.of(), notice);
+        }
+
+        @Override
+        public ScoreLineModels.Capability capability() {
+            ScoreLineModels.Capability capability = super.capability();
+            capability.setDataStatus("OFFICIAL_DATA_PENDING");
+            capability.setLatestOfficialDataYear(2025);
+            capability.setAvailableYears(List.of());
+            return capability;
+        }
+
+        @Override
+        protected List<String> buildNotices() {
+            return List.of(
+                    notice,
+                    "查询入口已开放；当前只展示数据缺口说明，不生成院校清单。",
+                    "2026 官方数据发布并完成导入、校验后，才会升级历史估算或正式推荐能力。"
+            );
+        }
+
+        @Override
+        protected List<Integer> listAvailableYears() {
+            return List.of();
+        }
+
+        @Override
+        public ScoreLineModels.QueryResult queryControlLine(ScoreLineModels.Query query) {
+            return emptyResult(query, TYPE_CONTROL_LINE, getMissingDataReason(TYPE_CONTROL_LINE));
+        }
+
+        @Override
+        public ScoreLineModels.QueryResult queryScoreRank(ScoreLineModels.Query query) {
+            return emptyResult(query, TYPE_SCORE_RANK, getMissingDataReason(TYPE_SCORE_RANK));
+        }
+
+        @Override
+        public ScoreLineModels.QueryResult queryAdmissionLine(ScoreLineModels.Query query) {
+            return emptyResult(query, TYPE_ADMISSION_LINE, getMissingDataReason(TYPE_ADMISSION_LINE));
+        }
+
+        @Override
+        public ScoreLineModels.QueryResult queryMajorGroupLine(ScoreLineModels.Query query) {
+            return emptyResult(query, TYPE_MAJOR_GROUP_LINE, getMissingDataReason(TYPE_MAJOR_GROUP_LINE));
+        }
+
+        @Override
+        public ScoreLineModels.QueryResult queryMajorScoreLine(ScoreLineModels.Query query) {
+            return emptyResult(query, TYPE_MAJOR_SCORE, getMissingDataReason(TYPE_MAJOR_SCORE));
+        }
+
+        @Override
+        public ScoreLineModels.QueryResult queryArtSportLine(ScoreLineModels.Query query) {
+            return emptyResult(query, TYPE_ART_SPORT, getMissingDataReason(TYPE_ART_SPORT));
+        }
+
+        @Override
+        public String getMissingDataReason(String scoreLineType) {
+            if (TYPE_SCORE_RANK.equals(scoreLineType)) {
+                return provinceName + "官方历史一分一段表尚未接入，暂不能按位次查询。";
+            }
+            if (TYPE_ADMISSION_LINE.equals(scoreLineType) || TYPE_MAJOR_GROUP_LINE.equals(scoreLineType)) {
+                return provinceName + "普通批院校专业组投档线尚未接入，暂不展示历史估算。";
+            }
+            if (TYPE_CONTROL_LINE.equals(scoreLineType)) {
+                return provinceName + "批次控制线尚未接入结构化查询。";
+            }
+            if (TYPE_MAJOR_SCORE.equals(scoreLineType)) {
+                return provinceName + "专业录取最低分和选科要求尚未接入，不能从其他省份推断。";
+            }
+            if (TYPE_ART_SPORT.equals(scoreLineType)) {
+                return provinceName + "艺术、体育、专项等批次需按本省综合分和资格规则单独建模。";
+            }
+            return provinceName + "当前类型暂无可核验结构化数据。";
         }
     }
 }

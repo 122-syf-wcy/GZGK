@@ -141,6 +141,8 @@ public class BatchSupportService {
         DataReadiness readiness = nextProvinceReadiness(profile, resolvedYear);
         response.setDataReadiness(readiness);
         response.setRecommendationPhase(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+        response.setCapabilityStatus(NextProvincePolicyRegistry.isLevelOneAiQaOnly(profile.provinceCode())
+                ? "AI_QA_ONLY" : "HISTORY_ESTIMATE_READY");
         response.setOfficialDataReady(false);
         response.setEstimateMode(true);
         response.setDataSourceYears(response.getTrainingYears());
@@ -191,9 +193,11 @@ public class BatchSupportService {
         item.setDataStatus(nextProvinceDataStatus(profile, batch));
         item.setMissingData(batch.missingData());
         item.setSupportReason(batch.ordinaryEstimate()
-                ? "当前为 PRE_OFFICIAL_DATA 历史估算能力，基于 2024/2025 数据窗口展示趋势和缺口，不开放完整推荐。"
+                ? "当前为历史估算能力，基于 2024/2025 数据窗口展示趋势和缺口，不开放完整推荐。"
                 : batch.supportNote());
-        item.setWarnings(List.of(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING, profile.dataStatusDetail(), batch.supportNote()));
+        item.setWarnings(NextProvincePolicyRegistry.isLevelOneAiQaOnly(profile.provinceCode())
+                ? List.of(profile.dataStatusDetail(), batch.supportNote())
+                : List.of(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING, profile.dataStatusDetail(), batch.supportNote()));
         return item;
     }
 
@@ -206,8 +210,12 @@ public class BatchSupportService {
         status.setHistoryCount(batch.ordinaryEstimate() ? 1L : 0L);
         status.setPlanCount(0);
         status.setRequirementCount(0);
-        status.setStatus(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
-        status.setDetail(batch.ordinaryEstimate()
+        status.setStatus(NextProvincePolicyRegistry.isLevelOneAiQaOnly(profile.provinceCode())
+                ? "OFFICIAL_DATA_PENDING"
+                : AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+        status.setDetail(NextProvincePolicyRegistry.isLevelOneAiQaOnly(profile.provinceCode())
+                ? profile.dataStatusDetail()
+                : batch.ordinaryEstimate()
                 ? profile.provinceName() + "普通主批可展示历史估算能力；2026 官方数据待发布。"
                 : profile.dataStatusDetail());
         status.setReady(false);
@@ -656,6 +664,7 @@ public class BatchSupportService {
         private List<Integer> trainingYears = List.of();
         private List<Integer> dataSourceYears = List.of();
         private String recommendationPhase;
+        private String capabilityStatus = "";
         private boolean estimateMode;
         private boolean officialDataReady;
         private DataReadiness dataReadiness;

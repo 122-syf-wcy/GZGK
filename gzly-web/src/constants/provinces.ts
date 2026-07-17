@@ -1,4 +1,4 @@
-export type ProvinceCode = 'GZ' | 'SC' | 'HB' | 'AH' | 'GX' | 'HI' | 'YN' | 'HA'
+export type ProvinceCode = 'GZ' | 'SC' | 'HB' | 'AH' | 'GX' | 'HI' | 'YN' | 'HA' | 'CQ' | 'GS' | 'XJ'
 
 export type ProvinceWorkspaceMode = 'full' | 'query-only'
 
@@ -105,7 +105,7 @@ export const PROVINCE_CONFIGS: Record<ProvinceCode, ProvinceConfig> = {
     workspaceMode: 'query-only',
     routeQuery: { provinceCode: 'HB' },
     heroTitle: '湖北本科普通批工作台',
-    heroDescription: '湖北专区按 45 个院校专业组进入工作台；当前开放规则查询、历史估算和官方来源复核，不把 PRE_OFFICIAL_DATA 当作不可进入。',
+    heroDescription: '湖北专区按 45 个院校专业组进入工作台；当前开放规则查询、历史估算和官方来源复核，官方数据待发布阶段仍可先使用查询入口。',
     dataStatusTitle: '湖北工作台已开放',
     dataStatusDescription: '当前按湖北口径保留规则查询和历史估算入口，正式推荐仍需等待更完整的官方数据窗口。当前为院校专业组级结果，组内专业明细待官方源补齐；缺 hbksw /《湖北招生考试》官方导出，未补齐前不展示完整专业清单。',
     volunteerCta: '进入湖北工作台',
@@ -161,7 +161,7 @@ export const PROVINCE_CONFIGS: Record<ProvinceCode, ProvinceConfig> = {
     heroTitle: '广西普通本科批工作台',
     heroDescription: '广西专区按院校专业组口径开放规则查询和历史估算；当前不展示完整推荐，但会保持省份隔离和本省选科口径。',
     dataStatusTitle: '广西工作台已开放',
-    dataStatusDescription: '当前以历史估算、规则查询和批次说明为主，正式推荐和更完整的官方计划待后续数据补齐。当前为 QUERY_ONLY 策略建议：缺广西普通批全量招生计划 / 专业组目录 / 选科要求（现有仅征兵、补录），暂不生成院校清单，避免给出不可核验的假清单。',
+    dataStatusDescription: '当前以历史估算、规则查询和批次说明为主，正式推荐和更完整的官方计划待后续数据补齐。因缺广西普通批全量招生计划 / 专业组目录 / 选科要求（现有仅征兵、补录），暂不生成院校清单，避免给出不可核验的假清单。',
     volunteerCta: '进入广西工作台',
     volunteerLockTitle: '广西规则查询与历史估算',
     volunteerLockDescription: '当前可以继续查看批次说明、院校专业组和位次区间；完整推荐暂不开放。',
@@ -188,7 +188,7 @@ export const PROVINCE_CONFIGS: Record<ProvinceCode, ProvinceConfig> = {
     heroTitle: '海南本科批工作台',
     heroDescription: '海南专区按 3+3 选科匹配打开工作台；当前以 selectedSubjects 与 requiredSubjects 的规则查询、历史估算和官方材料复核为主。',
     dataStatusTitle: '海南工作台已开放',
-    dataStatusDescription: '海南按 3+3 选科匹配进入查询态，不按物理/历史分轨；正式实施办法未核到前，先保留规则查询和历史估算。当前为 QUERY_ONLY 策略建议：缺海南 2025 生效 3+3 普通批计划 / 专业目录 / 选考科目，暂不生成院校清单；坚持综合改革口径，不出现物理 / 历史主分类。',
+    dataStatusDescription: '海南按 3+3 选科匹配进入查询态，不按物理/历史分轨；正式实施办法未核到前，先保留规则查询和历史估算。因缺海南 2025 生效 3+3 普通批计划 / 专业目录 / 选考科目，暂不生成院校清单；坚持综合改革口径，不出现物理 / 历史主分类。',
     volunteerCta: '进入海南工作台',
     volunteerLockTitle: '海南规则查询与历史估算',
     volunteerLockDescription: '当前可以继续查看选科匹配、批次说明和历史估算；完整推荐暂不开放。',
@@ -215,7 +215,7 @@ export const PROVINCE_CONFIGS: Record<ProvinceCode, ProvinceConfig> = {
     heroTitle: '云南普通本科批工作台',
     heroDescription: '云南专区按 3+1+2 新高考口径开放历史估算和规则查询；当前保持物理/历史隔离，不展示完整推荐。',
     dataStatusTitle: '云南工作台已开放',
-    dataStatusDescription: '当前以历史估算、规则查询和本省口径说明为主，2026 更完整的数据窗口到位后再升级推荐能力。当前为 QUERY_ONLY 策略建议：缺云南 2025 官方一分一段 / 普通批计划 / 专业组目录，暂不生成院校清单；2025 新高考与 2024 旧文理分离，不混轨。',
+    dataStatusDescription: '当前以历史估算、规则查询和本省口径说明为主，2026 更完整的数据窗口到位后再升级推荐能力。因缺云南 2025 官方一分一段 / 普通批计划 / 专业组目录，暂不生成院校清单；2025 新高考与 2024 旧文理分离，不混轨。',
     volunteerCta: '进入云南工作台',
     volunteerLockTitle: '云南规则查询与历史估算',
     volunteerLockDescription: '当前可以继续查看批次说明、院校专业组和位次区间；完整推荐暂不开放。',
@@ -242,7 +242,7 @@ export const PROVINCE_CONFIGS: Record<ProvinceCode, ProvinceConfig> = {
     heroTitle: '河南普通本科批工作台',
     heroDescription: '河南专区按位次优先和院校专业组口径开放规则查询、历史估算和省份隔离，当前不展示完整推荐。',
     dataStatusTitle: '河南工作台已开放',
-    dataStatusDescription: '当前以保守位次、规则查询和历史估算为主，正式推荐待更完整的官方计划与分数线窗口补齐。当前为 QUERY_ONLY 策略建议：缺河南官方一分一段 / 普通批计划 / 专业组目录，暂不生成院校清单，避免给出不可核验的假清单。',
+    dataStatusDescription: '当前以保守位次、规则查询和历史估算为主，正式推荐待更完整的官方计划与分数线窗口补齐。因缺河南官方一分一段 / 普通批计划 / 专业组目录，暂不生成院校清单，避免给出不可核验的假清单。',
     volunteerCta: '进入河南工作台',
     volunteerLockTitle: '河南规则查询与历史估算',
     volunteerLockDescription: '当前可以继续查看批次说明、院校专业组和位次区间；完整推荐暂不开放。',
@@ -250,6 +250,87 @@ export const PROVINCE_CONFIGS: Record<ProvinceCode, ProvinceConfig> = {
     universityContextHint: '当前处于河南专区，院校详情请按河南招生计划、章程和位次要求复核。',
     specialAdmissionsHint: '优先展示河南特殊类型招生公告、资格条件和时间节点线索。',
     footerReminder: '河南专区仅供公益参考，请以河南官方材料为准。',
+  },
+  CQ: {
+    code: 'CQ',
+    name: '重庆',
+    shortName: '重庆',
+    volunteerUnit: '院校专业组',
+    volunteerUnitType: 'PROFESSIONAL_GROUP_45',
+    targetCount: 45,
+    targetBatch: '普通本科批',
+    officialSource: '重庆市教育考试院',
+    sourceType: '官方入口 + 数据缺口说明',
+    status: 'open',
+    statusLabel: 'AI 问答开放',
+    statusTone: 'open',
+    workspaceMode: 'query-only',
+    routeQuery: { provinceCode: 'CQ' },
+    heroTitle: '重庆普通本科批工作台',
+    heroDescription: '重庆专区先开放 AI 志愿问答、分数线查询入口和数据缺口说明；历史结构化数据补齐前，不生成完整院校志愿清单。',
+    dataStatusTitle: '重庆 Level 1 入口已开放',
+    dataStatusDescription: '当前地区正在接入历史数据，暂不开放完整志愿表生成，可先使用 AI 志愿问答和方向参考。缺官方历史一分一段表、投档线、招生计划和选科要求结构化数据。',
+    volunteerCta: '查看重庆接入说明',
+    volunteerLockTitle: '重庆 AI 问答与缺口说明',
+    volunteerLockDescription: '当前可查看批次说明、官方来源和数据缺口；历史数据补齐前不生成虚假院校清单。',
+    scoreLineDescription: '展示重庆官方来源、数据缺口和后续人工上传清单；暂无结构化数据时不跨省回退。',
+    universityContextHint: '当前处于重庆专区，院校详情请按重庆招生计划、章程和选科要求复核。',
+    specialAdmissionsHint: '保留重庆特殊类型招生政策入口、资格条件和官方来源提醒。',
+    footerReminder: '重庆专区仅供公益参考，请以重庆市教育考试院和高校官方材料为准。',
+  },
+  GS: {
+    code: 'GS',
+    name: '甘肃',
+    shortName: '甘肃',
+    volunteerUnit: '院校专业组',
+    volunteerUnitType: 'PROFESSIONAL_GROUP_45',
+    targetCount: 45,
+    targetBatch: '普通本科批',
+    officialSource: '甘肃省教育考试院',
+    sourceType: '官方入口 + 数据缺口说明',
+    status: 'open',
+    statusLabel: 'AI 问答开放',
+    statusTone: 'open',
+    workspaceMode: 'query-only',
+    routeQuery: { provinceCode: 'GS' },
+    heroTitle: '甘肃普通本科批工作台',
+    heroDescription: '甘肃专区先开放 AI 志愿问答、分数线查询入口和数据缺口说明；历史结构化数据补齐前，不生成完整院校志愿清单。',
+    dataStatusTitle: '甘肃 Level 1 入口已开放',
+    dataStatusDescription: '当前地区正在接入历史数据，暂不开放完整志愿表生成，可先使用 AI 志愿问答和方向参考。缺官方历史一分一段表、投档线、招生计划和选科要求结构化数据。',
+    volunteerCta: '查看甘肃接入说明',
+    volunteerLockTitle: '甘肃 AI 问答与缺口说明',
+    volunteerLockDescription: '当前可查看批次说明、官方来源和数据缺口；历史数据补齐前不生成虚假院校清单。',
+    scoreLineDescription: '展示甘肃官方来源、数据缺口和后续人工上传清单；暂无结构化数据时不跨省回退。',
+    universityContextHint: '当前处于甘肃专区，院校详情请按甘肃招生计划、章程和选科要求复核。',
+    specialAdmissionsHint: '保留甘肃特殊类型招生政策入口、资格条件和官方来源提醒。',
+    footerReminder: '甘肃专区仅供公益参考，请以甘肃省教育考试院和高校官方材料为准。',
+  },
+  XJ: {
+    code: 'XJ',
+    name: '新疆',
+    shortName: '新疆',
+    volunteerUnit: '院校专业组',
+    volunteerUnitType: 'PROFESSIONAL_GROUP_45',
+    targetCount: 45,
+    targetBatch: '普通本科批',
+    officialSource: '新疆维吾尔自治区教育考试院',
+    sourceType: '官方入口 + 数据缺口说明',
+    status: 'open',
+    statusLabel: 'AI 问答开放',
+    statusTone: 'open',
+    workspaceMode: 'query-only',
+    routeQuery: { provinceCode: 'XJ' },
+    heroTitle: '新疆普通本科批工作台',
+    heroDescription: '新疆专区先开放 AI 志愿问答、分数线查询入口和数据缺口说明；历史结构化数据补齐前，不生成完整院校志愿清单。',
+    dataStatusTitle: '新疆 Level 1 入口已开放',
+    dataStatusDescription: '当前地区正在接入历史数据，暂不开放完整志愿表生成，可先使用 AI 志愿问答和方向参考。缺官方历史一分一段表、投档线、招生计划和选科要求结构化数据。',
+    volunteerCta: '查看新疆接入说明',
+    volunteerLockTitle: '新疆 AI 问答与缺口说明',
+    volunteerLockDescription: '当前可查看批次说明、官方来源和数据缺口；历史数据补齐前不生成虚假院校清单。',
+    scoreLineDescription: '展示新疆官方来源、数据缺口和后续人工上传清单；暂无结构化数据时不跨省回退。',
+    universityContextHint: '当前处于新疆专区，院校详情请按新疆招生计划、章程和选科要求复核。',
+    specialAdmissionsHint: '保留新疆特殊类型招生政策入口、资格条件和官方来源提醒。',
+    footerReminder: '新疆专区仅供公益参考，请以新疆维吾尔自治区教育考试院和高校官方材料为准。',
   },
 }
 
@@ -259,6 +340,12 @@ export function normalizeProvinceCode(code?: unknown): ProvinceCode {
   const value = Array.isArray(code) ? code[0] : code
   const normalized = String(value ?? '').trim().toUpperCase()
   return normalized in PROVINCE_CONFIGS ? normalized as ProvinceCode : DEFAULT_PROVINCE_CODE
+}
+
+export function isKnownProvinceCode(code?: unknown): boolean {
+  const value = Array.isArray(code) ? code[0] : code
+  const normalized = String(value ?? '').trim().toUpperCase()
+  return normalized in PROVINCE_CONFIGS
 }
 
 export function getProvinceConfig(code?: unknown): ProvinceConfig {

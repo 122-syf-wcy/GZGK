@@ -193,6 +193,7 @@ const admissionYearText = computed(() => (activeAdmissionYear.value ? `${activeA
 const historyYearText = computed(() => historyYears.value.length ? historyYears.value.join('、') : '历史')
 const trainingYearText = computed(() => trainingYears.value.length ? trainingYears.value.join('、') : historyYearText.value)
 const isPreOfficialData = computed(() => recommendationPhase.value === 'PRE_OFFICIAL_DATA' || estimateMode.value)
+const isLevelOneAiQaOnly = computed(() => ['CQ', 'GS', 'XJ'].includes(provinceCode.value))
 const isOfficialDataPartial = computed(() => recommendationPhase.value === 'OFFICIAL_DATA_PARTIAL')
 const isOfficialDataImported = computed(() => recommendationPhase.value === 'OFFICIAL_DATA_IMPORTED')
 const isModelRetrained = computed(() => recommendationPhase.value === 'MODEL_RETRAINED')
@@ -317,7 +318,7 @@ function buildQueryOnlyBatchSupportItemsForProvince(code: ProvinceCode): BatchSu
       'ORDINARY',
       province.targetCount,
       `${province.volunteerUnit}（查询态）`,
-      `${province.shortName}${province.targetBatch}当前开放规则查询和历史估算；批次与生成请求保持 ${code} 口径，不套用其他省份规则。`,
+      `${province.shortName}${province.targetBatch}当前开放规则查询和数据缺口说明；批次与生成请求保持本省口径，不套用其他省份规则。`,
     ),
     buildFallbackBatchSupportItem(
       code,
@@ -515,8 +516,9 @@ const canGenerateForSelectedBatch = computed(() => (
 ))
 const submitButtonText = computed(() => {
   if (isGenerateLocked.value) return batchSupportGateText.value || '生成能力暂未开放'
-  if (generating.value) return isPreOfficialData.value ? '说明生成中…' : '生成中…'
-  if (!hasCurrentDisclaimer.value) return isPreOfficialData.value ? '阅读风险告知并查看说明' : '阅读风险告知并生成'
+  if (generating.value) return isLevelOneAiQaOnly.value ? '接入说明生成中…' : isPreOfficialData.value ? '说明生成中…' : '生成中…'
+  if (!hasCurrentDisclaimer.value) return isLevelOneAiQaOnly.value ? '阅读风险告知并查看接入说明' : isPreOfficialData.value ? '阅读风险告知并查看说明' : '阅读风险告知并生成'
+  if (isLevelOneAiQaOnly.value) return '查看接入说明'
   return isPreOfficialData.value
     ? '查看预估/数据缺口说明'
     : `生成 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}`
@@ -598,10 +600,14 @@ const readinessDetail = computed(() => (
     ? `请继续补全：${missingItems.value.join('、')}`
     : hasCurrentDisclaimer.value
       ? isPreOfficialData.value
-        ? `可以查看 ${activeAdmissionYear.value} 年预估/数据缺口说明；${trainingYearText.value} 年仅用于历史趋势和模型校准，不会伪装为 ${activeAdmissionYear.value} 官方数据。`
+        ? isLevelOneAiQaOnly.value
+          ? `可以查看 ${currentProvince.value.shortName} 接入说明和数据缺口；历史结构化数据补齐前不会生成虚假院校清单。`
+          : `可以查看 ${activeAdmissionYear.value} 年预估/数据缺口说明；${trainingYearText.value} 年仅用于历史趋势和模型校准，不会伪装为 ${activeAdmissionYear.value} 官方数据。`
         : `可以直接生成 ${activeAdmissionYear.value} 年 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}草稿；${historyYearText.value} 年历史数据仅用于后台回测和模型校准。`
       : isPreOfficialData.value
-        ? `点击按钮阅读并确认风险告知后，可查看 ${activeAdmissionYear.value} 年预估/数据缺口说明。`
+        ? isLevelOneAiQaOnly.value
+          ? `点击按钮阅读并确认风险告知后，可查看 ${currentProvince.value.shortName} 接入说明和数据缺口。`
+          : `点击按钮阅读并确认风险告知后，可查看 ${activeAdmissionYear.value} 年预估/数据缺口说明。`
         : `点击生成按钮阅读并确认生成前风险告知后，即可生成 ${activeAdmissionYear.value} 年 ${targetVolunteerCount.value} 个${volunteerUnitLabel.value}草稿。`
 ))
 
@@ -961,6 +967,9 @@ function formatOffset(value: number) {
 }
 
 function supportLevelText(level: string) {
+  if (isLevelOneAiQaOnly.value && level === 'QUERY_ONLY') {
+    return 'AI 问答与缺口说明'
+  }
   if (isPreOfficialData.value && (level === 'FULL_RECOMMEND' || level === 'TRIAL_RECOMMEND')) {
     return '历史估算'
   }
@@ -978,6 +987,14 @@ function supportLevelText(level: string) {
   } as Record<string, string>)[level] || level
 }
 
+function recommendModeText(item: BatchSupportItem) {
+  if (isLevelOneAiQaOnly.value) return '接入说明'
+  if (item.supportLevel === 'QUERY_ONLY') return '政策与缺口说明'
+  if (item.supportLevel === 'TRIAL_RECOMMEND') return '历史估算'
+  if (item.supportLevel === 'FULL_RECOMMEND') return '完整生成'
+  return item.volunteerMode || '本省口径'
+}
+
 function dataStatusText(status: BatchSupportItem['dataStatus'] | string | undefined) {
   const code = typeof status === 'string' ? status : status?.status || 'UNKNOWN'
   return ({
@@ -986,6 +1003,9 @@ function dataStatusText(status: BatchSupportItem['dataStatus'] | string | undefi
     HISTORY_MISSING: '历史线缺失',
     PLAN_MISSING: '计划缺失',
     PRE_OFFICIAL_DATA: '官方未发布',
+    OFFICIAL_DATA_PENDING: '官方未发布',
+    AI_QA_ONLY: 'AI 问答开放',
+    HISTORY_ESTIMATE_READY: '历史估算可用',
     OFFICIAL_DATA_PARTIAL: '准备中',
     UNKNOWN: '待核验',
   } as Record<string, string>)[code] || code
@@ -1283,7 +1303,7 @@ async function submitPlan() {
                 >
                   <span class="option-card__title">{{ item.batchName }}</span>
                   <span class="option-card__desc">{{ supportLevelText(item.supportLevel) }} · {{ dataStatusText(item.dataStatus) }}</span>
-                  <span class="option-card__desc">{{ item.recommendMode }} · 最多 {{ item.maxVolunteerCount || item.targetCount || 0 }} 个</span>
+                  <span class="option-card__desc">{{ recommendModeText(item) }} · {{ isLevelOneAiQaOnly ? '不生成院校清单' : `最多 ${item.maxVolunteerCount || item.targetCount || 0} 个` }}</span>
                 </button>
               </div>
               <div class="volunteer-note">
@@ -1771,7 +1791,7 @@ async function submitPlan() {
           <ArrowRight :size="18" />
         </button>
         <p class="submit-hint">
-          {{ isGenerateLocked ? batchSupportGateText || currentProvince.volunteerLockDescription : isPreOfficialData ? phaseNoticeText : `${admissionYearText}公共填报入口已锁定，历史年份仅用于后台回测和模型校准。` }}
+          {{ isGenerateLocked ? batchSupportGateText || currentProvince.volunteerLockDescription : isLevelOneAiQaOnly ? currentProvince.volunteerLockDescription : isPreOfficialData ? phaseNoticeText : `${admissionYearText}公共填报入口已锁定，历史年份仅用于后台回测和模型校准。` }}
         </p>
       </section>
     </div>

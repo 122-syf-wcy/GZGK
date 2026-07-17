@@ -11,6 +11,7 @@ import com.gzly.service.AiConfigService;
 import com.gzly.service.BatchSupportService;
 import com.gzly.mapper.*;
 import com.gzly.service.OfficialLinkPriorityService;
+import com.gzly.service.SecurityAuditCounterService;
 import com.gzly.service.VolunteerMetricsRecorder;
 import com.gzly.util.JwtUtil;
 import lombok.Data;
@@ -75,6 +76,8 @@ public class AdminController {
     private CacheManager cacheManager;
     @Autowired(required = false)
     private BatchSupportService batchSupportService;
+    @Autowired(required = false)
+    private SecurityAuditCounterService securityAuditCounterService;
 
     private static final BCryptPasswordEncoder ADMIN_PASSWORD_ENCODER = new BCryptPasswordEncoder();
     private final Map<String, LocalLoginCounter> localLoginCounters = new ConcurrentHashMap<>();
@@ -87,8 +90,9 @@ public class AdminController {
         }
         if (req.getPassword() == null || !verifyAdminPassword(req.getPassword())) {
             recordAdminLoginFailure(clientIp);
+            recordSecurityEvent(SecurityAuditCounterService.ADMIN_LOGIN_FAILURE);
             log.warn("管理后台登录失败: ip={}", clientIp);
-            throw new BizException("管理密码错误");
+            throw new BizException("登录失败，请检查账号或密码");
         }
         clearAdminLoginFailures(clientIp);
         log.info("管理后台登录成功: ip={}", clientIp);
@@ -179,6 +183,12 @@ public class AdminController {
             } catch (Exception e) {
                 log.warn("清理管理登录失败计数失败: ip={}", clientIp, e);
             }
+        }
+    }
+
+    private void recordSecurityEvent(String event) {
+        if (securityAuditCounterService != null) {
+            securityAuditCounterService.record(event);
         }
     }
 

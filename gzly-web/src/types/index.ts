@@ -182,6 +182,8 @@ export interface AdminAiConfigTestResult {
   message: string
   latencyMs?: number
   model?: string
+  endpoint?: string
+  errorCode?: string
 }
 
 export interface AdminAiModelListResult {
@@ -293,6 +295,85 @@ export interface AdminPlanCleanupResponse {
   deletedCount: number
   ids: number[]
   sample: AdminPlanItem[]
+  notice: string
+}
+
+export type DataReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export interface DataReviewRow {
+  lineNo: number
+  provinceCode: string
+  year: string
+  schoolCode: string
+  schoolName: string
+  batch: string
+  subjectCategory: string
+  majorGroupCode?: string
+  majorGroupName?: string
+  majorName: string
+  planCount: string
+  sourceName: string
+  sourceUrl: string
+  evidenceFile: string
+  originalStatus: string
+  currentStatus: DataReviewStatus
+  reviewer: string
+  reviewerToFill: string
+  reviewNote: string
+  rejectReason: string
+  confidence: string
+  notes: string
+  updatedAt: string
+  sourceUrlEmpty: boolean
+  planCountAnomaly: boolean
+}
+
+export interface DataReviewStats {
+  total: number
+  pending: number
+  approved: number
+  rejected: number
+  sourceUrlEmpty: number
+  planCountAnomaly: number
+  byProvince: Record<string, number>
+}
+
+export interface DataReviewListData extends PageResult<DataReviewRow> {
+  stats: DataReviewStats
+  reviewDirectory: string
+  templatePath: string
+  sidecarPath: string
+  validatorCommand: string
+  safetyNotice: string
+}
+
+export interface DataReviewListParams {
+  page?: number
+  size?: number
+  provinceCode?: string
+  school?: string
+  status?: DataReviewStatus | ''
+  sourceUrlEmpty?: boolean
+  planCountAnomaly?: boolean
+}
+
+export interface DataReviewDecisionRequest {
+  lineNo: number
+  decision: DataReviewStatus
+  reviewer?: string
+  reviewNote?: string
+  rejectReason?: string
+}
+
+export interface DataReviewExportResponse {
+  reviewedPath: string
+  approvedPath: string
+  rejectedPath: string
+  summaryPath: string
+  approvedCount: number
+  rejectedCount: number
+  pendingCount: number
+  importAllowed: boolean
   notice: string
 }
 
@@ -927,6 +1008,7 @@ export interface BatchSupportItem {
 export interface BatchSupportResponse {
   provinceCode: string
   year: number
+  capabilityStatus?: 'AI_QA_ONLY' | 'HISTORY_ESTIMATE_READY' | 'OFFICIAL_DATA_PENDING' | string
   activeAdmissionYear: number
   latestOfficialDataYear: number
   targetYear: number

@@ -9,6 +9,7 @@ import com.gzly.service.SafetyCodeIdentityService;
 import com.gzly.service.SafetyCodeRequestResolver;
 import com.gzly.service.SafetyCodeService;
 import com.gzly.service.VolunteerService;
+import com.gzly.service.CredentialAttemptLimiter;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -32,13 +33,14 @@ public class VolunteerPlanController {
 
     private final SafetyCodeService safetyCodeService;
     private final SafetyCodeIdentityService safetyCodeIdentityService;
+    private final CredentialAttemptLimiter credentialAttemptLimiter;
     private final PlanHistoryMapper planHistoryMapper;
 
     @GetMapping("/{planId}")
     public Result<VolunteerService.PlanResult> detail(@PathVariable Long planId,
                                                       HttpServletRequest request) {
         String key = safetyCodeRequestResolver.resolve(request);
-        if (!safetyCodeService.verifyPlanAccess(planId, key)) {
+        if (!verifyPlanAccess(planId, key, request, "volunteer-plan-detail")) {
             throw new BizException(403, SAFETY_CODE_FORBIDDEN_MESSAGE);
         }
         VolunteerService.PlanResult plan = volunteerService.getPlanResult(planId, key);
@@ -100,10 +102,23 @@ public class VolunteerPlanController {
                                                         @RequestBody(required = false) VerifySafetyCodeRequest body,
                                                         HttpServletRequest request) {
         String key = safetyCodeRequestResolver.resolve(request, body);
-        if (!safetyCodeService.verifyPlanAccess(planId, key)) {
+        if (!verifyPlanAccess(planId, key, request, "volunteer-plan-verify")) {
             throw new BizException(403, SAFETY_CODE_FORBIDDEN_MESSAGE);
         }
         return Result.ok(Map.of("valid", true, "planId", planId));
+    }
+
+    private boolean verifyPlanAccess(Long planId, String key, HttpServletRequest request, String namespace) {
+        String clientIp = credentialAttemptLimiter.clientIp(request);
+        String target = planId == null ? "*" : String.valueOf(planId);
+        credentialAttemptLimiter.ensureNotLocked(namespace, clientIp, target);
+        boolean ok = safetyCodeService.verifyPlanAccess(planId, key);
+        if (!ok) {
+            credentialAttemptLimiter.recordFailure(namespace, clientIp, target);
+            return false;
+        }
+        credentialAttemptLimiter.reset(namespace, clientIp, target);
+        return true;
     }
 
     @Data

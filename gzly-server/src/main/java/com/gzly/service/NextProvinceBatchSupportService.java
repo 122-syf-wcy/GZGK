@@ -45,6 +45,8 @@ public class NextProvinceBatchSupportService {
         response.setPublicYearLocked(publicYearLocked);
         response.setDataReadiness(readiness);
         response.setRecommendationPhase(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+        response.setCapabilityStatus(NextProvincePolicyRegistry.isLevelOneAiQaOnly(profile.provinceCode())
+                ? "AI_QA_ONLY" : "HISTORY_ESTIMATE_READY");
         response.setOfficialDataReady(false);
         response.setEstimateMode(true);
         response.setDataSourceYears(response.getTrainingYears());
@@ -108,10 +110,12 @@ public class NextProvinceBatchSupportService {
         item.setMissingData(batch.missingData());
         item.setSupportNote(batch.supportNote());
         item.setSupportReason(batch.ordinaryEstimate()
-                ? "当前为 PRE_OFFICIAL_DATA 历史估算能力，基于 2024/2025 数据窗口展示趋势和缺口，不开放完整推荐。"
+                ? "当前为历史估算能力，基于 2024/2025 数据窗口展示趋势和缺口，不开放完整推荐。"
                 : batch.supportNote());
         List<String> warnings = new ArrayList<>();
-        warnings.add(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING);
+        if (!NextProvincePolicyRegistry.isLevelOneAiQaOnly(profile.provinceCode())) {
+            warnings.add(AdmissionYearService.PRE_OFFICIAL_DATA_WARNING);
+        }
         warnings.add(batch.ordinaryEstimate() ? profile.supportNoteForBatch(batch.batchCode()) : profile.dataStatusDetail());
         warnings.add(batch.supportNote());
         if (NextProvincePolicyRegistry.HI.equals(profile.provinceCode())) {
@@ -136,8 +140,12 @@ public class NextProvinceBatchSupportService {
         status.setPlanCount(0);
         status.setRequirementCount(0);
         status.setReady(false);
-        status.setStatus(AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
-        status.setDetail(batch.ordinaryEstimate()
+        status.setStatus(NextProvincePolicyRegistry.isLevelOneAiQaOnly(profile.provinceCode())
+                ? "OFFICIAL_DATA_PENDING"
+                : AdmissionYearService.PHASE_PRE_OFFICIAL_DATA);
+        status.setDetail(NextProvincePolicyRegistry.isLevelOneAiQaOnly(profile.provinceCode())
+                ? profile.dataStatusDetail()
+                : batch.ordinaryEstimate()
                 ? profile.provinceName() + "普通主批可展示历史估算能力；2026 官方数据待发布。"
                 : profile.dataStatusDetail());
         return status;

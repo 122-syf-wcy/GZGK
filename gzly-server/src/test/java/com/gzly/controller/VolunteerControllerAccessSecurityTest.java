@@ -5,6 +5,7 @@ import com.gzly.common.exception.GlobalExceptionHandler;
 import com.gzly.entity.PlanHistory;
 import com.gzly.service.AiService;
 import com.gzly.service.AlgorithmService;
+import com.gzly.service.CredentialAttemptLimiter;
 import com.gzly.service.ProvincePolicyService;
 import com.gzly.service.ProvinceRankService;
 import com.gzly.service.ProfessionalGroupVolunteerService;
@@ -79,6 +80,7 @@ class VolunteerControllerAccessSecurityTest {
                 provincePolicyService,
                 provinceRankService,
                 metricsRecorder,
+                new CredentialAttemptLimiter(),
                 jwtUtil,
                 objectMapper,
                 directExecutor,
@@ -100,6 +102,7 @@ class VolunteerControllerAccessSecurityTest {
         plan.setAccessKey("secret-access-key");
 
         when(volunteerService.getPlanResult(99L, "secret-access-key")).thenReturn(plan);
+        when(volunteerService.isValidPlanAccessKey(99L, "secret-access-key")).thenReturn(true);
 
         mockMvc.perform(post("/volunteer/plan")
                         .contentType(APPLICATION_JSON)

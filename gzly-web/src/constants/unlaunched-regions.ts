@@ -1,7 +1,7 @@
 /**
  * 未上线地区列表（前端 AI 志愿问答使用）。
  *
- * 显式排除已上线 8 省（GZ/SC/AH/HB/GX/HI/YN/HA）——它们走现有志愿推荐 / 分数线 /
+ * 显式排除已上线 11 省区市（GZ/SC/AH/HB/GX/HI/YN/HA/CQ/GS/XJ）——它们走现有志愿推荐 / 分数线 /
  * 策略建议链路（见 src/constants/provinces.ts）。本列表只用于「未上线地区 AI 问答」，
  * 与后端 com.gzly.service.AiQaRegionRegistry 保持一致。
  *
@@ -12,8 +12,8 @@ export interface UnlaunchedRegion {
   name: string
 }
 
-/** 已上线地区，必须排除（与 provinces.ts 的 8 省一致）。 */
-export const LAUNCHED_REGION_CODES = ['GZ', 'SC', 'HB', 'AH', 'GX', 'HI', 'YN', 'HA'] as const
+/** 已上线地区，必须排除（与 provinces.ts 的 11 个地区一致）。 */
+export const LAUNCHED_REGION_CODES = ['GZ', 'SC', 'HB', 'AH', 'GX', 'HI', 'YN', 'HA', 'CQ', 'GS', 'XJ'] as const
 
 export const UNLAUNCHED_REGIONS: UnlaunchedRegion[] = [
   { code: 'BJ', name: '北京' },
@@ -32,13 +32,10 @@ export const UNLAUNCHED_REGIONS: UnlaunchedRegion[] = [
   { code: 'SD', name: '山东' },
   { code: 'HN', name: '湖南' },
   { code: 'GD', name: '广东' },
-  { code: 'CQ', name: '重庆' },
   { code: 'XZ', name: '西藏' },
   { code: 'SN', name: '陕西' },
-  { code: 'GS', name: '甘肃' },
   { code: 'QH', name: '青海' },
   { code: 'NX', name: '宁夏' },
-  { code: 'XJ', name: '新疆' },
 ]
 
 export function isLaunchedRegion(code?: string | null): boolean {
