@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.gzly.common.ComplianceConstants;
 import com.gzly.compliance.ComplianceTextGuard;
+import com.gzly.util.ThinkTagStreamSplitter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
@@ -175,8 +176,11 @@ public class AiService {
                     return;
                 }
 
+                // 真流式转发：思考增量（reasoning_content 或 <think> 标签内文本）与正文增量分路下发；
+                // 结束时补发合规清洗后的 final 全文，前端以 final 为准整体替换，保证清洗口径与旧链路一致。
                 BufferedReader reader = new BufferedReader(new InputStreamReader(response.body().byteStream()));
                 StringBuilder fullText = new StringBuilder();
+                ThinkTagStreamSplitter splitter = new ThinkTagStreamSplitter();
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (line.startsWith("data: ")) {
@@ -186,15 +190,21 @@ public class AiService {
                         }
                         try {
                             JsonNode chunk = objectMapper.readTree(data);
-                            JsonNode delta = chunk.path("choices").path(0).path("delta").path("content");
-                            if (!delta.isMissingNode() && !delta.isNull()) {
-                                fullText.append(delta.asText());
+                            JsonNode delta = chunk.path("choices").path(0).path("delta");
+                            String reasoningDelta = delta.path("reasoning_content").asText("");
+                            if (!reasoningDelta.isEmpty()) {
+                                sendStreamEvent(emitter, "reasoning", reasoningDelta);
+                            }
+                            JsonNode contentNode = delta.path("content");
+                            if (!contentNode.isMissingNode() && !contentNode.isNull() && !contentNode.asText().isEmpty()) {
+                                emitSlice(emitter, fullText, splitter.feed(contentNode.asText()));
                             }
                         } catch (Exception ignored) {
                         }
                     }
                 }
-                emitter.send(SseEmitter.event().data(sanitizeAiOutput(fullText.toString())));
+                emitSlice(emitter, fullText, splitter.finish());
+                sendStreamEvent(emitter, "final", sanitizeAiOutput(fullText.toString()));
                 emitter.send(SseEmitter.event().data("[DONE]"));
             }
             emitter.complete();
@@ -211,6 +221,26 @@ public class AiService {
                 metricsRecorder.incr(VolunteerMetricsRecorder.AI_ANALYSIS_FAILURE);
             }
         }
+    }
+
+    /** 拆分结果下发：思考走 reasoning 事件，正文走 content 事件并累积到 fullText 供最终清洗。 */
+    private void emitSlice(SseEmitter emitter, StringBuilder fullText,
+                           ThinkTagStreamSplitter.Slice slice) throws Exception {
+        if (!slice.reasoning().isEmpty()) {
+            sendStreamEvent(emitter, "reasoning", slice.reasoning());
+        }
+        if (!slice.content().isEmpty()) {
+            fullText.append(slice.content());
+            sendStreamEvent(emitter, "content", slice.content());
+        }
+    }
+
+    /** 统一流式事件协议：data 为 {"type":"reasoning|content|final","text":"..."} 的 JSON。 */
+    private void sendStreamEvent(SseEmitter emitter, String type, String text) throws Exception {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("type", type);
+        node.put("text", text);
+        emitter.send(SseEmitter.event().data(node.toString()));
     }
 
     /**

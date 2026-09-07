@@ -66,6 +66,22 @@ mybatis-plus:
       # logic-delete disabled - no tables use deleted column
 
 # ---- JWT ----
+spring.mail:
+  host: ${GZLY_MAIL_HOST:smtp.qq.com}
+  port: ${GZLY_MAIL_PORT:465}
+  username: ${GZLY_MAIL_USERNAME:}
+  password: ${GZLY_MAIL_PASSWORD:}
+  default-encoding: UTF-8
+  properties:
+    mail:
+      smtp:
+        auth: true
+        ssl:
+          enable: true
+        connectiontimeout: 8000
+        timeout: 8000
+        writetimeout: 8000
+
 gzly:
   jwt:
     secret: ${GZLY_JWT_SECRET:}
@@ -94,6 +110,31 @@ gzly:
     enabled: ${GZLY_ML_ENABLED:false}
     base-url: ${GZLY_ML_BASE_URL:http://127.0.0.1:8091}
     timeout-ms: ${GZLY_ML_TIMEOUT_MS:1200}
+    # off = 完全关闭；shadow = 调用 ML 但只记录对比、不影响用户结果；active = 采用 ML 输出。
+    # 兼容旧开关：mode 未设置时，enabled=true 等价 active，enabled=false 等价 off。
+    mode: ${GZLY_ML_MODE:}
+
+  # ---- 规则预测引擎参数（回测校准入口，默认为上线以来的启发式取值）----
+  algo:
+    fallback:
+      # 基础概率模型：sigmoid / log-rank（对数位次正态 CDF）。
+      # 2026-08-12 本地回测 A/B（70,205 评估对）：log-rank Brier 0.0155 vs sigmoid 0.0217（优 28.6%），
+      # 命中率持平 0.9269，满足切换门禁 → 部署默认切为 log-rank；如需回退设 GZLY_ALGO_CHANCE_MODEL=sigmoid。
+      # 注意：Java 类内默认值仍为 sigmoid（锁定单测基线），部署口径以本处为准。
+      model: ${GZLY_ALGO_CHANCE_MODEL:log-rank}
+      # log-rank 模型的对数空间波动下限；同分密度大省（河南）应上调。
+      sigma-min: ${GZLY_ALGO_SIGMA_MIN:0.06}
+      # 专业组省份退档折减先验：1:1 投档省约 0.01，105% 差额投档省 0.02-0.05，默认保守中值。
+      group-withdraw-prior: ${GZLY_ALGO_GROUP_WITHDRAW_PRIOR:0.03}
+      rank-scale-factor: ${GZLY_ALGO_RANK_SCALE_FACTOR:0.08}
+      rank-scale-min: ${GZLY_ALGO_RANK_SCALE_MIN:1000}
+      volatility-penalty-cap: 0.20
+      volatility-penalty-factor: 0.5
+      plan-penalty-cap: 0.15
+      plan-penalty-factor: 0.5
+      data-penalty-factor: 0.15
+      hot-penalty-cap: 0.10
+      hot-penalty-factor: 0.1
 
   skills:
     local-path: ${GZLY_SKILLS_LOCAL_PATH:/root/zhangxuefeng-skills}

@@ -81,6 +81,38 @@ public interface DataAdmissionGroupLineMapper extends BaseMapper<DataAdmissionGr
                                                      @Param("subjectType") String subjectType,
                                                      @Param("limit") int limit);
 
+    /**
+     * selectRecentHistory 的批量版：一次取一组 (school_id, group_code) 对的近 N 年历史线，
+     * 每组按年份降序限 perGroupLimit 条（窗口函数），替代生成链路里每条志愿一次的 N+1 查询。
+     * pairs 元素为含 schoolId / groupCode 键的 Map。
+     */
+    @Select("""
+            <script>
+            SELECT * FROM (
+              SELECT id, province_code, province_name, year, school_id, university_name,
+                     group_code, group_name, subject_type, first_subject_requirement,
+                     resubject_requirement, min_score, min_rank, plan_count, batch,
+                     rank_source_type, rank_source_note, rank_source_url, rank_source_page_url,
+                     source_name, source_url, source_page_url, source_level, parse_method,
+                     created_at, updated_at,
+                     ROW_NUMBER() OVER (PARTITION BY school_id, group_code ORDER BY year DESC) AS rn
+              FROM data_admission_group_line
+              WHERE province_code = #{provinceCode}
+                AND subject_type = #{subjectType}
+                AND min_score IS NOT NULL
+                AND min_score &gt; 0
+                AND (school_id, group_code) IN
+                <foreach collection="pairs" item="p" open="(" separator="," close=")">(#{p.schoolId}, #{p.groupCode})</foreach>
+            ) t
+            WHERE t.rn &lt;= #{perGroupLimit}
+            ORDER BY t.school_id, t.group_code, t.year DESC
+            </script>
+            """)
+    List<DataAdmissionGroupLine> selectRecentHistoryBatch(@Param("provinceCode") String provinceCode,
+                                                          @Param("subjectType") String subjectType,
+                                                          @Param("pairs") List<java.util.Map<String, String>> pairs,
+                                                          @Param("perGroupLimit") int perGroupLimit);
+
     @Select("""
             SELECT COUNT(DISTINCT CONCAT(school_id, '#', group_code, '#', subject_type))
             FROM data_admission_group_line

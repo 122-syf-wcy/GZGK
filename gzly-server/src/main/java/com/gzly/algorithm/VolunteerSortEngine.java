@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -53,10 +54,20 @@ public class VolunteerSortEngine {
                                                      PreferenceWeights weights) {
         if (items == null) return List.of();
         PreferenceWeights w = weights == null ? PreferenceWeights.defaults() : weights.normalized();
+        // 先为每条显式计算 finalScore（含写回 recommendationScore 的副作用）。
+        // 此前该计算放在 thenComparing 内部：梯度不同的条目走不到第二比较器，
+        // recommendationScore 会保持 0——排序结果碰巧正确但分数缺失。
+        Map<VolunteerService.VolunteerItem, Double> scores = new IdentityHashMap<>();
+        for (VolunteerService.VolunteerItem item : items) {
+            if (item != null) {
+                scores.put(item, finalScore(item, w));
+            }
+        }
         List<VolunteerService.VolunteerItem> sorted = items.stream()
                 .sorted(Comparator
                         .comparingInt((VolunteerService.VolunteerItem item) -> GRADIENT_ORDER.getOrDefault(item.getGradient(), 9))
-                        .thenComparing(Comparator.comparingDouble((VolunteerService.VolunteerItem item) -> finalScore(item, w)).reversed()))
+                        .thenComparing(Comparator.comparingDouble(
+                                (VolunteerService.VolunteerItem item) -> scores.getOrDefault(item, 0D)).reversed()))
                 .toList();
         for (int i = 0; i < sorted.size(); i++) {
             sorted.get(i).setIndex(i + 1);
@@ -98,7 +109,10 @@ public class VolunteerSortEngine {
     }
 
     private double majorMatchRawScore(VolunteerService.VolunteerItem item) {
-        if (containsPreferredSignal(item.getMatchTag(), "专业")) return 100D;
+        // "双匹配"（专业+地区同时命中）必须计入专业维度；此前只认"专业"二字导致最优情况反而得 0 分。
+        if (containsPreferredSignal(item.getMatchTag(), "专业") || containsPreferredSignal(item.getMatchTag(), "双匹配")) {
+            return 100D;
+        }
         return clamp01_100(item.getMatchScore());
     }
 
@@ -111,11 +125,18 @@ public class VolunteerSortEngine {
     }
 
     private double cityMatchRawScore(VolunteerService.VolunteerItem item) {
-        return containsPreferredSignal(item.getMatchTag(), "地区") ? 100D : 0D;
+        // 同上："双匹配"同时计入地区维度。
+        return containsPreferredSignal(item.getMatchTag(), "地区") || containsPreferredSignal(item.getMatchTag(), "双匹配")
+                ? 100D : 0D;
     }
 
+    /**
+     * 就业维度：原实现按专业名关键词（计算机/医学/师范/法学…）二值打分，不构成可辩护的依据
+     * （docs/MULTI_PROVINCE_ALGORITHM_REFACTOR.md 7.2）。在接入真实就业数据源之前对所有条目
+     * 返回同一中性值——权重结构保持不变，但该维度不再影响条目间的相对排序。
+     */
     private double employmentRawScore(VolunteerService.VolunteerItem item) {
-        return isPracticalMajor(item.getMajorName()) ? 80D : 40D;
+        return 50D;
     }
 
     private double riskRawPenalty(String riskLevel) {
@@ -144,12 +165,6 @@ public class VolunteerSortEngine {
     private boolean hasEliteSignal(VolunteerService.VolunteerItem item) {
         return item.getTags() != null
                 && item.getTags().stream().anyMatch(t -> t != null && (t.contains("985") || t.contains("211") || t.contains("双一流")));
-    }
-
-    private boolean isPracticalMajor(String major) {
-        return contains(major, "计算机") || contains(major, "软件") || contains(major, "电子")
-                || contains(major, "电气") || contains(major, "自动化") || contains(major, "医学")
-                || contains(major, "师范") || contains(major, "法学");
     }
 
     private boolean contains(String text, String key) {

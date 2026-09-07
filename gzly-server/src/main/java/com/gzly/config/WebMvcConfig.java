@@ -88,6 +88,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
             rules.add(new PublicRateLimitInterceptor.RateLimitRule(
                     "card-key-login", "/api/auth/card-key/login", "POST", authLoginLimit, authLoginWindowSeconds));
             rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "email-send-code", "/api/auth/email/send-code", "POST", authLoginLimit, authLoginWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
+                    "email-login", "/api/auth/email/login", "POST", authLoginLimit, authLoginWindowSeconds));
+            rules.add(new PublicRateLimitInterceptor.RateLimitRule(
                     "qa-ask", "/api/qa/ask", "POST", qaSubmitLimit, qaSubmitWindowSeconds));
             rules.add(new PublicRateLimitInterceptor.RateLimitRule(
                     "qa-answer", "/api/qa/answer", "POST", qaSubmitLimit, qaSubmitWindowSeconds));

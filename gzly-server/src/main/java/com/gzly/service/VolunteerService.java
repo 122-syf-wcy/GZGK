@@ -72,6 +72,13 @@ public class VolunteerService {
     private final VolunteerSortEngine volunteerSortEngine;
     private final VolunteerDiagnosisEngine volunteerDiagnosisEngine;
 
+    /**
+     * 等效位次换算（字段注入而非构造器：既有单测按位置构造本类，保持兼容）。
+     * 为空或考生总数缺失时自动退化为不换算。
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private RankNormalizationService rankNormalizationService;
+
     @Value("${gzly.stability.generate-cache-seconds:120}")
     private long generateCacheSeconds;
     @Value("${gzly.stability.generate-lock-seconds:30}")
@@ -134,8 +141,10 @@ public class VolunteerService {
         private double admissionProb;     // 内部历史机会基线，不对新版公共响应展示
         @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
         private String probLevel;         // 内部机会基线等级，不对新版公共响应展示
-        private int chanceScore;          // 用户可见机会指数 0-100
+        private int chanceScore;          // 用户可见机会指数 0-100（投档口径）
         private String chanceLevel;       // 冲刺参考/适中/稳妥参考/兜底参考
+        /** 经 ProbabilityCalibration 等渗校准后的录取参考概率 0-100；专业组省份已含退档折减 */
+        private double calibratedProbability;
         private String confidenceLevel;   // 高/中/低/数据不足
         private double dataConfidence;    // 数据参考度 0-100
         private int predictedMinRank;     // 预测参考位次
@@ -289,6 +298,8 @@ public class VolunteerService {
         private boolean overRiskExposureBreached;
         /** firstTwentyHitRate 是否低于当前策略基线，true 表示触发监控告警。 */
         private boolean firstTwentyHitRateBreached;
+        /** 专业组链路：概率定档相对位次预筛档位变化的条数（各档数量可能因此偏离政策预设）。 */
+        private int gradientReclassifiedCount;
     }
 
     @Data
@@ -416,6 +427,10 @@ public class VolunteerService {
         private String policyBatchName;
         private String policyVolunteerUnitType;
         private String policyVolunteerUnitLabel;
+        /** 梯度目标数量预设 JSON（承载湖北/海南/云南等官方建议比例），空则按策略模式分配 */
+        private String policyGradientPresetJson;
+        /** 机会指数按省参数覆盖 JSON（σ下限/退档先验/模型），空则用全局配置 */
+        private String policyChanceParamsJson;
         private Boolean agreedDisclaimer;      // 是否已确认生成前风险告知
         private String disclaimerVersion;      // 风险告知版本
         /** 可选：冲/稳/保/垫相对位次区间，key 支持 chong/wen/bao/dian 或中文梯度 */
@@ -1065,25 +1080,12 @@ public class VolunteerService {
     }
 
     private Map<String, RatioRange> defaultRatioRanges(String strategyMode) {
+        // 数值单源：GradientAllocationEngine.ratioPreset（消除三份副本的人工同步）。
+        double[][] preset = com.gzly.algorithm.GradientAllocationEngine.ratioPreset(strategyMode);
         Map<String, RatioRange> ranges = new LinkedHashMap<>();
-        if ("保守型".equals(strategyMode)) {
-            putRatio(ranges, "冲", 0.75, 0.95);
-            putRatio(ranges, "稳", 0.95, 1.25);
-            putRatio(ranges, "保", 1.25, 2.00);
-            putRatio(ranges, "垫", 2.00, 3.50);
-            return ranges;
+        for (int i = 0; i < GRADIENT_ORDER.size(); i++) {
+            putRatio(ranges, GRADIENT_ORDER.get(i), preset[i][0], preset[i][1]);
         }
-        if ("冲刺型".equals(strategyMode)) {
-            putRatio(ranges, "冲", 0.50, 0.95);
-            putRatio(ranges, "稳", 0.95, 1.15);
-            putRatio(ranges, "保", 1.15, 1.65);
-            putRatio(ranges, "垫", 1.65, 2.80);
-            return ranges;
-        }
-        putRatio(ranges, "冲", 0.65, 0.95);
-        putRatio(ranges, "稳", 0.95, 1.20);
-        putRatio(ranges, "保", 1.20, 1.80);
-        putRatio(ranges, "垫", 1.80, 3.00);
         return ranges;
     }
 
@@ -1092,25 +1094,12 @@ public class VolunteerService {
     }
 
     private Map<String, GradientRangeInput> defaultGradientInputs(String strategyMode) {
+        // 数值单源：GradientAllocationEngine.offsetPreset。
+        int[][] preset = com.gzly.algorithm.GradientAllocationEngine.offsetPreset(strategyMode);
         Map<String, GradientRangeInput> ranges = new LinkedHashMap<>();
-        if ("保守型".equals(strategyMode)) {
-            putRange(ranges, "冲", -8000, -3000);
-            putRange(ranges, "稳", -3000, 5000);
-            putRange(ranges, "保", 5000, 15000);
-            putRange(ranges, "垫", 15000, 30000);
-            return ranges;
+        for (int i = 0; i < GRADIENT_ORDER.size(); i++) {
+            putRange(ranges, GRADIENT_ORDER.get(i), preset[i][0], preset[i][1]);
         }
-        if ("冲刺型".equals(strategyMode)) {
-            putRange(ranges, "冲", -15000, -3000);
-            putRange(ranges, "稳", -3000, 3000);
-            putRange(ranges, "保", 3000, 10000);
-            putRange(ranges, "垫", 10000, 25000);
-            return ranges;
-        }
-        putRange(ranges, "冲", -10000, -3000);
-        putRange(ranges, "稳", -3000, 4000);
-        putRange(ranges, "保", 4000, 12000);
-        putRange(ranges, "垫", 12000, 26000);
         return ranges;
     }
 
@@ -1168,47 +1157,14 @@ public class VolunteerService {
     }
 
     private GradientCounts targetCounts(String strategyMode, int maxVolunteerCount) {
+        // 阶段 2 消灭双实现：分配逻辑收敛到 GradientAllocationEngine（96/60 预设与通用分支逐值等价）。
         int max = maxVolunteerCount <= 0 ? TOTAL_COUNT : maxVolunteerCount;
-        if (max == 96) {
-            if ("保守型".equals(strategyMode)) {
-                return new GradientCounts(10, 34, 34, 18);
-            }
-            if ("冲刺型".equals(strategyMode)) {
-                return new GradientCounts(29, 38, 19, 10);
-            }
-            return new GradientCounts(19, 38, 29, 10);
-        }
-        if (max == 60) {
-            if ("保守型".equals(strategyMode)) {
-                return new GradientCounts(6, 21, 21, 12);
-            }
-            if ("冲刺型".equals(strategyMode)) {
-                return new GradientCounts(18, 24, 12, 6);
-            }
-            return new GradientCounts(12, 24, 18, 6);
-        }
-        double[] ratios;
-        if ("保守型".equals(strategyMode)) {
-            ratios = new double[]{0.10, 0.35, 0.35, 0.20};
-        } else if ("冲刺型".equals(strategyMode)) {
-            ratios = new double[]{0.30, 0.40, 0.20, 0.10};
-        } else {
-            ratios = new double[]{0.20, 0.40, 0.30, 0.10};
-        }
-        int chong = (int) Math.floor(max * ratios[0]);
-        int wen = (int) Math.floor(max * ratios[1]);
-        int bao = (int) Math.floor(max * ratios[2]);
-        int dian = Math.max(0, max - chong - wen - bao);
-        int sum = chong + wen + bao + dian;
-        while (sum < max) {
-            wen++;
-            sum++;
-        }
-        while (sum > max && dian > 0) {
-            dian--;
-            sum--;
-        }
-        return new GradientCounts(chong, wen, bao, dian);
+        Map<String, Integer> counts = com.gzly.algorithm.GradientAllocationEngine.allocateCounts(max, strategyMode);
+        return new GradientCounts(
+                counts.getOrDefault("冲", 0),
+                counts.getOrDefault("稳", 0),
+                counts.getOrDefault("保", 0),
+                counts.getOrDefault("垫", 0));
     }
 
     private int targetCount(String gradient, String strategyMode) {
@@ -1291,8 +1247,17 @@ public class VolunteerService {
                                               PreferenceProfile profile, GenerationStats stats,
                                               CandidateFilterEngine.FilterCriteria criteria) {
         Map<String, University> schoolCache = new HashMap<>();
+        // 科类纪元隔离（docs 3.2，已决策"宁缺毋滥"）：候选池只取新高考首年（贵州 2024）
+        // 及之后的数据，2021-2023 文理科位次与新高考不可比，不再进入主列表。
+        int dataYearFrom = provincePolicyService.getPolicy(ProvincePolicyService.GZ).getNewGaokaoFirstYear();
         // ── Step 1: 从专业分数线表查候选 ──
-        List<MajorScoreGz> majorCandidates = scoreLineService.findMajorCandidates(subjectType, rankLow, rankHigh, resubjects);
+        List<MajorScoreGz> majorCandidates = scoreLineService.findMajorCandidates(
+                subjectType, rankLow, rankHigh, resubjects, dataYearFrom);
+
+        // 选科要求按学校集合一次性预取（此前每候选行一条模糊查询，宽区间下数千次 DB 往返，
+        // 是生成链路最大的 N+1；预取失败时 resolveMajorRequirement 自动逐条回退）。
+        Map<String, List<MajorRequirementGz>> prefetchedRequirements =
+                prefetchRequirements(majorCandidates, subjectType);
 
         // 按 schoolId + majorName + batch 去重，优先最新年份
         Map<String, MajorScoreGz> majorDeduped = new LinkedHashMap<>();
@@ -1304,7 +1269,7 @@ public class VolunteerService {
                 if (stats != null) stats.incrementSpecialExcluded();
                 continue;
             }
-            RequirementResolution requirement = resolveMajorRequirement(m, subjectType);
+            RequirementResolution requirement = resolveMajorRequirement(m, subjectType, prefetchedRequirements);
             requirementCache.put(majorRequirementKey(m), requirement);
             if (!matchResubject(requirement.getRequirement(), resubjects)) {
                 continue;
@@ -1345,7 +1310,7 @@ public class VolunteerService {
                 MajorScoreGz major = schoolMajors.get(i);
                 RequirementResolution requirement = requirementCache.get(majorRequirementKey(major));
                 if (requirement == null) {
-                    requirement = resolveMajorRequirement(major, subjectType);
+                    requirement = resolveMajorRequirement(major, subjectType, prefetchedRequirements);
                 }
                 majorItems.add(toVolunteerItem(major, gradient, subjectType, schoolCache, requirement));
             }
@@ -1363,7 +1328,8 @@ public class VolunteerService {
                 .map(VolunteerItem::getSchoolId)
                 .collect(Collectors.toSet());
 
-        List<ScoreLineGz> fallbackCandidates = scoreLineService.findCandidates(subjectType, rankLow, rankHigh, resubjects);
+        List<ScoreLineGz> fallbackCandidates = scoreLineService.findCandidates(
+                subjectType, rankLow, rankHigh, resubjects, dataYearFrom);
 
         // 院校级去重：每校一条
         Map<String, ScoreLineGz> bySchool = new LinkedHashMap<>();
@@ -1441,6 +1407,23 @@ public class VolunteerService {
         List<VolunteerItem> result = new ArrayList<>(majorItems);
         result.addAll(fallbackItems);
         return result;
+    }
+
+    /**
+     * 候选检索缝合口（阶段 1，供 MajorPlusSchoolProvider 委派调用）。
+     *
+     * <p>与 generate() 主链路使用完全相同的过滤、去重与排序逻辑（内部直接调 pickGradient），
+     * 仅暴露检索这一段，不涉及缓存、锁、落库与算法增强。阶段 2 并线时 pickGradient 的
+     * 实现体将物理迁出本类，本方法签名保持不变。</p>
+     */
+    public List<VolunteerItem> fetchCandidates(GenerateRequest req, String gradient,
+                                               int rankLow, int rankHigh, int maxCount) {
+        String provinceCode = normalizeProvinceCode(req.getProvinceCode());
+        String subjectType = mapSubjectType(req.getFirstSubject());
+        PreferenceProfile profile = toPreferenceProfile(req);
+        CandidateFilterEngine.FilterCriteria criteria = buildFilterCriteria(req, provinceCode, subjectType);
+        return pickGradient(gradient, subjectType, rankLow, rankHigh,
+                req.getResubjects(), maxCount, profile, new GenerationStats(), criteria);
     }
 
     /**
@@ -2083,22 +2066,8 @@ public class VolunteerService {
      * "化学或生物" → 再选包含化学或生物之一
      */
     private boolean matchResubject(String requirement, List<String> resubjects) {
-        if (requirement == null || requirement.isBlank() || "不限".equals(requirement)) {
-            return true;
-        }
-        if (resubjects == null || resubjects.isEmpty()) {
-            return false;
-        }
-        String req = requirement.trim();
-        if (req.contains("和")) {
-            String[] parts = req.split("和");
-            return Arrays.stream(parts).allMatch(p -> resubjects.contains(p.trim()));
-        }
-        if (req.contains("或")) {
-            String[] parts = req.split("或");
-            return Arrays.stream(parts).anyMatch(p -> resubjects.contains(p.trim()));
-        }
-        return resubjects.contains(req);
+        // 实现已收敛至 ThreeOneTwoSubjectMatcher（严格语义），此处保留私有方法名以最小化调用点扩散。
+        return com.gzly.algorithm.core.ThreeOneTwoSubjectMatcher.matchesStrict(requirement, resubjects);
     }
 
     private String inferResubjectRequirement(String majorName) {
@@ -2128,14 +2097,30 @@ public class VolunteerService {
     }
 
     private RequirementResolution resolveMajorRequirement(MajorScoreGz score, String subjectType) {
+        return resolveMajorRequirement(score, subjectType, null);
+    }
+
+    /**
+     * 官方选科要求解析。prefetched 非空时走内存匹配（pickGradient 按学校集合一次性预取），
+     * 为空时回退单条模糊查询——两条路径的匹配语义一致（见 pickOfficialRequirement）。
+     */
+    private RequirementResolution resolveMajorRequirement(MajorScoreGz score, String subjectType,
+                                                          Map<String, List<MajorRequirementGz>> prefetched) {
         RequirementResolution result = new RequirementResolution();
         if (score == null) {
             return result;
         }
         try {
             String majorName = safeText(score.getMajorName()).trim();
-            MajorRequirementGz official = majorRequirementGzMapper.selectLatestByMajor(
-                    score.getSchoolId(), majorName, subjectType, majorLookupCore(majorName));
+            MajorRequirementGz official;
+            if (prefetched != null) {
+                official = pickOfficialRequirement(
+                        prefetched.getOrDefault(safeText(score.getSchoolId()), List.of()),
+                        majorName, majorLookupCore(majorName));
+            } else {
+                official = majorRequirementGzMapper.selectLatestByMajor(
+                        score.getSchoolId(), majorName, subjectType, majorLookupCore(majorName));
+            }
             if (official != null && official.getResubjectRequirement() != null
                     && !official.getResubjectRequirement().isBlank()) {
                 result.setRequirement(official.getResubjectRequirement());
@@ -2159,6 +2144,104 @@ public class VolunteerService {
             result.setSource("inferred");
         }
         return result;
+    }
+
+    /**
+     * 按候选学校集合一次性预取官方选科要求，返回 schoolId → 该校全部要求行。
+     * 查询失败返回 null，调用方回退逐条查询（不因预取故障阻断生成）。
+     */
+    private Map<String, List<MajorRequirementGz>> prefetchRequirements(List<MajorScoreGz> candidates, String subjectType) {
+        if (candidates == null || candidates.isEmpty()) {
+            return Map.of();
+        }
+        java.util.Set<String> schoolIds = new java.util.HashSet<>();
+        for (MajorScoreGz m : candidates) {
+            if (m.getSchoolId() != null && !m.getSchoolId().isBlank()) {
+                schoolIds.add(m.getSchoolId());
+            }
+        }
+        if (schoolIds.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            List<MajorRequirementGz> rows = majorRequirementGzMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<MajorRequirementGz>()
+                            .in(MajorRequirementGz::getSchoolId, schoolIds)
+                            .eq(MajorRequirementGz::getSubjectType, subjectType));
+            Map<String, List<MajorRequirementGz>> bySchool = new HashMap<>();
+            for (MajorRequirementGz row : rows) {
+                bySchool.computeIfAbsent(safeText(row.getSchoolId()), k -> new ArrayList<>()).add(row);
+            }
+            return bySchool;
+        } catch (Exception e) {
+            log.warn("选科要求批量预取失败，回退逐条查询: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 内存版选科要求匹配，逐条复刻 MajorRequirementGzMapper.selectLatestByMajor 的
+     * 谓词与排序：精确名 / 核心名 / 括号前缀双向匹配；ORDER BY year DESC →
+     * 精确名优先 → 核心名次之 → 名称更长优先，取第一条。
+     */
+    static MajorRequirementGz pickOfficialRequirement(List<MajorRequirementGz> rows, String majorName, String majorCore) {
+        if (rows == null || rows.isEmpty()) {
+            return null;
+        }
+        MajorRequirementGz best = null;
+        for (MajorRequirementGz row : rows) {
+            if (!requirementMajorMatches(row.getMajorName(), majorName, majorCore)) {
+                continue;
+            }
+            if (best == null || requirementOrderBefore(row, best, majorName, majorCore)) {
+                best = row;
+            }
+        }
+        return best;
+    }
+
+    private static boolean requirementMajorMatches(String rowMajor, String majorName, String majorCore) {
+        if (rowMajor == null || rowMajor.isEmpty()) {
+            return false;
+        }
+        if (rowMajor.equals(majorName)) {
+            return true;
+        }
+        if (majorCore != null && majorCore.length() >= 2) {
+            if (rowMajor.equals(majorCore)
+                    || rowMajor.startsWith(majorCore + "（") || rowMajor.startsWith(majorCore + "(")) {
+                return true;
+            }
+            return majorName != null
+                    && (majorName.startsWith(rowMajor + "（") || majorName.startsWith(rowMajor + "("));
+        }
+        return false;
+    }
+
+    /** a 是否应排在 b 之前（对应 SQL 的 ORDER BY，先到者胜）。 */
+    private static boolean requirementOrderBefore(MajorRequirementGz a, MajorRequirementGz b,
+                                                  String majorName, String majorCore) {
+        int yearA = a.getYear() == null ? Integer.MIN_VALUE : a.getYear();
+        int yearB = b.getYear() == null ? Integer.MIN_VALUE : b.getYear();
+        if (yearA != yearB) {
+            return yearA > yearB;
+        }
+        int prioA = requirementNamePriority(a.getMajorName(), majorName, majorCore);
+        int prioB = requirementNamePriority(b.getMajorName(), majorName, majorCore);
+        if (prioA != prioB) {
+            return prioA < prioB;
+        }
+        return safeLength(a.getMajorName()) > safeLength(b.getMajorName());
+    }
+
+    private static int requirementNamePriority(String rowMajor, String majorName, String majorCore) {
+        if (rowMajor != null && rowMajor.equals(majorName)) return 0;
+        if (rowMajor != null && rowMajor.equals(majorCore)) return 1;
+        return 2;
+    }
+
+    private static int safeLength(String value) {
+        return value == null ? 0 : value.length();
     }
 
     private String majorLookupCore(String majorName) {
@@ -2190,9 +2273,7 @@ public class VolunteerService {
      * 映射首选科目：前端传 "物理"/"历史" → 数据库中可能是 "物理类"/"历史类" 或 "理科"/"文科"
      */
     private String mapSubjectType(String firstSubject) {
-        if ("物理".equals(firstSubject)) return "物理类";
-        if ("历史".equals(firstSubject)) return "历史类";
-        return firstSubject;
+        return com.gzly.algorithm.core.ThreeOneTwoSubjectMatcher.toTrackLabel(firstSubject);
     }
 
     private PreferenceProfile toPreferenceProfile(GenerateRequest req) {
@@ -3766,25 +3847,30 @@ public class VolunteerService {
                 String algorithmMajorName = "专业级".equals(item.getDataSourceType())
                         ? item.getMajorName()
                         : null;
+                // 历史线每条只取一次（近5年，getRecentLines 有跨考生共享缓存），
+                // 概率/风险/预测/规则四个算法共用；替代此前每条 4 次独立查询的 N+1。
+                List<ScoreLineGz> history5 = loadRecentLinesQuietly(item.getSchoolId(), algorithmMajorName, subjectType);
+                List<ScoreLineGz> history3 = history5.size() > 3 ? history5.subList(0, 3) : history5;
+
                 // 内部机会基线（WRITE_ONLY，不外露）
-                AlgorithmService.AdmissionProbability prob = algorithmService.calcProbability(
-                        studentRank, item.getSchoolId(), algorithmMajorName, subjectType);
+                AlgorithmService.AdmissionProbability prob = algorithmService.calcProbabilityFromLines(
+                        studentRank, item.getSchoolId(), algorithmMajorName, subjectType, history3);
                 item.setAdmissionProb(prob.getProbability());
                 item.setProbLevel(prob.getLevel());
 
                 // 风险评估（保留风险颜色和定性标签，但 riskLevel 文本会被 FallbackRulePredictionEngine 覆盖）
-                AlgorithmService.RiskAssessment risk = algorithmService.assessRisk(
-                        item.getSchoolId(), algorithmMajorName, subjectType);
+                AlgorithmService.RiskAssessment risk = algorithmService.assessRiskFromLines(
+                        item.getSchoolId(), algorithmMajorName, subjectType, history5);
                 item.setRiskColor(risk.getRiskColor());
 
                 // 分数线预测：predictedRank 作为 FallbackRulePredictionEngine 的 referenceRank
-                AlgorithmService.ScorePrediction prediction = algorithmService.predictScore(
-                        item.getSchoolId(), algorithmMajorName, subjectType);
+                AlgorithmService.ScorePrediction prediction = algorithmService.predictScoreFromLines(
+                        item.getSchoolId(), algorithmMajorName, subjectType, history5);
                 item.setPredictedRank(prediction.getPredictedRank());
                 item.setTrend(prediction.getTrend());
 
                 // 用 FeatureBuildEngine 抽位次特征 + FallbackRulePredictionEngine 算完整机会指数
-                applyRulePrediction(item, studentRank, subjectType, algorithmMajorName);
+                applyRulePrediction(item, studentRank, subjectType, history5);
                 applyChanceFields(item, studentRank);
             } catch (Exception e) {
                 log.warn("算法增强失败: {} - {}: {}", item.getUniversityName(), item.getMajorName(), e.getMessage());
@@ -3792,9 +3878,10 @@ public class VolunteerService {
                 item.setProbLevel("未知");
                 item.setRiskLevel("未知");
                 item.setRiskColor("gray");
-                // 异常时仍尝试用规则公式兜底（用 historyMinRank 作 referenceRank）
+                // 异常时仍尝试用规则公式兜底（回退院校级历史，取不到则用 historyMinRank 作 referenceRank）
                 try {
-                    applyRulePrediction(item, studentRank, subjectType, null);
+                    applyRulePrediction(item, studentRank, subjectType,
+                            loadRecentLinesQuietly(item.getSchoolId(), null, subjectType));
                 } catch (Exception ignore) {
                     // 真正的双重失败：保持 chanceScore=0，前端会显示"未知"
                 }
@@ -3803,31 +3890,47 @@ public class VolunteerService {
         }
     }
 
+    private List<ScoreLineGz> loadRecentLinesQuietly(String schoolId, String majorName, String subjectType) {
+        try {
+            // 特征/预测窗口与候选检索同口径做科类纪元隔离（贵州 2024+）：
+            // 改革前文理科位次未经换算不可比，不再喂给 predictScore / 波动特征。
+            int eraYear = provincePolicyService.getPolicy(ProvincePolicyService.GZ).getNewGaokaoFirstYear();
+            List<ScoreLineGz> lines = algorithmService.getRecentLinesSince(schoolId, majorName, subjectType, 5, eraYear);
+            return lines == null ? List.of() : lines;
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
     /**
      * 用 FeatureBuildEngine + FallbackRulePredictionEngine 计算完整机会指数。
      *
-     * <p>调用方应已设置 item.predictedRank 和 item.historyMinRank；
+     * <p>调用方应已设置 item.predictedRank 和 item.historyMinRank，并传入近 5 年历史线；
      * 该方法会：</p>
      * <ul>
-     *   <li>读 5 年历史录取数据，构建 RankFeature（rankVolatility3y / planChangeRate / dataConfidence）；</li>
+     *   <li>把各年位次经等效位次换算归一到最近可用年口径（贵州 2021-2023 无官方一分一段时
+     *       自动退化为原值，行为与换算前一致）；</li>
+     *   <li>构建 RankFeature（rankVolatility3y / planChangeRate / dataConfidence）；</li>
      *   <li>取 referenceRank = predictedRank > 0 ? predictedRank : historyMinRank；</li>
      *   <li>调 FallbackRulePredictionEngine.predict 得 chanceScore / chanceLevel / riskLevel / confidenceLevel；</li>
-     *   <li>把所有字段写回 item，并把特征值缓存到 item.rankVolatility3y / planChangeRate / hotTrendScore（WRITE_ONLY）。</li>
+     *   <li>写回 item，并产出经等渗校准的录取参考概率 calibratedProbability（0-100）。</li>
      * </ul>
      */
-    private void applyRulePrediction(VolunteerItem item, int studentRank, String subjectType, String algorithmMajorName) {
-        // 1. 读历史 ScoreLineGz → 抽 minRank/planCount lag
-        List<ScoreLineGz> history;
-        try {
-            history = algorithmService.getRecentLines(item.getSchoolId(), algorithmMajorName, subjectType, 5);
-        } catch (Exception ex) {
-            history = List.of();
-        }
+    private void applyRulePrediction(VolunteerItem item, int studentRank, String subjectType, List<ScoreLineGz> history) {
+        List<ScoreLineGz> safeHistory = history == null ? List.of() : history;
+
+        // 1. 等效位次换算的目标年 = 历史中最近可用年（与 referenceRank 的口径一致）
+        int targetYear = safeHistory.stream()
+                .map(ScoreLineGz::getYear)
+                .filter(y -> y != null && y > 0)
+                .max(Integer::compareTo)
+                .orElse(0);
+
         List<Integer> minRanks = new ArrayList<>();
         List<Integer> planCounts = new ArrayList<>();
-        for (ScoreLineGz sl : history) {
+        for (ScoreLineGz sl : safeHistory) {
             if (sl.getMinRank() != null && sl.getMinRank() > 0) {
-                minRanks.add(sl.getMinRank());
+                minRanks.add(normalizeHistoryRank(sl.getMinRank(), sl.getYear(), targetYear, subjectType));
             }
             if (sl.getPlanCount() != null && sl.getPlanCount() > 0) {
                 planCounts.add(sl.getPlanCount());
@@ -3862,9 +3965,19 @@ public class VolunteerService {
         item.setDataConfidence(p.getDataConfidence());
         item.setPredictedMinRank(p.getPredictedMinRank());
         item.setRankDiff(p.getRankDiff());
+        // 展示层校准概率（报告 R5：单条机会指数经等渗校准后再对外，贵州无调剂环节不做退档折减）
+        item.setCalibratedProbability(round1(ProbabilityCalibration.fromChanceScore(p.getChanceScore()) * 100));
 
         // 7. 特征值缓存（WRITE_ONLY，仅用于审计 / 后续训练样本回流）
         item.setRankVolatility3y(feature.getRankVolatility3y());
         item.setPlanChangeRate(feature.getPlanChangeRate());
+    }
+
+    /** 跨年位次归一；换算服务缺席（单测直构）或考生总数缺失时原样返回。 */
+    private int normalizeHistoryRank(int rank, Integer fromYear, int targetYear, String subjectType) {
+        if (rankNormalizationService == null || fromYear == null || fromYear <= 0 || targetYear <= 0) {
+            return rank;
+        }
+        return rankNormalizationService.normalize(rank, fromYear, targetYear, ProvincePolicyService.GZ, subjectType);
     }
 }

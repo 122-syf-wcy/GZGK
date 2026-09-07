@@ -9,7 +9,7 @@ import com.gzly.service.AiService;
 import com.gzly.service.AlgorithmService;
 import com.gzly.service.ProvincePolicyService;
 import com.gzly.service.ProvinceRankService;
-import com.gzly.service.ProfessionalGroupVolunteerService;
+import com.gzly.service.RecommendationOrchestrator;
 import com.gzly.service.VolunteerMetricsRecorder;
 import com.gzly.service.VolunteerService;
 import com.gzly.service.VolunteerService.GenerateRequest;
@@ -39,8 +39,9 @@ import java.util.concurrent.RejectedExecutionException;
 public class VolunteerController {
 
     private final VolunteerService volunteerService;
-    private final ProfessionalGroupVolunteerService professionalGroupVolunteerService;
+    private final RecommendationOrchestrator recommendationOrchestrator;
     private final AiService aiService;
+    private final com.gzly.service.AdvisorAgentService advisorAgentService;
     private final AlgorithmService algorithmService;
     private final ProvincePolicyService provincePolicyService;
     private final ProvinceRankService provinceRankService;
@@ -57,15 +58,15 @@ public class VolunteerController {
     @Value("${gzly.stability.ai-analysis-active-ttl-seconds:180}")
     private int aiAnalysisActiveTtlSeconds;
 
+    /**
+     * 旧生成接口。此前直连两条生成链路，绕过就绪度门禁、政策解析与 ML 应用；
+     * 现与 /volunteer/recommend 同走 RecommendationOrchestrator 统一流程，不再存在旁路。
+     */
     @PostMapping("/generate")
     public Result<PlanResult> generate(@RequestBody GenerateRequest req, HttpServletRequest httpReq) {
         Long userId = tryExtractUserId(httpReq);
         String clientIp = getClientIp(httpReq);
-        String provinceCode = provincePolicyService.normalizeProvinceCode(req == null ? null : req.getProvinceCode());
-        PlanResult result = provincePolicyService.isProfessionalGroupProvince(provinceCode)
-                ? professionalGroupVolunteerService.generate(req, userId, clientIp)
-                : volunteerService.generate(req, userId, clientIp);
-        return Result.ok(result);
+        return Result.ok(recommendationOrchestrator.generateWithPolicy(req, userId, clientIp));
     }
 
     @GetMapping("/provinces")
@@ -363,9 +364,12 @@ public class VolunteerController {
         emitter.onTimeout(releaser);
         emitter.onError((ex) -> releaser.run());
 
-        // 异步流式调用
+        // 异步流式调用：优先走 Agent 报告链路（生成前可核对数据），失败自动回落旧链路
+        final Long finalPlanId = planId;
+        final String finalCredential = credential;
         try {
-            taskExecutor.execute(() -> aiService.streamAnalysis(emitter, finalSummary));
+            taskExecutor.execute(() ->
+                    advisorAgentService.streamAgentReport(emitter, finalPlanId, finalCredential, finalSummary));
         } catch (RejectedExecutionException e) {
             releaser.run();
             try {

@@ -288,12 +288,21 @@ public class ScoreLineService {
      * 96志愿引擎的核心查询 — 按位次范围查询候选志愿（院校级）
      * 同时查询新高考(物理类/历史类)和旧高考(理科/文科)的数据，覆盖5年
      */
-    @Cacheable(value = "candidateScoreLines",
-            key = "#subjectType + '_' + #rankLow + '_' + #rankHigh + '_' + (#resubjects == null ? 'none' : #resubjects.toString())",
-            unless = "#result == null || #result.isEmpty()")
+    // 原 @Cacheable("candidateScoreLines") 已移除：键含精确位次区间（每个考生都不同），
+    // 命中率趋近 0，却要把整段候选行序列化进 Redis；LIMIT + (subject_type,min_rank) 索引后直查更快。
     public List<ScoreLineGz> findCandidates(String subjectType, int rankLow, int rankHigh,
                                              List<String> resubjects) {
+        return findCandidates(subjectType, rankLow, rankHigh, resubjects, 2021);
+    }
+
+    /**
+     * 科类纪元隔离版本：minYear 传省的新高考首年（贵州 2024），改革前的文理科数据
+     * 不再进入候选池——旧位次与新高考位次不可直接比较（docs 3.2）。minYear<=0 时回退 2021。
+     */
+    public List<ScoreLineGz> findCandidates(String subjectType, int rankLow, int rankHigh,
+                                             List<String> resubjects, int minYear) {
         String legacyType = "物理类".equals(subjectType) ? "理科" : "文科";
+        int effectiveMinYear = minYear <= 0 ? 2021 : minYear;
 
         LambdaQueryWrapper<ScoreLineGz> wrapper = new LambdaQueryWrapper<>();
         wrapper.and(w -> w.eq(ScoreLineGz::getSubjectType, subjectType)
@@ -301,9 +310,12 @@ public class ScoreLineService {
                .between(ScoreLineGz::getMinRank, rankLow, rankHigh)
                .isNotNull(ScoreLineGz::getMinRank)
                .gt(ScoreLineGz::getMinRank, 0)
-               .ge(ScoreLineGz::getYear, 2021)
+               .ge(ScoreLineGz::getYear, effectiveMinYear)
                .orderByDesc(ScoreLineGz::getYear)
-               .orderByAsc(ScoreLineGz::getMinRank);
+               .orderByAsc(ScoreLineGz::getMinRank)
+               // 兜底上限：宽位次区间（垫档可跨数万名）此前可能整段捞入内存；
+               // 5000 远大于单梯度所需候选量，仅防止无界查询。
+               .last("LIMIT 5000");
 
         return scoreLineGzMapper.selectList(wrapper);
     }
@@ -311,12 +323,17 @@ public class ScoreLineService {
     /**
      * 专业级查询 — 按位次范围查询 data_major_score_gz 表
      */
-    @Cacheable(value = "candidateMajorScores",
-            key = "#subjectType + '_' + #rankLow + '_' + #rankHigh + '_' + (#resubjects == null ? 'none' : #resubjects.toString())",
-            unless = "#result == null || #result.isEmpty()")
+    // 原 @Cacheable("candidateMajorScores") 已移除，理由同 findCandidates。
     public List<MajorScoreGz> findMajorCandidates(String subjectType, int rankLow, int rankHigh,
                                                   List<String> resubjects) {
+        return findMajorCandidates(subjectType, rankLow, rankHigh, resubjects, 2021);
+    }
+
+    /** 科类纪元隔离版本，语义同 findCandidates(…, minYear)。 */
+    public List<MajorScoreGz> findMajorCandidates(String subjectType, int rankLow, int rankHigh,
+                                                  List<String> resubjects, int minYear) {
         String legacyType = "物理类".equals(subjectType) ? "理科" : "文科";
+        int effectiveMinYear = minYear <= 0 ? 2021 : minYear;
 
         LambdaQueryWrapper<MajorScoreGz> wrapper = new LambdaQueryWrapper<>();
         wrapper.and(w -> w.eq(MajorScoreGz::getSubjectType, subjectType)
@@ -324,9 +341,11 @@ public class ScoreLineService {
                .between(MajorScoreGz::getMinRank, rankLow, rankHigh)
                .isNotNull(MajorScoreGz::getMinRank)
                .gt(MajorScoreGz::getMinRank, 0)
-               .ge(MajorScoreGz::getYear, 2021)
+               .ge(MajorScoreGz::getYear, effectiveMinYear)
                .orderByDesc(MajorScoreGz::getYear)
-               .orderByAsc(MajorScoreGz::getMinRank);
+               .orderByAsc(MajorScoreGz::getMinRank)
+               // 兜底上限：16 万行专业表上宽区间查询此前可返回上万行；年份降序保证优先保留新数据。
+               .last("LIMIT 5000");
 
         return majorScoreGzMapper.selectList(wrapper);
     }

@@ -13,6 +13,8 @@ public class BizUser {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String identifier;
+    /** 注册邮箱（验证码登录），历史卡密用户可为空。 */
+    private String email;
     /** 关联 biz_card_key.id（激活后绑定）。 */
     private Long cardKeyId;
     /** 昵称，激活时由用户填写，可空字符串。 */

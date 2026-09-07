@@ -36,7 +36,11 @@ public class RedisConfig implements CachingConfigurer {
         ObjectMapper om = new ObjectMapper();
         om.registerModule(new JavaTimeModule());
         om.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        om.activateDefaultTyping(typeValidator, ObjectMapper.DefaultTyping.NON_FINAL);
+        // EVERYTHING 而非 NON_FINAL：NON_FINAL 不给 List/ArrayList 写类型标签，
+        // 导致所有 List 值的缓存（recentScoreHistory / candidateMajorScores / recentScoreLines 等）
+        // 写入后永远无法反序列化——读取必然失败回源，缓存形同虚设且刷警告日志。
+        // 反序列化仍受上方白名单校验约束，安全口径不变；旧格式条目读取失败会回源并被新格式覆盖。
+        om.activateDefaultTyping(typeValidator, ObjectMapper.DefaultTyping.EVERYTHING);
         return om;
     }
 
@@ -80,6 +84,7 @@ public class RedisConfig implements CachingConfigurer {
                 .withCacheConfiguration("riskAssessments", config.entryTtl(Duration.ofHours(6)))
                 .withCacheConfiguration("scorePredictions", config.entryTtl(Duration.ofHours(12)))
                 .withCacheConfiguration("rankEstimates", config.entryTtl(Duration.ofHours(12)))
+                .withCacheConfiguration("recentScoreLines", config.entryTtl(Duration.ofHours(6)))
                 .build();
     }
 

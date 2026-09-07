@@ -16,8 +16,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,14 +35,9 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class ProfessionalGroupVolunteerService {
 
-    private static final int TARGET_TOTAL = 45;
-    private static final Map<String, Integer> TARGET_COUNTS = Map.of(
-            "冲", 8,
-            "稳", 19,
-            "保", 13,
-            "垫", 5
-    );
     private static final List<String> GRADIENT_ORDER = List.of("冲", "稳", "保", "垫");
+    /** 与 VolunteerService.PORTFOLIO_SAFETY_THRESHOLD 同口径。 */
+    private static final double PORTFOLIO_SAFETY_THRESHOLD = 98.0;
 
     private final DataAdmissionGroupLineMapper groupLineMapper;
     private final DataAdmissionGroupPlanMapper groupPlanMapper;
@@ -56,25 +49,28 @@ public class ProfessionalGroupVolunteerService {
     private final ObjectMapper objectMapper;
     private final VolunteerMetricsRecorder metricsRecorder;
     private final SafetyCodeService safetyCodeService;
+    private final com.gzly.algorithm.ProfessionalGroupAlgorithmEnricher algorithmEnricher;
 
-    @Transactional(rollbackFor = Exception.class)
+    // 原方法级 @Transactional 已移除：生成过程只有末尾一次 plan_history 单条 INSERT（自带原子性），
+    // 事务包住全部查询与算法计算只会长时间占用连接；幂等保护由 RecommendationOrchestrator 的请求锁承担。
     public VolunteerService.PlanResult generate(VolunteerService.GenerateRequest req, Long userId, String clientIp) {
-        validate(req);
+        ProvincePolicyService.ProvincePolicy policy = provincePolicyService.getPolicy(
+                req == null ? null : req.getProvinceCode());
+        validate(policy, req);
         long startedAt = System.currentTimeMillis();
         metricsRecorder.incr(VolunteerMetricsRecorder.GENERATE_TOTAL);
         try {
-            ProvincePolicyService.ProvincePolicy policy = provincePolicyService.getPolicy(req.getProvinceCode());
             if (!ProvincePolicyService.UNIT_PROFESSIONAL_GROUP_45.equals(policy.getVolunteerUnitType())) {
                 throw new BizException("该省份不适用院校专业组45志愿生成策略");
             }
             String provinceCode = policy.getProvinceCode();
-            String subjectType = mapSubjectType(req.getFirstSubject());
+            String subjectType = resolveSubjectTrack(policy, req);
             RankResolution rankResolution = resolveRankResolution(policy, req, subjectType);
             req.setProvinceRank(rankResolution.effectiveRank());
             Integer rankYear = dataScoreRankMapper.selectLatestYear(provinceCode, subjectType);
             if (rankYear == null || rankYear < 2025) {
-                throw new BizException(String.format("%s官方一分一段表尚未导入或未通过核验：请先导入2025年%s物理类/历史类官方一分一段后再开放生成。",
-                        policy.getProvinceName(), policy.getProvinceName()));
+                throw new BizException(String.format("%s官方一分一段表尚未导入或未通过核验：请先导入2025年%s（%s）官方一分一段后再开放生成。",
+                        policy.getProvinceName(), policy.getProvinceName(), String.join("/", policy.getSubjectTypes())));
             }
             Integer year = groupLineMapper.selectLatestYear(provinceCode, subjectType);
             if (year == null) {
@@ -82,7 +78,13 @@ public class ProfessionalGroupVolunteerService {
                         policy.getProvinceName(), policy.getTargetBatch(), policy.getProvinceName()));
             }
 
-            VolunteerService.GradientRangeSummary rangeSummary = buildRangeSummary(policy, rankResolution.effectiveRank());
+            // 志愿总数与梯度分配改为政策驱动（各省 30-48 不等），策略模式（保守/均衡/冲刺）生效。
+            int targetTotal = resolveTargetTotal(policy, req);
+            String strategyMode = defaultText(req.getStrategyMode(), "均衡型");
+            Map<String, Integer> gradientCounts = resolveGradientCounts(req, targetTotal, strategyMode);
+
+            VolunteerService.GradientRangeSummary rangeSummary = buildRangeSummary(
+                    policy, rankResolution.effectiveRank(), strategyMode, gradientCounts);
             List<VolunteerService.VolunteerItem> items = new ArrayList<>();
             int specialExcluded = 0;
             for (String gradient : GRADIENT_ORDER) {
@@ -93,24 +95,32 @@ public class ProfessionalGroupVolunteerService {
                 range.setActualCount(picked.items().size());
             }
 
-            if (items.size() < TARGET_TOTAL) {
+            if (items.size() < targetTotal) {
                 metricsRecorder.incr(VolunteerMetricsRecorder.GENERATE_INCOMPLETE);
                 throw new BizException(String.format(
-                        "%s%s公开可核验院校专业组数据不足：当前只命中%d个，未达到45个。系统不会用低可信或无来源数据补满，请先补齐%s2025院校专业组计划和调档线。",
-                        policy.getProvinceName(), policy.getTargetBatch(), items.size(), policy.getProvinceName()));
+                        "%s%s公开可核验院校专业组数据不足：当前只命中%d个，未达到%d个。系统不会用低可信或无来源数据补满，请先补齐%s院校专业组计划和调档线。",
+                        policy.getProvinceName(), policy.getTargetBatch(), items.size(), targetTotal, policy.getProvinceName()));
             }
 
-            items.sort(Comparator
-                    .comparingInt((VolunteerService.VolunteerItem item) -> gradientOrder(item.getGradient()))
-                    .thenComparingInt(VolunteerService.VolunteerItem::getHistoryMinRank)
-                    .thenComparing(item -> safeText(item.getUniversityName()))
-                    .thenComparing(item -> safeText(item.getGroupCode())));
-            for (int i = 0; i < items.size(); i++) {
-                items.get(i).setIndex(i + 1);
+            // 批量装载组内专业与历史线（机会指数的位次特征依赖 historyRecords，必须先于富集）
+            hydrateGroupDetails(policy, subjectType, year, items);
+
+            // ── 阶段 2 并线：接入共享算法层（机会指数 / 意向匹配 / 策略化排序 / 诊断 / 整表安全度） ──
+            com.gzly.algorithm.ProfessionalGroupAlgorithmEnricher.Outcome enriched =
+                    algorithmEnricher.enrich(items, req, rankResolution.effectiveRank(), targetTotal, subjectType);
+            items = new ArrayList<>(enriched.getItems());
+
+            // 概率定档可能使各档数量偏离预设（冲空/保爆），如实统计并在梯度说明中标注
+            if (enriched.getGradientReclassifiedCount() > 0) {
+                rangeSummary.setExplanation(rangeSummary.getExplanation() + String.format(
+                        " 其中%d条按校准录取概率重新定档（概率带：垫≥95%%/保≥85%%/稳≥55%%），各档实际数量以列表为准，可能与预设比例有偏离。",
+                        enriched.getGradientReclassifiedCount()));
             }
 
             List<VolunteerService.ManualReviewItem> manualReviewItems = buildManualReviewList(items);
-            VolunteerService.PlanMetrics metrics = buildMetrics(items, manualReviewItems, specialExcluded);
+            VolunteerService.PlanMetrics metrics = buildMetrics(items, manualReviewItems, specialExcluded,
+                    targetTotal, strategyMode, enriched.getPortfolioSafety());
+            metrics.setGradientReclassifiedCount(enriched.getGradientReclassifiedCount());
             long cost = System.currentTimeMillis() - startedAt;
             metrics.setGenerationCostMs(cost);
             metrics.setGeneratedAtMs(System.currentTimeMillis());
@@ -135,7 +145,8 @@ public class ProfessionalGroupVolunteerService {
             history.setAcceptSinoForeign(Boolean.TRUE.equals(req.getAcceptSinoForeign()) ? 1 : 0);
             history.setItemCount(items.size());
             history.setCreatedAt(LocalDateTime.now());
-            history.setDataQualityWarning(buildDataQualityWarning(items, specialExcluded));
+            history.setDataQualityWarning(appendPortfolioSafetyWarning(
+                    buildDataQualityWarning(items, specialExcluded), enriched.getPortfolioSafety()));
             SafetyCodeService.SafetyCodeIssue safetyCodeIssue = safetyCodeService.issue(req.getSafetyCode());
             history.setSafetyCodeHash(safetyCodeIssue.safetyCodeHash());
             try {
@@ -158,7 +169,7 @@ public class ProfessionalGroupVolunteerService {
             result.setVolunteerUnitType(ProvincePolicyService.UNIT_PROFESSIONAL_GROUP_45);
             result.setVolunteerUnitLabel("院校专业组");
             result.setTargetBatch(policy.getTargetBatch());
-            result.setTargetCount(TARGET_TOTAL);
+            result.setTargetCount(targetTotal);
             result.setTotalScore(req.getTotalScore());
             result.setProvinceRank(rankResolution.effectiveRank());
             result.setFirstSubject(req.getFirstSubject());
@@ -182,6 +193,7 @@ public class ProfessionalGroupVolunteerService {
             result.setGradientRangeSummary(rangeSummary);
             result.setRankEstimate(rankResolution.summary());
             result.setAdvisorAdvice(buildAdvisorAdvice(policy, result));
+            result.setDiagnosis(enriched.getDiagnosis());
 
             metricsRecorder.recordCost(cost);
             metricsRecorder.incr(VolunteerMetricsRecorder.GENERATE_SUCCESS);
@@ -197,6 +209,11 @@ public class ProfessionalGroupVolunteerService {
 
     private PickResult pickGradient(ProvincePolicyService.ProvincePolicy policy, VolunteerService.GenerateRequest req, String subjectType, int year,
                                     String gradient, VolunteerService.GradientRangeDetail range) {
+        return pickGradient(policy, req, subjectType, year, gradient, range, Math.max(0, range.getTargetCount()));
+    }
+
+    private PickResult pickGradient(ProvincePolicyService.ProvincePolicy policy, VolunteerService.GenerateRequest req, String subjectType, int year,
+                                    String gradient, VolunteerService.GradientRangeDetail range, int targetCount) {
         List<DataAdmissionGroupLine> candidates = groupLineMapper.selectCandidates(
                 policy.getProvinceCode(),
                 year,
@@ -204,7 +221,7 @@ public class ProfessionalGroupVolunteerService {
                 range.getRankLow(),
                 range.getRankHigh(),
                 batchKeyword(policy.getTargetBatch()),
-                TARGET_COUNTS.getOrDefault(gradient, 0) * 8 + 30);
+                targetCount * 8 + 30);
         Map<String, VolunteerService.VolunteerItem> deduped = new LinkedHashMap<>();
         int specialExcluded = 0;
         for (DataAdmissionGroupLine line : candidates) {
@@ -213,7 +230,7 @@ public class ProfessionalGroupVolunteerService {
                 specialExcluded++;
                 continue;
             }
-            if (!matchResubject(line.getResubjectRequirement(), req.getResubjects())) {
+            if (!subjectRequirementMatches(policy, line, req)) {
                 continue;
             }
             String key = safeText(line.getSchoolId()) + "|" + safeText(line.getGroupCode());
@@ -221,9 +238,32 @@ public class ProfessionalGroupVolunteerService {
         }
         List<VolunteerService.VolunteerItem> items = deduped.values().stream()
                 .sorted(Comparator.comparingInt(VolunteerService.VolunteerItem::getHistoryMinRank))
-                .limit(TARGET_COUNTS.getOrDefault(gradient, 0))
+                .limit(targetCount)
                 .toList();
         return new PickResult(items, specialExcluded);
+    }
+
+    /**
+     * 候选检索缝合口（阶段 1，供 ProfessionalGroupProvider 委派调用）。
+     * 与主链路 pickGradient 完全同一实现，仅将梯度目标数改由调用方显式给出；
+     * 数据未导入（无可用年份）时返回空列表而不抛异常，由上层就绪度门禁负责拦截。
+     */
+    public List<VolunteerService.VolunteerItem> fetchCandidates(VolunteerService.GenerateRequest req, String gradient,
+                                                                int rankLow, int rankHigh, int maxCount) {
+        ProvincePolicyService.ProvincePolicy policy = provincePolicyService.getPolicy(req.getProvinceCode());
+        String subjectType = mapSubjectType(req.getFirstSubject());
+        Integer year = groupLineMapper.selectLatestYear(policy.getProvinceCode(), subjectType);
+        if (year == null) {
+            return List.of();
+        }
+        VolunteerService.GradientRangeDetail range = new VolunteerService.GradientRangeDetail();
+        range.setGradient(gradient);
+        range.setRankLow(rankLow);
+        range.setRankHigh(rankHigh);
+        range.setTargetCount(maxCount);
+        List<VolunteerService.VolunteerItem> items = pickGradient(policy, req, subjectType, year, gradient, range, maxCount).items();
+        hydrateGroupDetails(policy, subjectType, year, items);
+        return items;
     }
 
     private VolunteerService.VolunteerItem toVolunteerItem(ProvincePolicyService.ProvincePolicy policy,
@@ -276,8 +316,7 @@ public class ProfessionalGroupVolunteerService {
         item.setSpecialTypeFlag(false);
         item.setNeedsManualReview(line.getPlanCount() == null || line.getPlanCount() <= 0);
         item.setReviewFlags(item.isNeedsManualReview() ? List.of("missing_plan_count") : List.of());
-        item.setGroupMajors(loadGroupMajors(policy.getProvinceCode(), line));
-        item.setHistoryRecords(loadHistoryRecords(policy.getProvinceCode(), line));
+        // groupMajors / historyRecords 由 hydrateGroupDetails 在选完后批量装载（替代逐条查询的 N+1）
         item.setAlgorithmExplanation(buildExplanation(policy, item, studentRank, line));
 
         University university = scoreLineService.getUniversityById(line.getSchoolId());
@@ -336,30 +375,56 @@ public class ProfessionalGroupVolunteerService {
         item.setSchoolEnrollmentNote(String.format("招生供给指数%.0f分：按专业组计划%d人、来源层级和可核验程度计算。", supply, planCount));
     }
 
-    private List<String> loadGroupMajors(String provinceCode, DataAdmissionGroupLine line) {
-        if (line.getYear() == null || safeText(line.getSchoolId()).isBlank() || safeText(line.getGroupCode()).isBlank()) {
-            return List.of();
+    /**
+     * 批量装载组内专业与历史线（阶段 4：替代 toVolunteerItem 内逐条查询的 N+1，
+     * 45 条志愿从约 90 次查询降为 2 次 IN 批量查询）。必须在算法富集之前调用——
+     * 机会指数的位次特征消费 historyRecords。
+     */
+    private void hydrateGroupDetails(ProvincePolicyService.ProvincePolicy policy, String subjectType, int year,
+                                     List<VolunteerService.VolunteerItem> items) {
+        List<Map<String, String>> pairs = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (VolunteerService.VolunteerItem item : items) {
+            String schoolId = safeText(item.getSchoolId());
+            String groupCode = safeText(item.getGroupCode());
+            if (schoolId.isBlank() || groupCode.isBlank()) {
+                continue;
+            }
+            if (seen.add(schoolId + "|" + groupCode)) {
+                pairs.add(Map.of("schoolId", schoolId, "groupCode", groupCode));
+            }
         }
-        return groupPlanMapper.selectGroupMajors(provinceCode, line.getYear(), line.getSchoolId(),
-                        line.getGroupCode(), line.getSubjectType(), 6)
-                .stream()
-                .map(DataAdmissionGroupPlan::getMajorName)
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(v -> !v.isBlank())
-                .distinct()
-                .limit(6)
-                .toList();
-    }
-
-    private List<VolunteerService.HistoryRecord> loadHistoryRecords(String provinceCode, DataAdmissionGroupLine line) {
-        if (safeText(line.getSchoolId()).isBlank() || safeText(line.getGroupCode()).isBlank()) {
-            return List.of();
+        Map<String, List<VolunteerService.HistoryRecord>> historyByKey = new LinkedHashMap<>();
+        Map<String, List<String>> majorsByKey = new LinkedHashMap<>();
+        int displayLimit = Math.max(6, policy.getMajorPerGroupCount());
+        if (!pairs.isEmpty()) {
+            try {
+                for (DataAdmissionGroupLine line : groupLineMapper.selectRecentHistoryBatch(
+                        policy.getProvinceCode(), subjectType, pairs, 3)) {
+                    historyByKey.computeIfAbsent(safeText(line.getSchoolId()) + "|" + safeText(line.getGroupCode()),
+                            k -> new ArrayList<>()).add(toHistoryRecord(line));
+                }
+                Map<String, List<String>> rawMajors = new LinkedHashMap<>();
+                for (DataAdmissionGroupPlan plan : groupPlanMapper.selectGroupMajorsBatch(
+                        policy.getProvinceCode(), year, subjectType, pairs)) {
+                    String name = safeText(plan.getMajorName());
+                    if (name.isBlank()) {
+                        continue;
+                    }
+                    rawMajors.computeIfAbsent(safeText(plan.getSchoolId()) + "|" + safeText(plan.getGroupCode()),
+                            k -> new ArrayList<>()).add(name);
+                }
+                rawMajors.forEach((key, names) -> majorsByKey.put(key,
+                        names.stream().distinct().limit(displayLimit).toList()));
+            } catch (Exception e) {
+                log.warn("组内专业/历史线批量装载失败，条目将以空明细展示: {}", e.getMessage());
+            }
         }
-        return groupLineMapper.selectRecentHistory(provinceCode, line.getSchoolId(), line.getGroupCode(), line.getSubjectType(), 3)
-                .stream()
-                .map(this::toHistoryRecord)
-                .toList();
+        for (VolunteerService.VolunteerItem item : items) {
+            String key = safeText(item.getSchoolId()) + "|" + safeText(item.getGroupCode());
+            item.setHistoryRecords(historyByKey.getOrDefault(key, List.of()));
+            item.setGroupMajors(majorsByKey.getOrDefault(key, List.of()));
+        }
     }
 
     private VolunteerService.HistoryRecord toHistoryRecord(DataAdmissionGroupLine line) {
@@ -385,23 +450,39 @@ public class ProfessionalGroupVolunteerService {
         return record;
     }
 
-    private VolunteerService.GradientRangeSummary buildRangeSummary(ProvincePolicyService.ProvincePolicy policy, int rank) {
+    /**
+     * 位次比例区间随策略模式变化，与贵州主链路 / BacktestService 的比例预设同一组数值；
+     * 均衡型即重构前的固定区间（0.65/0.95/1.20/1.80/3.00），行为向后兼容。
+     */
+    private VolunteerService.GradientRangeSummary buildRangeSummary(ProvincePolicyService.ProvincePolicy policy, int rank,
+                                                                    String strategyMode, Map<String, Integer> gradientCounts) {
+        double[][] ratios = ratioPreset(strategyMode);
         Map<String, VolunteerService.GradientRangeDetail> ranges = new LinkedHashMap<>();
-        putRange(policy, ranges, "冲", rank, 0.65, 0.95);
-        putRange(policy, ranges, "稳", rank, 0.95, 1.20);
-        putRange(policy, ranges, "保", rank, 1.20, 1.80);
-        putRange(policy, ranges, "垫", rank, 1.80, 3.00);
+        for (int i = 0; i < GRADIENT_ORDER.size(); i++) {
+            String gradient = GRADIENT_ORDER.get(i);
+            putRange(policy, ranges, gradient, rank, ratios[i][0], ratios[i][1],
+                    gradientCounts.getOrDefault(gradient, 0));
+        }
         VolunteerService.GradientRangeSummary summary = new VolunteerService.GradientRangeSummary();
         summary.setSource(policy.getProvinceCode().toLowerCase(Locale.ROOT) + "_professional_group_policy_preset");
-        summary.setStrategyMode(policy.getProvinceName() + policy.getTargetBatch());
+        summary.setStrategyMode(strategyMode);
         summary.setRanges(ranges);
-        summary.setExplanation(String.format("%s按院校专业组作为志愿单位。本次按用户手填官方位次设置冲8、稳19、保13、垫5的45个专业组梯度；候选必须有官方/学校官网来源链接，数据不足不补假数据。",
-                policy.getProvinceName()));
+        int total = gradientCounts.values().stream().mapToInt(Integer::intValue).sum();
+        summary.setExplanation(String.format(
+                "%s按院校专业组作为志愿单位。本次按用户手填官方位次和%s策略设置冲%d、稳%d、保%d、垫%d共%d个专业组梯度；候选必须有官方/学校官网来源链接，数据不足不补假数据。",
+                policy.getProvinceName(), strategyMode,
+                gradientCounts.getOrDefault("冲", 0), gradientCounts.getOrDefault("稳", 0),
+                gradientCounts.getOrDefault("保", 0), gradientCounts.getOrDefault("垫", 0), total));
         return summary;
     }
 
+    private double[][] ratioPreset(String strategyMode) {
+        // 数值单源：GradientAllocationEngine.ratioPreset（消除三份副本）。
+        return com.gzly.algorithm.GradientAllocationEngine.ratioPreset(strategyMode);
+    }
+
     private void putRange(ProvincePolicyService.ProvincePolicy policy, Map<String, VolunteerService.GradientRangeDetail> ranges, String gradient,
-                          int rank, double minRatio, double maxRatio) {
+                          int rank, double minRatio, double maxRatio, int targetCount) {
         VolunteerService.GradientRangeDetail detail = new VolunteerService.GradientRangeDetail();
         detail.setGradient(gradient);
         detail.setRankRatioMin(minRatio);
@@ -410,19 +491,118 @@ public class ProfessionalGroupVolunteerService {
         detail.setRankHigh(Math.max(detail.getRankLow(), (int) Math.round(rank * maxRatio)));
         detail.setRankOffsetMin(detail.getRankLow() - rank);
         detail.setRankOffsetMax(detail.getRankHigh() - rank);
-        detail.setTargetCount(TARGET_COUNTS.getOrDefault(gradient, 0));
+        detail.setTargetCount(targetCount);
         detail.setLabel(String.format("%s：第%,d ~ %,d位", gradient, detail.getRankLow(), detail.getRankHigh()));
         detail.setRangeSourceNote(policy.getProvinceName() + "按院校专业组投档位次比例区间筛选。");
         ranges.put(gradient, detail);
     }
 
+    /**
+     * 志愿总数：政策库下发值优先（各省 30-48 不等），缺省回退省份内置口径。
+     * 云南官方规则：本科批基础 40 个，符合国家/地方/高校专项计划条件 +10 个、
+     * 符合少数民族预科条件 +10 个（2026 年考试院填报须知，文档 11.7）。
+     */
+    private int resolveTargetTotal(ProvincePolicyService.ProvincePolicy policy, VolunteerService.GenerateRequest req) {
+        int base = req.getPolicyMaxVolunteerCount() != null && req.getPolicyMaxVolunteerCount() > 0
+                ? req.getPolicyMaxVolunteerCount()
+                : policy.getTargetCount();
+        if (ProvincePolicyService.YN.equals(policy.getProvinceCode())) {
+            List<String> tags = req.getQualificationTags() == null ? List.of() : req.getQualificationTags();
+            boolean specialProgram = tags.stream().filter(Objects::nonNull)
+                    .anyMatch(t -> t.contains("国家专项") || t.contains("地方专项") || t.contains("高校专项") || t.contains("专项计划"));
+            boolean minorityPrep = tags.stream().filter(Objects::nonNull)
+                    .anyMatch(t -> t.contains("少数民族预科") || t.contains("预科"));
+            if (specialProgram) {
+                base += 10;
+            }
+            if (minorityPrep) {
+                base += 10;
+            }
+        }
+        return base;
+    }
+
+    /** 科类轨道：3+3（海南）统一"综合"，3+1+2 按首选科目映射物理类/历史类。 */
+    private String resolveSubjectTrack(ProvincePolicyService.ProvincePolicy policy, VolunteerService.GenerateRequest req) {
+        if (ProvincePolicyService.SUBJECT_MODE_33.equals(policy.getSubjectMode())) {
+            return com.gzly.algorithm.core.ThreeThreeSubjectMatcher.TRACK_COMPREHENSIVE;
+        }
+        return mapSubjectType(req.getFirstSubject());
+    }
+
+    /**
+     * 梯度目标数量：批次政策的 gradient_preset_json 优先（承载湖北 15/15/15、海南 10/10/10、
+     * 云南 8/16/16 等官方建议比例），无预设时按策略模式走 GradientAllocationEngine 统一分配。
+     */
+    private Map<String, Integer> resolveGradientCounts(VolunteerService.GenerateRequest req, int targetTotal, String strategyMode) {
+        Map<String, Integer> preset = parseGradientPreset(req.getPolicyGradientPresetJson(), targetTotal);
+        if (preset != null) {
+            return preset;
+        }
+        return com.gzly.algorithm.GradientAllocationEngine.allocateCounts(targetTotal, strategyMode);
+    }
+
+    /** 预设 JSON 形如 {"counts":{"冲":15,"稳":15,"保":11,"垫":4}}；总和不等于志愿总数时视为无效。 */
+    private Map<String, Integer> parseGradientPreset(String presetJson, int targetTotal) {
+        if (presetJson == null || presetJson.isBlank()) {
+            return null;
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(presetJson);
+            com.fasterxml.jackson.databind.JsonNode counts = root.path("counts");
+            if (!counts.isObject()) {
+                return null;
+            }
+            Map<String, Integer> result = new LinkedHashMap<>();
+            int sum = 0;
+            for (String gradient : GRADIENT_ORDER) {
+                int value = counts.path(gradient).asInt(0);
+                if (value < 0) {
+                    return null;
+                }
+                result.put(gradient, value);
+                sum += value;
+            }
+            if (sum != targetTotal) {
+                log.warn("gradient_preset_json 总和 {} 与志愿总数 {} 不一致，忽略预设", sum, targetTotal);
+                return null;
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("gradient_preset_json 解析失败，回退策略分配: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private String appendPortfolioSafetyWarning(String warning,
+                                                com.gzly.algorithm.ProfessionalGroupAlgorithmEnricher.PortfolioSafety safety) {
+        if (safety == null || safety.probability() >= PORTFOLIO_SAFETY_THRESHOLD) {
+            return warning;
+        }
+        String safetyWarning = safety.note() + " 建议减少冲档连续项，增加计划数清楚、来源可核验的保/兜底专业组。";
+        if (warning == null || warning.isBlank()) {
+            return safetyWarning;
+        }
+        return warning + " " + safetyWarning;
+    }
+
     private VolunteerService.PlanMetrics buildMetrics(List<VolunteerService.VolunteerItem> items,
                                                       List<VolunteerService.ManualReviewItem> manualReviewItems,
-                                                      int specialExcluded) {
+                                                      int specialExcluded,
+                                                      int targetTotal,
+                                                      String strategyMode,
+                                                      com.gzly.algorithm.ProfessionalGroupAlgorithmEnricher.PortfolioSafety portfolioSafety) {
         VolunteerService.PlanMetrics metrics = new VolunteerService.PlanMetrics();
         metrics.setProvinceCode(items.isEmpty() ? "" : safeText(items.get(0).getProvinceCode()));
         metrics.setVolunteerUnitType(ProvincePolicyService.UNIT_PROFESSIONAL_GROUP_45);
-        metrics.setTargetCount(TARGET_TOTAL);
+        metrics.setTargetCount(targetTotal);
+        metrics.setStrategyMode(strategyMode);
+        if (portfolioSafety != null) {
+            metrics.setPortfolioSafetyProbability(portfolioSafety.probability());
+            metrics.setPortfolioSafetyLevel(portfolioSafety.level());
+            metrics.setPortfolioSafetyNote(portfolioSafety.note());
+            metrics.setSafeTailCount(portfolioSafety.safeTailCount());
+        }
         metrics.setTotalCount(items.size());
         metrics.setChongCount(countByGradient(items, "冲"));
         metrics.setWenCount(countByGradient(items, "稳"));
@@ -547,18 +727,16 @@ public class ProfessionalGroupVolunteerService {
     }
 
     private Map<String, Object> buildRequestSnapshot(VolunteerService.GenerateRequest req,
-                                                     VolunteerService.GradientRangeSummary rangeSummary) {
-        return buildRequestSnapshot(req, rangeSummary, null);
-    }
-
-    private Map<String, Object> buildRequestSnapshot(VolunteerService.GenerateRequest req,
                                                      VolunteerService.GradientRangeSummary rangeSummary,
                                                      VolunteerService.RankEstimateSummary rankEstimate) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("provinceCode", safeText(req.getProvinceCode()));
         snapshot.put("volunteerUnitType", ProvincePolicyService.UNIT_PROFESSIONAL_GROUP_45);
-        snapshot.put("targetBatch", rangeSummary.getStrategyMode());
-        snapshot.put("targetCount", TARGET_TOTAL);
+        snapshot.put("targetBatch", defaultText(req.getPolicyBatchName(), ""));
+        snapshot.put("strategyMode", rangeSummary.getStrategyMode());
+        snapshot.put("targetCount", rangeSummary.getRanges() == null ? 0
+                : rangeSummary.getRanges().values().stream()
+                        .mapToInt(VolunteerService.GradientRangeDetail::getTargetCount).sum());
         snapshot.put("totalScore", req.getTotalScore());
         snapshot.put("provinceRank", req.getProvinceRank());
         snapshot.put("firstSubject", req.getFirstSubject());
@@ -574,18 +752,37 @@ public class ProfessionalGroupVolunteerService {
         return snapshot;
     }
 
-    private void validate(VolunteerService.GenerateRequest req) {
+    /**
+     * 按省份口径校验：海南为 3+3 + 标准分 900 制（分数区间 [100,900]、选考 3 门、无首选科目），
+     * 其余省份为 3+1+2 + 原始分 750 制。
+     */
+    private void validate(ProvincePolicyService.ProvincePolicy policy, VolunteerService.GenerateRequest req) {
         if (req == null) {
             throw new BizException("请求参数不能为空");
         }
-        if (req.getTotalScore() <= 0 || req.getTotalScore() > 750) {
+        boolean standard900 = ProvincePolicyService.SCORE_SYSTEM_STANDARD_900.equals(policy.getScoreSystem());
+        if (standard900) {
+            if (req.getTotalScore() < 100 || req.getTotalScore() > 900) {
+                throw new BizException(policy.getProvinceName() + "为标准分900分制，综合标准分必须在100-900之间");
+            }
+        } else if (req.getTotalScore() <= 0 || req.getTotalScore() > 750) {
             throw new BizException("高考总分必须在1-750之间");
         }
-        if (!"物理".equals(req.getFirstSubject()) && !"历史".equals(req.getFirstSubject())) {
-            throw new BizException("首选科目必须为物理或历史");
-        }
-        if (req.getResubjects() == null || req.getResubjects().size() != 2) {
-            throw new BizException("再选科目必须选择2门");
+        if (ProvincePolicyService.SUBJECT_MODE_33.equals(policy.getSubjectMode())) {
+            List<String> selected = req.getSelectedSubjects() != null && !req.getSelectedSubjects().isEmpty()
+                    ? req.getSelectedSubjects() : req.getResubjects();
+            long validCount = selected == null ? 0 : selected.stream()
+                    .filter(s -> s != null && !s.isBlank()).distinct().count();
+            if (validCount != 3) {
+                throw new BizException(policy.getProvinceName() + "为3+3模式，须提供3门选考科目（selectedSubjects）");
+            }
+        } else {
+            if (!"物理".equals(req.getFirstSubject()) && !"历史".equals(req.getFirstSubject())) {
+                throw new BizException("首选科目必须为物理或历史");
+            }
+            if (req.getResubjects() == null || req.getResubjects().size() != 2) {
+                throw new BizException("再选科目必须选择2门");
+            }
         }
         if (!Boolean.TRUE.equals(req.getAgreedDisclaimer())
                 || !ComplianceConstants.DISCLAIMER_VERSION.equals(safeText(req.getDisclaimerVersion()))) {
@@ -603,36 +800,30 @@ public class ProfessionalGroupVolunteerService {
     }
 
     private boolean matchResubject(String requirement, List<String> resubjects) {
-        String req = safeText(requirement);
-        if (req.isBlank() || req.contains("不限")) {
-            return true;
+        // 实现已收敛至 ThreeOneTwoSubjectMatcher（宽松语义）；与贵州主链路的严格语义差异见该类注释。
+        return com.gzly.algorithm.core.ThreeOneTwoSubjectMatcher.matchesLenient(requirement, resubjects);
+    }
+
+    /**
+     * 按省份选科模式路由：3+3（海南）用「要求科目集合 ⊆ 考生 3 门选科」判定，
+     * 首选/再选两列要求文本合并判断；3+1+2 沿用再选宽松匹配。
+     */
+    private boolean subjectRequirementMatches(ProvincePolicyService.ProvincePolicy policy,
+                                              DataAdmissionGroupLine line,
+                                              VolunteerService.GenerateRequest req) {
+        if (ProvincePolicyService.SUBJECT_MODE_33.equals(policy.getSubjectMode())) {
+            List<String> selected = req.getSelectedSubjects() != null && !req.getSelectedSubjects().isEmpty()
+                    ? req.getSelectedSubjects() : req.getResubjects();
+            String combined = (safeText(line.getFirstSubjectRequirement()) + " "
+                    + safeText(line.getResubjectRequirement())).trim();
+            return com.gzly.algorithm.core.ThreeThreeSubjectMatcher.matches(combined, selected);
         }
-        if (resubjects == null || resubjects.isEmpty()) {
-            return false;
-        }
-        if (req.contains("和")) {
-            String[] parts = req.split("和");
-            for (String part : parts) {
-                if (!resubjects.contains(part.trim())) return false;
-            }
-            return true;
-        }
-        if (req.contains("或")) {
-            String[] parts = req.split("或");
-            for (String part : parts) {
-                if (resubjects.contains(part.trim())) return true;
-            }
-            return false;
-        }
-        for (String subject : resubjects) {
-            if (req.contains(subject)) return true;
-        }
-        return false;
+        return matchResubject(line.getResubjectRequirement(), req.getResubjects());
     }
 
     private String buildExplanation(ProvincePolicyService.ProvincePolicy policy, VolunteerService.VolunteerItem item, int studentRank, DataAdmissionGroupLine line) {
         return String.format(
-                "%s按院校专业组投档，本条按%s档区间筛入；专业组调档位次第%,d位，与考生采用位次相差%,d位（%.1f%%）；计划因素：%s；扩招指数%s，招生供给指数%s，精度分%d。数据来源为%s，来源层级%s。组内最多展示6个专业，是否服从调剂需由考生结合官方专业目录自主决定。本建议仅供参考。",
+                "%s按院校专业组投档，本条按%s档区间筛入；专业组调档位次第%,d位，与考生采用位次相差%,d位（%.1f%%）；计划因素：%s；扩招指数%s，招生供给指数%s，精度分%d。数据来源为%s，来源层级%s。组内专业按本省志愿设置展示，是否服从调剂需由考生结合官方专业目录自主决定。本建议仅供参考。",
                 policy.getProvinceName(),
                 item.getGradient(),
                 item.getHistoryMinRank(),
@@ -658,7 +849,8 @@ public class ProfessionalGroupVolunteerService {
         advice.setPositioning(String.format("以%s官方位次第%,d名为边界建立院校专业组可行集；数据未达到门槛的省份继续锁定，不用低可信数据补齐。",
                 policy.getProvinceName(), result.getProvinceRank()));
         advice.setPriorityAdvice("院校专业组模式下，同一学校不同专业组差异很大，优先用就业倒推和中位数原则比较组内专业、选科要求、学费和调剂风险，而不是只看学校名称。");
-        advice.setGradientAdvice(String.format("当前按%s设置45个专业组梯度，冲稳保垫必须保持顺序；保底组应优先选择计划数清楚、来源可追溯的条目。", policy.getTargetBatch()));
+        advice.setGradientAdvice(String.format("当前按%s设置%d个专业组梯度，冲稳保垫必须保持顺序；保底组应优先选择计划数清楚、来源可追溯的条目。",
+                policy.getTargetBatch(), result.getTargetCount()));
         advice.setCityAdvice("若未来就业地明确，优先保留目标城市或邻近省会的稳/保专业组；外地强校需结合就业质量报告、校招范围和普通毕业生去向判断。");
         advice.setMajorAdvice("组内专业只展示已结构化导入的公开数据，最终必须打开专业目录核对完整专业、学费、体检、语种和单科限制。");
         advice.setPlanChangeAdvice(String.format("招生计划信号：计划暂缺%d项、小计划数%d项。计划缺失和小计划数都会放大位次波动，必须人工复核。", missingPlan, smallPlan));
@@ -759,11 +951,6 @@ public class ProfessionalGroupVolunteerService {
             case "稳" -> "中等";
             default -> "偏低";
         };
-    }
-
-    private int gradientOrder(String gradient) {
-        int idx = GRADIENT_ORDER.indexOf(gradient);
-        return idx < 0 ? 99 : idx;
     }
 
     private String mapSubjectType(String firstSubject) {

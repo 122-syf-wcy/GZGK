@@ -63,12 +63,21 @@ public class AlgorithmService {
      *    当 R < μ (考生位次更好)时, P > 50%
      * 4. 对σ=0的情况(数据太少或完全一致)做特殊处理
      */
-    @Cacheable(value = "admissionProbabilities",
-            key = "#studentRank + '_' + #schoolId + '_' + (#majorName == null ? 'school' : #majorName) + '_' + #subjectType")
+    /**
+     * 原 @Cacheable 已移除：缓存键含 studentRank，每个考生位次都不同导致命中率趋近于 0，
+     * 只产生 Redis 写放大。历史线缓存下沉到 {@link #getRecentLines}（键不含考生位次，跨考生共享）；
+     * 主链路批量场景请直接用 {@link #calcProbabilityFromLines} 复用已取的历史线。
+     */
     public AdmissionProbability calcProbability(int studentRank, String schoolId,
                                                  String majorName, String subjectType) {
-        List<ScoreLineGz> lines = getRecentLines(schoolId, majorName, subjectType, 3);
+        return calcProbabilityFromLines(studentRank, schoolId, majorName, subjectType,
+                getRecentLines(schoolId, majorName, subjectType, 3));
+    }
 
+    /** 免查询版本：调用方传入已取好的近年分数线（近3年口径）。 */
+    public AdmissionProbability calcProbabilityFromLines(int studentRank, String schoolId,
+                                                         String majorName, String subjectType,
+                                                         List<ScoreLineGz> lines) {
         AdmissionProbability result = new AdmissionProbability();
         result.setSchoolId(schoolId);
         result.setMajorName(majorName);
@@ -76,7 +85,7 @@ public class AlgorithmService {
         result.setHistoryRanks(new ArrayList<>());
         result.setHistoryYears(new ArrayList<>());
 
-        if (lines.isEmpty()) {
+        if (lines == null || lines.isEmpty()) {
             result.setProbability(0);
             result.setLevel("数据不足");
             return result;
@@ -184,8 +193,16 @@ public class AlgorithmService {
     @Cacheable(value = "riskAssessments",
             key = "#schoolId + '_' + (#majorName == null ? 'school' : #majorName) + '_' + #subjectType")
     public RiskAssessment assessRisk(String schoolId, String majorName, String subjectType) {
-        List<ScoreLineGz> lines = getRecentLines(schoolId, majorName, subjectType, 5);
+        return assessRiskFromLines(schoolId, majorName, subjectType,
+                getRecentLines(schoolId, majorName, subjectType, 5));
+    }
 
+    /** 免查询版本：调用方传入已取好的近年分数线（近5年口径）。 */
+    public RiskAssessment assessRiskFromLines(String schoolId, String majorName, String subjectType,
+                                              List<ScoreLineGz> lines) {
+        if (lines == null) {
+            lines = List.of();
+        }
         RiskAssessment result = new RiskAssessment();
         result.setSchoolId(schoolId);
         result.setMajorName(majorName);
@@ -288,8 +305,16 @@ public class AlgorithmService {
      */
     @Cacheable(value = "scorePredictions", key = "#schoolId + '_' + #majorName + '_' + #subjectType")
     public ScorePrediction predictScore(String schoolId, String majorName, String subjectType) {
-        List<ScoreLineGz> lines = getRecentLines(schoolId, majorName, subjectType, 5);
+        return predictScoreFromLines(schoolId, majorName, subjectType,
+                getRecentLines(schoolId, majorName, subjectType, 5));
+    }
 
+    /** 免查询版本：调用方传入已取好的近年分数线（近5年口径，年份降序）。 */
+    public ScorePrediction predictScoreFromLines(String schoolId, String majorName, String subjectType,
+                                                 List<ScoreLineGz> lines) {
+        if (lines == null) {
+            lines = List.of();
+        }
         ScorePrediction result = new ScorePrediction();
         result.setSchoolId(schoolId);
         result.setMajorName(majorName);
@@ -562,12 +587,33 @@ public class AlgorithmService {
     /**
      * 获取某个院校+专业的近N年分数线数据
      * 优先查专业表 data_major_score_gz，不足时回退查院校表 data_score_line_gz
+     *
+     * <p>缓存键不含考生位次，可跨考生共享（同一天内同校同专业的历史线不变）。
+     * 注意 Spring 代理限制：本类内部方法互调不会经过缓存，外部调用（如
+     * VolunteerService 主链路的逐条取数）才会命中；assessRisk / predictScore
+     * 自身已有结果级缓存，不受影响。</p>
      */
+    @Cacheable(value = "recentScoreLines",
+            key = "#schoolId + '_' + (#majorName == null ? 'school' : #majorName) + '_' + #subjectType + '_' + #years",
+            unless = "#result == null || #result.isEmpty()")
     public List<ScoreLineGz> getRecentLines(String schoolId, String majorName,
                                               String subjectType, int years) {
+        return getRecentLinesSince(schoolId, majorName, subjectType, years, 0);
+    }
+
+    /**
+     * 科类纪元隔离版本：minYear 传新高考首年（贵州 2024）时，改革前的文理科位次
+     * 不进入特征与预测窗口——旧位次未经换算不可比，会污染 predictScore 的
+     * referenceRank 与波动特征（docs 3.2 特征链路收尾）。minYear<=0 表示不过滤（展示用途）。
+     */
+    @Cacheable(value = "recentScoreLines",
+            key = "#schoolId + '_' + (#majorName == null ? 'school' : #majorName) + '_' + #subjectType + '_' + #years + '_' + #minYear",
+            unless = "#result == null || #result.isEmpty()")
+    public List<ScoreLineGz> getRecentLinesSince(String schoolId, String majorName,
+                                                 String subjectType, int years, int minYear) {
         // Step 1: 先从专业表查
         if (majorName != null && !majorName.isBlank()) {
-            List<ScoreLineGz> majorLines = getMajorRecentLines(schoolId, majorName, subjectType, years);
+            List<ScoreLineGz> majorLines = getMajorRecentLines(schoolId, majorName, subjectType, years, minYear);
             if (!majorLines.isEmpty()) {
                 return majorLines;
             }
@@ -579,6 +625,7 @@ public class AlgorithmService {
         applyScoreLineSubjectFilter(wrapper, subjectType)
                 .isNotNull(ScoreLineGz::getMinRank)
                 .gt(ScoreLineGz::getMinRank, 0)
+                .ge(minYear > 0, ScoreLineGz::getYear, minYear)
                 .orderByDesc(ScoreLineGz::getYear);
 
         if (majorName != null && !majorName.isBlank()) {
@@ -609,13 +656,14 @@ public class AlgorithmService {
      * 从专业分数线表获取历史数据，转为 ScoreLineGz 兼容格式
      */
     private List<ScoreLineGz> getMajorRecentLines(String schoolId, String majorName,
-                                                     String subjectType, int years) {
+                                                     String subjectType, int years, int minYear) {
         LambdaQueryWrapper<MajorScoreGz> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(MajorScoreGz::getSchoolId, schoolId)
                .eq(MajorScoreGz::getMajorName, majorName);
         applyMajorSubjectFilter(wrapper, subjectType)
                 .isNotNull(MajorScoreGz::getMinRank)
                 .gt(MajorScoreGz::getMinRank, 0)
+                .ge(minYear > 0, MajorScoreGz::getYear, minYear)
                 .orderByDesc(MajorScoreGz::getYear)
                 .last("LIMIT " + (years * 2));
 
@@ -765,16 +813,8 @@ public class AlgorithmService {
     }
 
     private String compatibleSubjectType(String subjectType) {
-        if (subjectType == null || subjectType.isBlank()) {
-            return "";
-        }
-        return switch (subjectType) {
-            case "物理类" -> "理科";
-            case "历史类" -> "文科";
-            case "理科" -> "物理类";
-            case "文科" -> "历史类";
-            default -> subjectType;
-        };
+        // 实现已收敛至 ThreeOneTwoSubjectMatcher.legacyEquivalent，语义逐行等价。
+        return com.gzly.algorithm.core.ThreeOneTwoSubjectMatcher.legacyEquivalent(subjectType);
     }
 
     /** 标准差 */

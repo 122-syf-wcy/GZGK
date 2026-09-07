@@ -127,10 +127,10 @@ class VolunteerServiceGenerateIntegrationTest {
         lenient().when(algorithmService.getRecentLines(anyString(), any(), anyString(), anyInt()))
                 .thenReturn(List.of());
 
-        // ScoreLineService 桩：默认空，单测内部按需重写
-        lenient().when(scoreLineService.findMajorCandidates(anyString(), anyInt(), anyInt(), anyList()))
+        // ScoreLineService 桩：默认空，单测内部按需重写（第 5 参为科类纪元 minYear）
+        lenient().when(scoreLineService.findMajorCandidates(anyString(), anyInt(), anyInt(), anyList(), anyInt()))
                 .thenReturn(List.of());
-        lenient().when(scoreLineService.findCandidates(anyString(), anyInt(), anyInt(), anyList()))
+        lenient().when(scoreLineService.findCandidates(anyString(), anyInt(), anyInt(), anyList(), anyInt()))
                 .thenReturn(List.of());
         lenient().when(scoreLineService.getUniversityById(anyString())).thenReturn(null);
 
@@ -351,7 +351,7 @@ class VolunteerServiceGenerateIntegrationTest {
     /** 把同一批 candidates 桩到 4 个梯度区间查询接口（findMajorCandidates 不分梯度，参数仅 rankLow/rankHigh）。
      *  用 thenAnswer 每次返回新 ArrayList 副本，避免内部 sort/dedup 破坏后续调用的数据。 */
     private void stubCandidatesAcrossGradients(List<MajorScoreGz> candidates) {
-        lenient().when(scoreLineService.findMajorCandidates(anyString(), anyInt(), anyInt(), any()))
+        lenient().when(scoreLineService.findMajorCandidates(anyString(), anyInt(), anyInt(), any(), anyInt()))
                 .thenAnswer(inv -> new ArrayList<>(candidates));
     }
 

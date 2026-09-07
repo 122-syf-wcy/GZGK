@@ -33,6 +33,9 @@ public class MlPredictionService {
 
     @Value("${gzly.ml.enabled:false}")
     private boolean enabled;
+    /** off / shadow / active；空值时按 enabled 推导（true=active, false=off），保持旧配置兼容。 */
+    @Value("${gzly.ml.mode:}")
+    private String mode;
     @Value("${gzly.ml.base-url:http://127.0.0.1:8091}")
     private String baseUrl;
     @Value("${gzly.ml.timeout-ms:1200}")
@@ -48,13 +51,16 @@ public class MlPredictionService {
         int maxCount = policyMaxCount == null || policyMaxCount <= 0 ? plan.getTargetCount() : policyMaxCount;
         applyPolicyLimit(plan, maxCount);
 
+        String effectiveMode = resolveMode();
+
         ApplyResult result = new ApplyResult();
         result.setModelVersion("fallback-rule-v1");
         result.setFallbackUsed(true);
-        result.setModelEnabled(enabled);
+        result.setModelEnabled(!"off".equals(effectiveMode));
+        result.setMode(effectiveMode);
         result.setVisibleMetric("chanceScore");
 
-        if (!enabled) {
+        if ("off".equals(effectiveMode)) {
             // ML 关闭：已由 VolunteerService 主链路用 FallbackRulePredictionEngine 赋值，这里不重复
             result.setFallbackReason("ml_disabled");
             persistPlanItems(plan);
@@ -66,24 +72,27 @@ public class MlPredictionService {
             return result;
         }
 
+        if ("shadow".equals(effectiveMode)) {
+            // shadow：调用 ML 并记录与规则输出的对比，但用户结果保持规则引擎输出不变。
+            try {
+                JsonNode root = callMlPredictions(req, plan);
+                ShadowComparison comparison = compareShadow(plan.getItems(), root, plan.getProvinceRank());
+                result.setModelVersion(root.path("modelVersion").asText("chance-score-shadow"));
+                result.setFallbackReason("shadow_mode");
+                result.setShadowStats(comparison.toMap());
+                log.info("ML shadow 对比: planId={}, {}", plan.getId(), comparison.summaryLine());
+            } catch (Exception e) {
+                log.warn("ML shadow 调用失败（不影响用户结果）: {}", e.getMessage());
+                result.setFallbackReason("shadow_failed: " + (e.getMessage() == null
+                        ? e.getClass().getSimpleName() : e.getMessage()));
+            }
+            persistPlanItems(plan);
+            return result;
+        }
+
         try {
-            String payload = objectMapper.writeValueAsString(buildRequest(req, plan));
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(resolveBaseUrl() + "/ml/predict/batch"))
-                    .version(HttpClient.Version.HTTP_1_1)
-                    .timeout(Duration.ofMillis(Math.max(500, timeoutMs)))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(payload))
-                    .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IllegalStateException("ML 服务响应异常: " + response.statusCode());
-            }
-            JsonNode root = objectMapper.readTree(response.body());
+            JsonNode root = callMlPredictions(req, plan);
             JsonNode predictions = root.path("predictions");
-            if (!predictions.isArray()) {
-                throw new IllegalStateException("ML 返回缺少 predictions");
-            }
             List<VolunteerService.VolunteerItem> items = plan.getItems();
             int applied = 0;
             for (int i = 0; i < predictions.size() && i < items.size(); i++) {
@@ -109,6 +118,68 @@ public class MlPredictionService {
             persistPlanItems(plan);
             return result;
         }
+    }
+
+    /** 显式 mode 优先；空值时兼容旧 enabled 布尔开关。 */
+    String resolveMode() {
+        String value = mode == null ? "" : mode.trim().toLowerCase();
+        return switch (value) {
+            case "off", "shadow", "active" -> value;
+            default -> enabled ? "active" : "off";
+        };
+    }
+
+    private JsonNode callMlPredictions(VolunteerService.GenerateRequest req,
+                                       VolunteerService.PlanResult plan) throws Exception {
+        String payload = objectMapper.writeValueAsString(buildRequest(req, plan));
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(resolveBaseUrl() + "/ml/predict/batch"))
+                .version(HttpClient.Version.HTTP_1_1)
+                .timeout(Duration.ofMillis(Math.max(500, timeoutMs)))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload))
+                .build();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IllegalStateException("ML 服务响应异常: " + response.statusCode());
+        }
+        JsonNode root = objectMapper.readTree(response.body());
+        if (!root.path("predictions").isArray()) {
+            throw new IllegalStateException("ML 返回缺少 predictions");
+        }
+        return root;
+    }
+
+    /** 只统计差异，不写回任何 item 字段。包级可见以便单测。 */
+    ShadowComparison compareShadow(List<VolunteerService.VolunteerItem> items,
+                                   JsonNode root, int candidateRank) {
+        JsonNode predictions = root.path("predictions");
+        ShadowComparison comparison = new ShadowComparison();
+        for (int i = 0; i < predictions.size() && i < items.size(); i++) {
+            VolunteerService.VolunteerItem item = items.get(i);
+            JsonNode prediction = predictions.get(i);
+            int mlChance = Math.max(0, Math.min(100, prediction.path("chanceScore").asInt(item.getChanceScore())));
+            int ruleChance = item.getChanceScore();
+            comparison.comparedCount++;
+            int diff = Math.abs(mlChance - ruleChance);
+            comparison.chanceAbsDiffSum += diff;
+            comparison.chanceMaxAbsDiff = Math.max(comparison.chanceMaxAbsDiff, diff);
+            if (riskBand(mlChance) != riskBand(ruleChance)) {
+                comparison.riskBandFlipCount++;
+            }
+            int mlPredicted = prediction.path("predictedMinRank").asInt(0);
+            if (mlPredicted > 0 && item.getPredictedMinRank() > 0) {
+                comparison.rankAbsDiffSum += Math.abs(mlPredicted - item.getPredictedMinRank());
+                comparison.rankComparedCount++;
+            }
+        }
+        return comparison;
+    }
+
+    private int riskBand(int chanceScore) {
+        if (chanceScore >= 75) return 2;
+        if (chanceScore >= 50) return 1;
+        return 0;
     }
 
     /**
@@ -269,6 +340,10 @@ public class MlPredictionService {
         private int appliedCount;
         /** 配置上 ML 是否开启；false 时 fallbackUsed 一定为 true。 */
         private boolean modelEnabled;
+        /** off / shadow / active。 */
+        private String mode;
+        /** shadow 模式下的规则 vs 模型对比统计。 */
+        private Map<String, Object> shadowStats;
 
         public Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<>();
@@ -277,10 +352,51 @@ public class MlPredictionService {
             map.put("fallbackUsed", fallbackUsed);
             map.put("visibleMetric", visibleMetric);
             map.put("appliedCount", appliedCount);
+            if (mode != null && !mode.isBlank()) {
+                map.put("mode", mode);
+            }
             if (fallbackReason != null && !fallbackReason.isBlank()) {
                 map.put("fallbackReason", fallbackReason);
             }
+            if (shadowStats != null && !shadowStats.isEmpty()) {
+                map.put("shadowStats", shadowStats);
+            }
             return map;
+        }
+    }
+
+    /** shadow 模式下"规则输出 vs 模型输出"的差异统计。 */
+    static class ShadowComparison {
+        int comparedCount;
+        long chanceAbsDiffSum;
+        int chanceMaxAbsDiff;
+        int riskBandFlipCount;
+        long rankAbsDiffSum;
+        int rankComparedCount;
+
+        double chanceMeanAbsDiff() {
+            return comparedCount == 0 ? 0 : (double) chanceAbsDiffSum / comparedCount;
+        }
+
+        double rankMeanAbsDiff() {
+            return rankComparedCount == 0 ? 0 : (double) rankAbsDiffSum / rankComparedCount;
+        }
+
+        Map<String, Object> toMap() {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("comparedCount", comparedCount);
+            map.put("chanceMeanAbsDiff", Math.round(chanceMeanAbsDiff() * 100D) / 100D);
+            map.put("chanceMaxAbsDiff", chanceMaxAbsDiff);
+            map.put("riskBandFlipCount", riskBandFlipCount);
+            map.put("rankComparedCount", rankComparedCount);
+            map.put("rankMeanAbsDiff", Math.round(rankMeanAbsDiff() * 100D) / 100D);
+            return map;
+        }
+
+        String summaryLine() {
+            return String.format(
+                    "compared=%d chanceMeanAbsDiff=%.2f chanceMaxAbsDiff=%d riskBandFlip=%d rankMeanAbsDiff=%.0f",
+                    comparedCount, chanceMeanAbsDiff(), chanceMaxAbsDiff, riskBandFlipCount, rankMeanAbsDiff());
         }
     }
 }

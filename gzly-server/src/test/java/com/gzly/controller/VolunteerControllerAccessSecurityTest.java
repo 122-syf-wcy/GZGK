@@ -7,7 +7,7 @@ import com.gzly.service.AiService;
 import com.gzly.service.AlgorithmService;
 import com.gzly.service.ProvincePolicyService;
 import com.gzly.service.ProvinceRankService;
-import com.gzly.service.ProfessionalGroupVolunteerService;
+import com.gzly.service.RecommendationOrchestrator;
 import com.gzly.service.VolunteerMetricsRecorder;
 import com.gzly.service.VolunteerService;
 import com.gzly.util.JwtUtil;
@@ -42,11 +42,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class VolunteerControllerAccessSecurityTest {
 
     @Mock private VolunteerService volunteerService;
-    @Mock private ProfessionalGroupVolunteerService professionalGroupVolunteerService;
+    @Mock private RecommendationOrchestrator recommendationOrchestrator;
     @Mock private AiService aiService;
     @Mock private AlgorithmService algorithmService;
     @Mock private ProvincePolicyService provincePolicyService;
     @Mock private ProvinceRankService provinceRankService;
+    @Mock private com.gzly.service.AdvisorAgentService advisorAgentService;
     @Mock private VolunteerMetricsRecorder metricsRecorder;
     @Mock private JwtUtil jwtUtil;
     @Mock private StringRedisTemplate stringRedisTemplate;
@@ -60,8 +61,9 @@ class VolunteerControllerAccessSecurityTest {
         Executor directExecutor = Runnable::run;
         VolunteerController controller = new VolunteerController(
                 volunteerService,
-                professionalGroupVolunteerService,
+                recommendationOrchestrator,
                 aiService,
+                advisorAgentService,
                 algorithmService,
                 provincePolicyService,
                 provinceRankService,

@@ -30,6 +30,10 @@ public class VolunteerMetricsRecorder {
     public static final String AI_ANALYSIS_FAILURE = "volunteer.ai.failure";
     public static final String AI_ADVISOR_CHAT_TOTAL = "volunteer.ai.advisor_chat.total";
     public static final String AI_ADVISOR_CHAT_FAILURE = "volunteer.ai.advisor_chat.failure";
+    // === Agent 问答（工具调用链路） ===
+    public static final String AGENT_CHAT_TOTAL = "volunteer.agent.chat.total";
+    public static final String AGENT_CHAT_FAILURE = "volunteer.agent.chat.failure";
+    public static final String AGENT_TOOL_CALLS = "volunteer.agent.tool_calls.total";
     // === 算法报告 P1 评估指标（V7.38 新增） ===
     /** 规则前置被绕过的累计次数（任意主列表包含非 NORMAL 条目时 +1，红线指标）。 */
     public static final String RULE_VIOLATION_TRIGGERED = "volunteer.rule_violation.triggered";

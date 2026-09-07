@@ -70,6 +70,32 @@ public class SkillsRagService {
         return answer;
     }
 
+    /** Agent 工具入口：按问题检索 skills 策略片段并返回可注入 prompt 的摘要（含片段列表）。 */
+    public RetrievedDigest retrieveDigest(String question) {
+        List<SourceChunk> chunks = retrieve(question);
+        RetrievedDigest digest = new RetrievedDigest();
+        digest.setChunks(chunks);
+        digest.setDigest(chunks.isEmpty() ? "" : buildDigest(chunks));
+        return digest;
+    }
+
+    /** Agent 工具入口：当前方案的压缩上下文 JSON。 */
+    public String planContextJson(VolunteerService.PlanResult plan) {
+        return buildPlanContext(plan);
+    }
+
+    /** Agent 链路的问答落库，与旧 ask 链路共用 skills_query_log 便于统一审计。 */
+    public void logAgentAnswer(Long planId, String question, List<SourceChunk> chunks,
+                               String rawAnswer, String sanitizedAnswer) {
+        saveLog(planId, question, chunks == null ? List.of() : chunks, rawAnswer, sanitizedAnswer);
+    }
+
+    @Data
+    public static class RetrievedDigest {
+        private String digest;
+        private List<SourceChunk> chunks;
+    }
+
     public List<String> suggestedQuestions() {
         return List.of(
                 "按就业优先，帮我筛掉最不值得保留的冲档项",

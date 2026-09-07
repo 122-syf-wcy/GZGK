@@ -7,6 +7,11 @@ import org.apache.ibatis.annotations.Select;
 
 public interface MajorRequirementGzMapper extends BaseMapper<MajorRequirementGz> {
 
+    /**
+     * 官方选科要求单条模糊查询。主生成链路已改为按学校集合一次性预取 + 内存匹配
+     * （VolunteerService.prefetchRequirements / pickOfficialRequirement），本方法保留给
+     * 零散调用与预取失败时的逐条回退。
+     */
     @Select("""
             SELECT id, year, school_id, university_name, major_id, major_name,
                    subject_type, first_subject_requirement, resubject_requirement,

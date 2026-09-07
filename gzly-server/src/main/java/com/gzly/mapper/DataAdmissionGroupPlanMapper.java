@@ -31,6 +31,31 @@ public interface DataAdmissionGroupPlanMapper extends BaseMapper<DataAdmissionGr
                                                    @Param("subjectType") String subjectType,
                                                    @Param("limit") int limit);
 
+    /**
+     * selectGroupMajors 的批量版：一次取一组 (school_id, group_code) 对的组内专业，
+     * 每组展示上限由调用方在内存截断。pairs 元素为含 schoolId / groupCode 键的 Map。
+     */
+    @Select("""
+            <script>
+            SELECT id, province_code, province_name, year, school_id, university_name,
+                   group_code, group_name, major_code, major_name, subject_type,
+                   first_subject_requirement, resubject_requirement, plan_count, tuition,
+                   study_years, batch, source_name, source_url, source_page_url,
+                   source_level, parse_method, created_at, updated_at
+            FROM data_admission_group_plan
+            WHERE province_code = #{provinceCode}
+              AND year = #{year}
+              AND subject_type = #{subjectType}
+              AND (school_id, group_code) IN
+              <foreach collection="pairs" item="p" open="(" separator="," close=")">(#{p.schoolId}, #{p.groupCode})</foreach>
+            ORDER BY school_id, group_code, major_code ASC, id ASC
+            </script>
+            """)
+    List<DataAdmissionGroupPlan> selectGroupMajorsBatch(@Param("provinceCode") String provinceCode,
+                                                        @Param("year") int year,
+                                                        @Param("subjectType") String subjectType,
+                                                        @Param("pairs") List<java.util.Map<String, String>> pairs);
+
     @Select("""
             SELECT COUNT(DISTINCT CONCAT(school_id, '#', group_code, '#', subject_type))
             FROM data_admission_group_plan

@@ -26,6 +26,22 @@ class VolunteerClosedLoopEngineTest {
     }
 
     @Test
+    void gradientAllocationCoversProfessionalGroupProvinceCounts() {
+        // 专业组省份的官方志愿总数：四川/湖北/安徽 45、广西/云南 40、海南 30、河南 48。
+        for (int total : new int[]{30, 40, 45, 48}) {
+            for (String mode : new String[]{"保守型", "均衡型", "冲刺型"}) {
+                Map<String, Integer> counts = GradientAllocationEngine.allocateCounts(total, mode);
+                int sum = counts.values().stream().mapToInt(Integer::intValue).sum();
+                assertThat(sum).as("total=%d mode=%s", total, mode).isEqualTo(total);
+                assertThat(counts.get("垫")).as("垫 total=%d mode=%s", total, mode).isGreaterThan(0);
+            }
+        }
+        // 通用分支与重构前 VolunteerService.targetCounts 的向下取整口径逐值一致
+        assertThat(GradientAllocationEngine.allocateCounts(45, "均衡型"))
+                .containsEntry("冲", 9).containsEntry("稳", 18).containsEntry("保", 13).containsEntry("垫", 5);
+    }
+
+    @Test
     void candidateFilterShouldRejectHardRuleViolationsBeforePrediction() {
         CandidateFilterEngine engine = new CandidateFilterEngine();
         CandidateFilterEngine.FilterCriteria criteria = new CandidateFilterEngine.FilterCriteria();
