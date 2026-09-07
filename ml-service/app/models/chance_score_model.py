@@ -46,7 +46,16 @@ def chance_from_rank_diff(rank_diff: int, candidate_rank: int, item: dict[str, A
     }
 
 
-def train_chance_model(data_path: str | None, output_dir: str) -> dict:
+# 弱监督标签 label = (min_rank - candidate_rank > 3000) 由这些列直接构成；
+# 把它们放进特征等于让模型背规则本身（AUC≈1 的假象，无预测意义）。
+_WEAK_LABEL_LEAKAGE_COLS = {"min_rank", "candidate_rank", "label", "sample_weight"}
+# 弱监督场景允许的特征白名单：与线上推理构造的衍生列一致（predict.py _batch_predict_chance），
+# 且不含标签构成成分。同时保证训练/推理特征空间一致（此前训练用全表列、推理只构造 6 列，
+# 绝大多数训练列线上恒为 0）。
+_WEAK_LABEL_SAFE_FEATURES = ["rank_volatility_3y", "plan_change_rate", "major_hot_score", "data_confidence"]
+
+
+def train_chance_model(data_path: str | None, output_dir: str, allow_weak_label: bool = False) -> dict:
     try:
         from lightgbm import LGBMClassifier
     except Exception as exc:
@@ -55,13 +64,29 @@ def train_chance_model(data_path: str | None, output_dir: str) -> dict:
     if not data_path:
         return {"status": "skipped", "reason": "dataPath is required"}
     df = pd.read_csv(data_path)
-    if "label" not in df.columns:
+    weak_label = "label" not in df.columns
+    if weak_label:
+        if not allow_weak_label:
+            # 默认拒绝：ETL 的 candidate_rank 由 min_rank 合成（0.95×min_rank），弱监督标签
+            # 退化为 min_rank 阈值规则，任何含 rank 列的训练都是标签泄漏；在接入真实录取
+            # 标签（label 列）之前不产出模型文件，避免"注册即热加载"误上线泄漏模型。
+            return {
+                "status": "blocked_weak_label",
+                "reason": "训练集无真实 label 列，弱监督标签由 rank 差构成，训练存在标签泄漏；"
+                          "接入真实录取标签后再训练，或显式传 allow_weak_label=True（仅研究用途，"
+                          "特征将强制走去泄漏白名单）",
+            }
         if "candidate_rank" not in df.columns or "min_rank" not in df.columns:
             return {"status": "failed", "reason": "missing label or weak-supervision columns"}
         diff = df["min_rank"] - df["candidate_rank"]
         df["label"] = (diff > 3000).astype(int)
         df["sample_weight"] = np.where(diff.abs() < 3000, 0.35, 1.0)
-    feature_cols = [col for col in df.columns if col not in {"label", "sample_weight"}]
+        feature_cols = [col for col in _WEAK_LABEL_SAFE_FEATURES if col in df.columns]
+        if not feature_cols:
+            return {"status": "failed", "reason": "去泄漏白名单特征在训练集中不存在"}
+    else:
+        # 真实录取标签下 rank 列是合法特征，保持原始全列口径
+        feature_cols = [col for col in df.columns if col not in {"label", "sample_weight"}]
     X = pd.get_dummies(df[feature_cols].fillna(0))
     y = df["label"]
     weights = df.get("sample_weight")

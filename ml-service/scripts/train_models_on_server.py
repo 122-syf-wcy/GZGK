@@ -144,9 +144,9 @@ def train_rank(csv: Path, output_dir: Path, train_year_range: str | None,
 
 
 def train_chance(csv: Path, output_dir: Path, train_year_range: str | None,
-                 status: str, register: bool) -> dict[str, Any]:
+                 status: str, register: bool, allow_weak_label: bool = False) -> dict[str, Any]:
     print("[train] training chance-score model ...", flush=True)
-    result = train_chance_model(str(csv), str(output_dir))
+    result = train_chance_model(str(csv), str(output_dir), allow_weak_label=allow_weak_label)
     if result.get("status") != "ok":
         print(f"[train] chance-score failed: {result}", file=sys.stderr)
         return result
@@ -237,7 +237,9 @@ def main(argv: Iterable[str] | None = None) -> int:
                         choices=["rank", "chance", "plan-trend"], help="要训练或评估的模型集合")
     parser.add_argument("--csv", default="data/training_rank.csv", help="训练用 CSV 路径")
     parser.add_argument("--output-dir", default="/var/lib/gzly-ml/models",
-                        help="模型 .joblib 输出目录")
+                        help="模型 .joblib 输出目录。注意：不要直接指向 serving 目录——"
+                             "model_loader 按文件存在即热加载，绕过注册表 draft/active 状态门；"
+                             "应输出到独立目录，人工审核后再切换")
     parser.add_argument("--regenerate-csv", action="store_true",
                         help="重新构建训练 CSV（跑 build_training_csv.py --strict）")
     parser.add_argument("--min-rows", type=int, default=50,
@@ -254,6 +256,9 @@ def main(argv: Iterable[str] | None = None) -> int:
                         help="注册时初始状态；推荐保持 draft，单独通过 /activate 激活")
     parser.add_argument("--train-year-range", default=None,
                         help="训练年份范围标签，例如 2019-2024（写入 ml_model_registry）")
+    parser.add_argument("--allow-weak-label", action="store_true",
+                        help="仅研究用途：训练集无真实 label 列时放行弱监督训练"
+                             "（特征强制走去泄漏白名单）；默认拒绝以防标签泄漏模型上线")
     args = parser.parse_args(argv)
 
     csv_path = Path(args.csv)
@@ -276,7 +281,7 @@ def main(argv: Iterable[str] | None = None) -> int:
                                      args.status, args.register)
     if "chance" in args.models:
         summary["chance"] = train_chance(csv_path, output_dir, args.train_year_range,
-                                         args.status, args.register)
+                                         args.status, args.register, args.allow_weak_label)
     if "plan-trend" in args.models:
         plan_report = Path(args.plan_trend_report) if args.plan_trend_report else output_dir / "plan_trend_evaluation_report.md"
         summary["plan-trend"] = write_plan_trend_report(csv_path, plan_report, args.train_year_range)
