@@ -52,3 +52,9 @@ ml-service/.pytest_cache/
 scripts/data/raw/
 scripts/data/cache/
 scripts/**/raw/
+
+# Vite 本地调试残留（vite.config.ts.timestamp-*.mjs）
+vite.config.ts.timestamp-*
+
+# 重构分析的中间产物（只读分析，不入库）
+.refactor-analysis/
