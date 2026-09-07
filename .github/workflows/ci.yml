@@ -1,0 +1,125 @@
+# GZLY 最小 CI 四端门禁（期 0 版本基线）
+# 四个 job 并行互不依赖：backend / web / app / ml
+# 只做门禁：测试 + 类型检查 + 违禁词扫描；无部署、无 Docker、无 coverage
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 最小权限：门禁流水线只需要读源码
+permissions:
+  contents: read
+
+# 同一 ref 连续触发时取消旧的运行（push 到 main 或同一 PR 新提交）
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (Java 17 / Maven)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: gzly-server
+    steps:
+      - uses: actions/checkout@v4
+
+      # checkout 在部分场景会丢失 exec bit，统一补 chmod
+      - name: Grant execute permission for mvnw
+        run: chmod +x mvnw
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: 'maven'
+          cache-dependency-path: 'gzly-server/pom.xml'
+
+      - name: Run backend tests
+        run: ./mvnw --batch-mode --update-snapshots test
+
+  web:
+    name: web (Vue3 / Vite / TS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: gzly-web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'gzly-web/package-lock.json'
+
+      # 分步执行便于定位失败；等价于 npm run build:safe 的检查部分但避免 vite build 重复 typecheck
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compliance check
+        run: npm run check:compliance
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+  app:
+    name: app (uniapp / Vite / TS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: gzly-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'gzly-app/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compliance check
+        run: npm run check:compliance
+
+      # 注意：app 端脚本是 type-check（带连字符），与 web 端 typecheck 不同
+      - name: Type check
+        run: npm run type-check
+
+  ml:
+    name: ml (Python / FastAPI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ml-service
+    steps:
+      - uses: actions/checkout@v4
+
+      # requirements 锁定的 numpy==1.26.4 需要 Python < 3.13，固定 3.12
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'ml-service/requirements.txt'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Run tests
+        run: pytest tests/ -q
