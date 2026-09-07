@@ -29,7 +29,8 @@ Optional environment:
   REMOTE_JAR=/opt/gzly/backend/app.jar
   SERVICE_NAME=gzly
   HEALTH_URL=http://127.0.0.1:8090/api/volunteer/metrics
-  RUN_TESTS=1
+  RUN_TESTS=1 (set 0 to skip tests; additionally requires CONFIRM_SKIP_TESTS=1)
+  CONFIRM_SKIP_TESTS= (explicit confirmation required when RUN_TESTS=0)
   LOCAL_SERVER_DIR=/path/to/gzly-server
   LOCAL_JAR=/path/to/app.jar
 
@@ -53,6 +54,9 @@ done
 [[ -x "$LOCAL_SERVER_DIR/mvnw" ]] || die "Maven wrapper is not executable: $LOCAL_SERVER_DIR/mvnw"
 
 log "Building backend: RUN_TESTS=$RUN_TESTS"
+if [[ "$RUN_TESTS" != "1" && "$CONFIRM_SKIP_TESTS" != "1" ]]; then
+  die "RUN_TESTS=0 requires explicit CONFIRM_SKIP_TESTS=1 (skip-test deploys must be a deliberate decision, not a habit)"
+fi
 (
   cd "$LOCAL_SERVER_DIR"
   if [[ "$RUN_TESTS" == "1" ]]; then
