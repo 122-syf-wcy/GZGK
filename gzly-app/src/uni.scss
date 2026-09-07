@@ -1,0 +1,72 @@
+/**
+ * uni-app 会把本文件自动注入到每个组件的 style 块，因此这里只放
+ * SCSS 变量与 mixin（零 CSS 输出），页面里无需再手写 @import。
+ *
+ * CSS 自定义属性（--gz-*）定义在 App.vue 的全局 style 中，只输出一次。
+ *
+ * 视觉方向与两条硬约束见 docs/APP_UNIAPP_PLAN.md 的 D8。
+ */
+
+/* ---- 字阶：以 750rpx 设计稿为基准 ---- */
+$gz-text-hero: 56rpx;
+$gz-text-title: 40rpx;
+$gz-text-section: 32rpx;
+$gz-text-body: 28rpx;
+$gz-text-sm: 24rpx;
+$gz-text-xs: 22rpx;
+
+/* ---- 间距 ---- */
+$gz-space-1: 8rpx;
+$gz-space-2: 16rpx;
+$gz-space-3: 24rpx;
+$gz-space-4: 32rpx;
+$gz-space-5: 40rpx;
+$gz-space-6: 48rpx;
+$gz-space-8: 64rpx;
+
+/* ---- 页面左右外边距 ---- */
+$gz-page-x: 32rpx;
+
+@mixin gz-card {
+  background: var(--gz-surface);
+  border: 2rpx solid var(--gz-border);
+  border-radius: var(--gz-radius-lg);
+  box-shadow: var(--gz-shadow);
+}
+
+/** 近黑胶囊主按钮，参考图里的 CTA 形态 */
+@mixin gz-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22rpx 44rpx;
+  border-radius: var(--gz-radius-full);
+  background: var(--gz-ink);
+  color: var(--gz-text-inverse);
+  font-size: $gz-text-body;
+}
+
+/** 衬线只用于 hero 级大标题：中文宋体系在小字号下发虚 */
+@mixin gz-hero-title {
+  font-family: var(--gz-font-serif);
+  font-size: $gz-text-hero;
+  line-height: 1.25;
+  color: var(--gz-text);
+  letter-spacing: 1rpx;
+}
+
+@mixin gz-ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/** 可点卡片的按压反馈。轻微缩放 + 底色变化，模拟原生触感。 */
+@mixin gz-pressable {
+  transition: transform 0.12s ease, background-color 0.15s ease, opacity 0.15s ease;
+
+  &:active {
+    transform: scale(0.985);
+    background: var(--gz-surface-2);
+  }
+}

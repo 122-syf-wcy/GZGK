@@ -1,0 +1,127 @@
+﻿{
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "高考志愿公益辅助"
+      }
+    },
+    {
+      "path": "pages/volunteer/form",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "智能志愿"
+      }
+    },
+    {
+      "path": "pages/query/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "查询"
+      }
+    },
+    {
+      "path": "pages/me/index",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "我的"
+      }
+    },
+    {
+      "path": "pages/volunteer/result",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "志愿方案"
+      }
+    },
+    {
+      "path": "pages/volunteer/ai",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "AI 深度解读"
+      }
+    },
+    {
+      "path": "pages/query/university",
+      "style": {
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "院校查询"
+      }
+    },
+    {
+      "path": "pages/query/university-detail",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "院校详情"
+      }
+    },
+    {
+      "path": "pages/query/score-line",
+      "style": {
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "历年分数线"
+      }
+    },
+    {
+      "path": "pages/query/special",
+      "style": {
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "特殊类型招生"
+      }
+    },
+    {
+      "path": "pages/me/login",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
+      "path": "pages/me/disclaimer",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "免责声明"
+      }
+    },
+    {
+      "path": "pages/me/claim",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "安全码找回"
+      }
+    },
+    {
+      "path": "pages/me/encouragement",
+      "style": {
+        "enablePullDownRefresh": true,
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "考生加油墙"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "高考志愿公益辅助",
+    "navigationBarBackgroundColor": "#FFFFFF",
+    "backgroundColor": "#FFFFFF",
+    "backgroundColorTop": "#FFFFFF",
+    "backgroundColorBottom": "#FFFFFF"
+  },
+  "tabBar": {
+    "color": "#98A2B3",
+    "selectedColor": "#0E1116",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "首页" },
+      { "pagePath": "pages/volunteer/form", "text": "志愿" },
+      { "pagePath": "pages/query/index", "text": "查询" },
+      { "pagePath": "pages/me/index", "text": "我的" }
+    ]
+  }
+}

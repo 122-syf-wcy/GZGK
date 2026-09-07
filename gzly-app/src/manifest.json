@@ -1,0 +1,56 @@
+{
+    "name" : "高考志愿公益辅助",
+    /* appid 必须用 HBuilderX 登录 DCloud 账号后生成（工具栏「重新获取 appid」），云打包前替换 */
+    "appid" : "",
+    "description" : "面向新高考考生的公益志愿辅助工具：院校查询、历年分数线、志愿参考方案与 AI 解读。所有输出仅供参考，不构成录取承诺。",
+    "versionName" : "0.1.0",
+    "versionCode" : "100",
+    "transformPx" : false,
+    "app-plus" : {
+        "usingComponents" : true,
+        "nvueStyleCompiler" : "uni-app",
+        "compilerVersion" : 3,
+        "compatible" : {
+            "ignoreVersion" : true
+        },
+        "splashscreen" : {
+            "alwaysShowBeforeRender" : true,
+            "waiting" : true,
+            "autoclose" : true,
+            "delay" : 0
+        },
+        "modules" : {},
+        "distribute" : {
+            "android" : {
+                /* 最小权限集：联网状态 + 保存长图到相册（Android 9 及以下需要写存储） */
+                "permissions" : [
+                    "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>",
+                    "<uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\"/>"
+                ],
+                "abiFilters" : [ "armeabi-v7a", "arm64-v8a" ],
+                /* 分享链接 deeplink：gzly://plan?planId=123，只带 planId，凭证永远不进 URL */
+                "schemes" : "gzly",
+                "icons" : {
+                    "hdpi" : "icons/72x72.png",
+                    "xhdpi" : "icons/96x96.png",
+                    "xxhdpi" : "icons/144x144.png",
+                    "xxxhdpi" : "icons/192x192.png"
+                }
+            },
+            "ios" : {},
+            "sdkConfigs" : {}
+        }
+    },
+    "quickapp" : {},
+    "mp-weixin" : {
+        "appid" : "",
+        "setting" : {
+            "urlCheck" : false
+        },
+        "usingComponents" : true
+    },
+    "uniStatistics" : {
+        "enable" : false
+    },
+    "vueVersion" : "3"
+}

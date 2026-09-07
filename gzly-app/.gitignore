@@ -1,0 +1,9 @@
+node_modules
+dist
+.DS_Store
+
+# 生图接口产出的 2K 原始 PNG（单张 4-5 MB），只保留压缩后的 webp 进仓库
+assets-raw
+
+# Playwright 调试产物
+.playwright-mcp
