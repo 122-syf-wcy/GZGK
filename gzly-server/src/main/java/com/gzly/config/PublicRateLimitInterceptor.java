@@ -1,25 +1,46 @@
 package com.gzly.config;
 
+import com.gzly.util.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-import java.time.Duration;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @RequiredArgsConstructor
 public class PublicRateLimitInterceptor implements HandlerInterceptor {
 
+    private static final int LOCAL_BUCKET_LIMIT = 4096;
+
+    /**
+     * 原子计数脚本：INCR + 首次写入时设置 TTL，避免 increment 与 expire 两次独立往返之间
+     * 进程中断/expire 丢失导致 key 永久无 TTL 滞留（历史上会造成 IP 级永久封禁）。
+     * ARGV[1] 为过期时间（毫秒）。
+     */
+    private static final DefaultRedisScript<Long> INCR_WITH_TTL_SCRIPT = new DefaultRedisScript<>(
+            "local c=redis.call('INCR',KEYS[1]) if c==1 then redis.call('PEXPIRE',KEYS[1],ARGV[1]) end return c",
+            Long.class);
+
     private final StringRedisTemplate redisTemplate;
     private final List<RateLimitRule> rules;
-    private final Map<String, LocalBucket> localBuckets = new ConcurrentHashMap<>();
+    // 带上限的 LRU 桶：size 超过 LOCAL_BUCKET_LIMIT 时淘汰最久未访问的 key，
+    // 不再依赖"size>=4096 才顺带清理已过期项"这种可能长期无法收敛的策略。
+    private final Map<String, LocalBucket> localBuckets = Collections.synchronizedMap(
+            new LinkedHashMap<>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, LocalBucket> eldest) {
+                    return size() > LOCAL_BUCKET_LIMIT;
+                }
+            });
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -42,10 +63,10 @@ public class PublicRateLimitInterceptor implements HandlerInterceptor {
                 continue;
             }
             try {
-                Long count = redisTemplate.opsForValue().increment(key);
-                if (count != null && count == 1L) {
-                    redisTemplate.expire(key, Duration.ofSeconds(rule.windowSeconds()));
-                }
+                Long count = redisTemplate.execute(
+                        INCR_WITH_TTL_SCRIPT,
+                        List.of(key),
+                        String.valueOf(Math.max(1, rule.windowSeconds()) * 1000L));
                 if (count != null && count > rule.limit()) {
                     reject(response, rule.windowSeconds());
                     return false;
@@ -77,39 +98,11 @@ public class PublicRateLimitInterceptor implements HandlerInterceptor {
             }
             return existing;
         });
-        cleanupExpiredLocalBuckets(now);
         return bucket.count.incrementAndGet() <= rule.limit();
     }
 
-    private void cleanupExpiredLocalBuckets(long now) {
-        if (localBuckets.size() < 4096) {
-            return;
-        }
-        localBuckets.entrySet().removeIf(entry -> entry.getValue().expiresAtMs <= now);
-    }
-
     private String getClientIp(HttpServletRequest request) {
-        String remoteAddr = request.getRemoteAddr();
-        String ip = null;
-        if (isTrustedProxy(remoteAddr)) {
-            ip = request.getHeader("X-Forwarded-For");
-            if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) ip = request.getRemoteAddr();
-        if (ip != null && ip.contains(",")) ip = ip.split(",")[0].trim();
-        return ip == null || ip.isBlank() ? "unknown" : ip;
-    }
-
-    private boolean isTrustedProxy(String remoteAddr) {
-        if (remoteAddr == null || remoteAddr.isBlank()) {
-            return false;
-        }
-        return "127.0.0.1".equals(remoteAddr)
-                || "0:0:0:0:0:0:0:1".equals(remoteAddr)
-                || "::1".equals(remoteAddr)
-                || remoteAddr.startsWith("10.")
-                || remoteAddr.startsWith("192.168.")
-                || remoteAddr.matches("^172\\.(1[6-9]|2\\d|3[0-1])\\..*");
+        return ClientIpResolver.resolveOrUnknown(request);
     }
 
     private record LocalBucket(long expiresAtMs, AtomicInteger count) {}

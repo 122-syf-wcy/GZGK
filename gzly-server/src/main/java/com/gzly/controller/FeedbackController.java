@@ -4,6 +4,7 @@ import com.gzly.common.Result;
 import com.gzly.common.exception.BizException;
 import com.gzly.entity.BizUserFeedback;
 import com.gzly.mapper.BizUserFeedbackMapper;
+import com.gzly.util.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -38,17 +39,9 @@ public class FeedbackController {
         feedback.setContent(content);
         feedback.setSourcePage(sourcePage);
         feedback.setStatus(0);
-        feedback.setIpHash(hashIp(getClientIp(request)));
+        feedback.setIpHash(hashIp(ClientIpResolver.resolve(request)));
         feedbackMapper.insert(feedback);
         return Result.ok();
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isBlank()) ip = request.getHeader("X-Real-IP");
-        if (ip == null || ip.isBlank()) ip = request.getRemoteAddr();
-        if (ip != null && ip.contains(",")) ip = ip.split(",")[0].trim();
-        return ip;
     }
 
     private String hashIp(String ip) {

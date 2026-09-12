@@ -5,6 +5,7 @@ import com.gzly.common.Result;
 import com.gzly.common.exception.BizException;
 import com.gzly.entity.EncouragementMessage;
 import com.gzly.mapper.EncouragementMessageMapper;
+import com.gzly.util.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -60,7 +61,7 @@ public class EncouragementMessageController {
         message.setNickname(nickname);
         message.setContent(content);
         message.setStatus(1);
-        message.setIpHash(hashIp(getClientIp(request)));
+        message.setIpHash(hashIp(ClientIpResolver.resolve(request)));
         message.setCreatedAt(LocalDateTime.now());
         messageMapper.insert(message);
         return Result.ok(MessageView.from(message));
@@ -72,14 +73,6 @@ public class EncouragementMessageController {
 
     private String normalize(String value) {
         return value == null ? "" : value.trim().replaceAll("\\s+", " ");
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isBlank()) ip = request.getHeader("X-Real-IP");
-        if (ip == null || ip.isBlank()) ip = request.getRemoteAddr();
-        if (ip != null && ip.contains(",")) ip = ip.split(",")[0].trim();
-        return ip;
     }
 
     private String hashIp(String ip) {

@@ -15,8 +15,10 @@ import com.gzly.service.VolunteerService;
 import com.gzly.service.VolunteerService.GenerateRequest;
 import com.gzly.service.VolunteerService.PlanResult;
 import com.gzly.service.VolunteerService.VolunteerItem;
+import com.gzly.util.ClientIpResolver;
 import com.gzly.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -165,11 +167,26 @@ public class VolunteerController {
 
     /**
      * 暴露关键监控指标（生成成功率、耗时、复核率、AI 失败率等）。
-     * 仅运维/管理员需要消费，前端不直接调用，因此不强制鉴权但建议在 Nginx/网关层加白名单。
+     * 运营指标不对外公开：仅持有管理员（admin）Token 的调用方可读，其余请求返回 401。
+     * 注：scripts/server/deploy_backend_safe.sh 以本端点作为部署健康检查（无 Token），
+     * 加鉴权后该探针需改用公开存活端点。
      */
     @GetMapping("/metrics")
-    public Result<java.util.Map<String, Long>> metrics() {
+    public Result<java.util.Map<String, Long>> metrics(HttpServletRequest req, HttpServletResponse resp) {
+        if (!hasAdminRole(req)) {
+            resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return Result.fail(401, "未登录或 Token 已过期");
+        }
         return Result.ok(metricsRecorder.snapshot());
+    }
+
+    private boolean hasAdminRole(HttpServletRequest req) {
+        String auth = req.getHeader("Authorization");
+        if (auth == null || !auth.startsWith("Bearer ")) {
+            return false;
+        }
+        String token = auth.substring(7);
+        return jwtUtil.isValid(token) && "admin".equals(jwtUtil.getRole(token));
     }
 
     /**
@@ -387,8 +404,8 @@ public class VolunteerController {
         }
         String key = "volunteer:ai-ticket:" + ticket.trim();
         try {
-            String payload = stringRedisTemplate.opsForValue().get(key);
-            stringRedisTemplate.delete(key);
+            // GETDEL：读取与删除原子完成，避免并发下同一票据被两个请求同时读到（票据可复用）。
+            String payload = stringRedisTemplate.opsForValue().getAndDelete(key);
             if (payload == null || payload.isBlank()) {
                 return null;
             }
@@ -650,33 +667,7 @@ public class VolunteerController {
     }
 
     private String getClientIp(HttpServletRequest req) {
-        String remoteAddr = req.getRemoteAddr();
-        String ip = null;
-        if (isTrustedProxy(remoteAddr)) {
-            ip = req.getHeader("X-Forwarded-For");
-            if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-                ip = req.getHeader("X-Real-IP");
-            }
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = remoteAddr;
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip;
-    }
-
-    private boolean isTrustedProxy(String remoteAddr) {
-        if (remoteAddr == null || remoteAddr.isBlank()) {
-            return false;
-        }
-        return "127.0.0.1".equals(remoteAddr)
-                || "0:0:0:0:0:0:0:1".equals(remoteAddr)
-                || "::1".equals(remoteAddr)
-                || remoteAddr.startsWith("10.")
-                || remoteAddr.startsWith("192.168.")
-                || remoteAddr.matches("^172\\.(1[6-9]|2\\d|3[0-1])\\..*");
+        return ClientIpResolver.resolve(req);
     }
 
     private boolean tryAcquireAiAnalysisSlot(String globalKey, String ipKey) {

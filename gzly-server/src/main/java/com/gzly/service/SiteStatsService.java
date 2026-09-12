@@ -1,5 +1,6 @@
 package com.gzly.service;
 
+import com.gzly.util.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -171,36 +172,7 @@ public class SiteStatsService {
     }
 
     private String clientIp(HttpServletRequest request) {
-        if (request == null) {
-            return "unknown";
-        }
-        String remoteAddr = request.getRemoteAddr();
-        String ip = null;
-        if (isTrustedProxy(remoteAddr)) {
-            ip = request.getHeader("X-Forwarded-For");
-            if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-                ip = request.getHeader("X-Real-IP");
-            }
-        }
-        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-            ip = remoteAddr;
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip == null || ip.isBlank() ? "unknown" : ip;
-    }
-
-    private boolean isTrustedProxy(String remoteAddr) {
-        if (remoteAddr == null || remoteAddr.isBlank()) {
-            return false;
-        }
-        return "127.0.0.1".equals(remoteAddr)
-                || "0:0:0:0:0:0:0:1".equals(remoteAddr)
-                || "::1".equals(remoteAddr)
-                || remoteAddr.startsWith("10.")
-                || remoteAddr.startsWith("192.168.")
-                || remoteAddr.matches("^172\\.(1[6-9]|2\\d|3[0-1])\\..*");
+        return ClientIpResolver.resolveOrUnknown(request);
     }
 
     private record LocalCounts(long activeCount, boolean newVisitor) {

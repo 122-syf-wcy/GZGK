@@ -3,6 +3,7 @@ package com.gzly.controller;
 import com.gzly.common.Result;
 import com.gzly.service.UniversityQaService;
 import com.gzly.service.UniversityQaService.QaThread;
+import com.gzly.util.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +37,7 @@ public class UniversityQaController {
             return Result.fail("问题内容不能超过500字");
         }
         qaService.submitQuestion(req.getSchoolId(), req.getContent(),
-                req.getAuthorName(), req.getAuthorType(), getClientIp(request));
+                req.getAuthorName(), req.getAuthorType(), ClientIpResolver.resolve(request));
         return Result.ok("问题已提交，AI审核后将自动发布或进入校友管理员复核");
     }
 
@@ -50,7 +51,7 @@ public class UniversityQaController {
             return Result.fail("回答内容不能超过1000字");
         }
         qaService.submitAnswer(req.getQuestionId(), req.getContent(),
-                req.getAuthorName(), req.getAuthorType(), getClientIp(request));
+                req.getAuthorName(), req.getAuthorType(), ClientIpResolver.resolve(request));
         return Result.ok("回答已提交，AI审核后将自动发布或进入校友管理员复核");
     }
 
@@ -77,13 +78,5 @@ public class UniversityQaController {
         private String content;
         private String authorName;
         private String authorType;
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isBlank()) ip = request.getHeader("X-Real-IP");
-        if (ip == null || ip.isBlank()) ip = request.getRemoteAddr();
-        if (ip != null && ip.contains(",")) ip = ip.split(",")[0].trim();
-        return ip;
     }
 }

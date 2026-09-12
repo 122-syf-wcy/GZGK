@@ -3,6 +3,7 @@ package com.gzly.controller;
 import com.gzly.common.Result;
 import com.gzly.service.RecommendationOrchestrator;
 import com.gzly.service.VolunteerService;
+import com.gzly.util.ClientIpResolver;
 import com.gzly.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +28,7 @@ public class VolunteerRecommendController {
             return Result.fail(400, "参数不能为空");
         }
         return Result.ok(recommendationOrchestrator.generateWithPolicy(
-                req, tryExtractUserId(httpReq), getClientIp(httpReq)));
+                req, tryExtractUserId(httpReq), ClientIpResolver.resolve(httpReq)));
     }
 
     private Long tryExtractUserId(HttpServletRequest req) {
@@ -36,16 +37,5 @@ public class VolunteerRecommendController {
             return jwtUtil.getUserId(auth.substring(7));
         }
         return null;
-    }
-
-    private String getClientIp(HttpServletRequest req) {
-        String ip = req.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isBlank()) {
-            ip = req.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isBlank()) {
-            ip = req.getRemoteAddr();
-        }
-        return ip != null && ip.contains(",") ? ip.split(",")[0].trim() : ip;
     }
 }

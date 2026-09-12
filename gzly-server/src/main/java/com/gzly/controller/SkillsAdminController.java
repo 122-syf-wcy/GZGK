@@ -18,7 +18,10 @@ public class SkillsAdminController {
     private final SkillsSyncService skillsSyncService;
     private final SkillsSourceMapper sourceMapper;
 
-    @GetMapping("/skills/sources")
+    /**
+     * skills 源列表仅运维/管理员使用，前端无消费方，收敛到 /admin/** 受鉴权保护。
+     */
+    @GetMapping("/admin/skills/sources")
     public Result<List<SkillsSource>> sources() {
         return Result.ok(sourceMapper.selectList(new LambdaQueryWrapper<SkillsSource>()
                 .orderByDesc(SkillsSource::getLastSyncTime)

@@ -10,6 +10,7 @@ import com.gzly.service.AiConfigService;
 import com.gzly.mapper.*;
 import com.gzly.service.OfficialLinkPriorityService;
 import com.gzly.service.VolunteerMetricsRecorder;
+import com.gzly.util.ClientIpResolver;
 import com.gzly.util.JwtUtil;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -179,33 +180,7 @@ public class AdminController {
     }
 
     private String getClientIp(HttpServletRequest request) {
-        String remoteAddr = request.getRemoteAddr();
-        String ip = null;
-        if (isTrustedProxy(remoteAddr)) {
-            ip = request.getHeader("X-Forwarded-For");
-            if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-                ip = request.getHeader("X-Real-IP");
-            }
-        }
-        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-            ip = remoteAddr;
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip == null || ip.isBlank() ? "unknown" : ip;
-    }
-
-    private boolean isTrustedProxy(String remoteAddr) {
-        if (remoteAddr == null || remoteAddr.isBlank()) {
-            return false;
-        }
-        return "127.0.0.1".equals(remoteAddr)
-                || "0:0:0:0:0:0:0:1".equals(remoteAddr)
-                || "::1".equals(remoteAddr)
-                || remoteAddr.startsWith("10.")
-                || remoteAddr.startsWith("192.168.")
-                || remoteAddr.matches("^172\\.(1[6-9]|2\\d|3[0-1])\\..*");
+        return ClientIpResolver.resolveOrUnknown(request);
     }
 
     private static class LocalLoginCounter {
