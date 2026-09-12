@@ -91,3 +91,57 @@ def test_train_aliases_are_available_without_dataset():
     assert chance_response.status_code == 200
     assert rank_response.json()["status"] in {"skipped", "failed"}
     assert chance_response.json()["status"] in {"skipped", "failed"}
+
+
+def test_camel_case_payload_hits_snake_case_features(monkeypatch):
+    """Java 侧发来的 camelCase 载荷必须命中 snake_case 训练特征列，命中率 100% 且不落回 fallback。
+
+    回归背景：预测侧曾把映射方向写反（对已是 snake_case 的特征名做 camel→snake 转换），
+    导致 camelCase 入参两跳都取不到值、整列 NaN，最终静默降级为规则常量预测。
+    """
+    import numpy as np
+
+    import app.api.predict as predict_module
+
+    captured = {}
+
+    class _StubRankModel:
+        def predict(self, df):
+            captured["df"] = df
+            return np.array([19800.0] * len(df))
+
+    features = ["plan_change_rate", "major_hot_score", "rank_volatility_3y", "school_level"]
+    monkeypatch.setattr(predict_module, "get_rank_model",
+                        lambda: {"model": _StubRankModel(), "features": features})
+    monkeypatch.setattr(predict_module, "get_chance_model", lambda: None)
+
+    response = client.post(
+        "/ml/predict/batch",
+        json={
+            "candidate": {"rank": 21000, "score": 602},
+            "items": [
+                {
+                    "itemId": "10657_080901",
+                    "planChangeRate": 0.08,
+                    "majorHotScore": 0.7,
+                    "rankVolatility3y": 0.12,
+                    "schoolLevel": "211",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    df = captured["df"]
+    # 命中率 100%：camelCase 入参全部解析到对应 snake_case 特征列，无缺失
+    assert not df.isna().any().any()
+    assert df.iloc[0]["plan_change_rate"] == 0.08
+    assert df.iloc[0]["major_hot_score"] == 0.7
+    assert df.iloc[0]["rank_volatility_3y"] == 0.12
+    assert df.iloc[0]["school_level"] == "211"
+    # 未落回 fallback：使用模型输出（19800 / 置信度 0.85），而非规则预测
+    assert body["rankModelUsed"] is True
+    prediction = body["predictions"][0]
+    assert prediction["predictedMinRank"] == 19800
+    assert prediction["predictionConfidence"] == 0.85

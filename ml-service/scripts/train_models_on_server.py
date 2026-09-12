@@ -9,7 +9,7 @@
 典型用法（部署服务器上 cron / systemd timer 调起）::
 
     GZLY_DB_PASSWORD=*** \
-    GZLY_API_TOKEN=admin-secret \
+    GZLY_API_TOKEN=<admin-jwt> \
     python -m scripts.train_models_on_server \
         --models rank chance \
         --output-dir /var/lib/gzly-ml/models \
@@ -19,8 +19,12 @@
 环境变量：
     GZLY_DB_PASSWORD     必填，构造 CSV 时连库需要
     GZLY_API_BASE        默认 http://127.0.0.1:8090
-    GZLY_API_TOKEN       后台管理 token（如果有），通过 X-Admin-Token 头透传
+    GZLY_API_TOKEN       管理员 JWT（后台管理员登录后拿到的 token），
+                         通过 Authorization: Bearer 头透传；也可用 --api-token 传入
     GZLY_REGISTRY_PATH   注册接口路径，默认 /api/admin/ml/models/register
+
+鉴权说明：注册接口 /api/admin/ml/models/register 由后端 AuthInterceptor(jwtUtil, "admin")
+保护，只认管理员 JWT；旧的 X-Admin-Token 头不被识别，会导致恒 401。
 """
 from __future__ import annotations
 
@@ -91,17 +95,22 @@ def stamped_version(model_name: str) -> str:
     return f"{model_name}-v{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
 
-def post_register(payload: dict[str, Any]) -> dict[str, Any]:
-    """向 GZLY 后台 POST 注册表更新。失败抛 RuntimeError。"""
+def post_register(payload: dict[str, Any], token: str | None = None) -> dict[str, Any]:
+    """向 GZLY 后台 POST 注册表更新。失败抛 RuntimeError。
+
+    鉴权：MlAdminController 位于 /admin/ml/**，由 AuthInterceptor(jwtUtil, "admin") 保护，
+    只认管理员 JWT（Authorization: Bearer <token>）；X-Admin-Token 不被识别，会恒 401。
+    token 优先取显式入参，其次取环境变量 GZLY_API_TOKEN。
+    """
     api_base = os.environ.get("GZLY_API_BASE", "http://127.0.0.1:8090").rstrip("/")
     path = os.environ.get("GZLY_REGISTRY_PATH", "/api/admin/ml/models/register")
     url = f"{api_base}{path}"
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=body, method="POST")
     req.add_header("Content-Type", "application/json; charset=utf-8")
-    token = os.environ.get("GZLY_API_TOKEN")
+    token = token or os.environ.get("GZLY_API_TOKEN")
     if token:
-        req.add_header("X-Admin-Token", token)
+        req.add_header("Authorization", f"Bearer {token}")
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             text = resp.read().decode("utf-8")
@@ -114,7 +123,7 @@ def post_register(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def train_rank(csv: Path, output_dir: Path, train_year_range: str | None,
-               status: str, register: bool) -> dict[str, Any]:
+               status: str, register: bool, token: str | None = None) -> dict[str, Any]:
     print("[train] training rank-prediction model ...", flush=True)
     result = train_rank_model(str(csv), str(output_dir))
     if result.get("status") != "ok":
@@ -134,7 +143,7 @@ def train_rank(csv: Path, output_dir: Path, train_year_range: str | None,
     }
     if register:
         try:
-            registered = post_register(payload)
+            registered = post_register(payload, token)
             print(f"[train] rank-prediction registered: {registered}", flush=True)
             result["registry"] = registered
         except Exception as exc:
@@ -144,7 +153,8 @@ def train_rank(csv: Path, output_dir: Path, train_year_range: str | None,
 
 
 def train_chance(csv: Path, output_dir: Path, train_year_range: str | None,
-                 status: str, register: bool, allow_weak_label: bool = False) -> dict[str, Any]:
+                 status: str, register: bool, allow_weak_label: bool = False,
+                 token: str | None = None) -> dict[str, Any]:
     print("[train] training chance-score model ...", flush=True)
     result = train_chance_model(str(csv), str(output_dir), allow_weak_label=allow_weak_label)
     if result.get("status") != "ok":
@@ -164,7 +174,7 @@ def train_chance(csv: Path, output_dir: Path, train_year_range: str | None,
     }
     if register:
         try:
-            registered = post_register(payload)
+            registered = post_register(payload, token)
             print(f"[train] chance-score registered: {registered}", flush=True)
             result["registry"] = registered
         except Exception as exc:
@@ -252,6 +262,9 @@ def main(argv: Iterable[str] | None = None) -> int:
                         help="plan-trend 规则评估报告输出路径")
     parser.add_argument("--register", action="store_true",
                         help="训练完成后调用 /api/admin/ml/models/register 写注册表")
+    parser.add_argument("--api-token", default=None,
+                        help="管理员 JWT，注册时通过 Authorization: Bearer 头透传；"
+                             "缺省时回退读取环境变量 GZLY_API_TOKEN")
     parser.add_argument("--status", default="draft", choices=["draft", "active", "archived"],
                         help="注册时初始状态；推荐保持 draft，单独通过 /activate 激活")
     parser.add_argument("--train-year-range", default=None,
@@ -276,12 +289,14 @@ def main(argv: Iterable[str] | None = None) -> int:
     )
 
     summary: dict[str, Any] = {}
+    api_token = args.api_token or os.environ.get("GZLY_API_TOKEN")
     if "rank" in args.models:
         summary["rank"] = train_rank(csv_path, output_dir, args.train_year_range,
-                                     args.status, args.register)
+                                     args.status, args.register, api_token)
     if "chance" in args.models:
         summary["chance"] = train_chance(csv_path, output_dir, args.train_year_range,
-                                         args.status, args.register, args.allow_weak_label)
+                                         args.status, args.register, args.allow_weak_label,
+                                         api_token)
     if "plan-trend" in args.models:
         plan_report = Path(args.plan_trend_report) if args.plan_trend_report else output_dir / "plan_trend_evaluation_report.md"
         summary["plan-trend"] = write_plan_trend_report(csv_path, plan_report, args.train_year_range)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import numpy as np
@@ -10,6 +11,8 @@ from pydantic import BaseModel, Field
 from app.models.chance_score_model import chance_from_rank_diff
 from app.models.rank_prediction_model import predict_min_rank
 from app.utils.model_loader import get_chance_model, get_rank_model, model_status
+
+LOGGER = logging.getLogger("gzly.ml.predict")
 
 router = APIRouter()
 
@@ -86,9 +89,22 @@ def _batch_predict_rank(items: list[dict[str, Any]], payload: dict | None) -> li
     try:
         model = payload["model"]
         features = payload.get("features") or []
-        df = pd.DataFrame([{f: item.get(_camel_to_snake(f), item.get(f)) for f in features} for item in items])
+        rows: list[dict[str, Any]] = []
+        missing_counts: dict[str, int] = {f: 0 for f in features}
+        for item in items:
+            row: dict[str, Any] = {}
+            for f in features:
+                # 训练侧特征 schema 是 snake_case，而 predict 入参（Java 侧）是 camelCase：
+                # 先按 camelCase 命中，再回退到 snake_case 原键（兼容内部/历史调用）。
+                value = item.get(_snake_to_camel(f), item.get(f))
+                if _is_missing(value):
+                    missing_counts[f] += 1
+                row[f] = value
+            rows.append(row)
+        df = pd.DataFrame(rows)
         if df.empty:
             return fallback
+        _warn_low_feature_hit_rate(missing_counts, len(items))
         preds = model.predict(df)
         out: list[tuple[int, float]] = []
         for i, val in enumerate(preds):
@@ -160,14 +176,54 @@ def _level_from_score(score: int) -> tuple[str, str]:
     return "冲刺参考", "较高"
 
 
-def _camel_to_snake(name: str) -> str:
-    """对齐 ETL CSV 字段：训练时是 snake_case，predict 入参用 camelCase。"""
-    out = []
-    for i, ch in enumerate(name):
-        if ch.isupper() and i > 0:
-            out.append("_")
-        out.append(ch.lower())
-    return "".join(out)
+# 特征命中率看门狗：缺失率超过该比例即告警，避免命名不匹配导致的全 NaN 静默降级
+_FEATURE_MISSING_WARN_RATIO = 0.5
+
+
+def _snake_to_camel(name: str) -> str:
+    """对齐 predict 入参命名：训练侧特征 schema 是 snake_case，Java 侧请求体是 camelCase。"""
+    parts = name.split("_")
+    if len(parts) == 1:
+        return name
+    head, *tail = parts
+    return head + "".join(part[:1].upper() + part[1:] for part in tail)
+
+
+def _is_missing(value: Any) -> bool:
+    """判断特征值是否缺失（None 或 NaN），供命中率统计使用。"""
+    if value is None:
+        return True
+    try:
+        return bool(pd.isna(value))
+    except (TypeError, ValueError):
+        return False
+
+
+def _warn_low_feature_hit_rate(missing_counts: dict[str, int], sample_count: int) -> None:
+    """统计 rank 模型输入特征的缺失率；超过阈值时记 warning，并列出缺失最多的特征名，
+    防止入参与训练 schema 命名不匹配时静默退化为常量/规则预测。"""
+    if sample_count <= 0 or not missing_counts:
+        return
+    total_cells = sample_count * len(missing_counts)
+    total_missing = sum(missing_counts.values())
+    if total_cells <= 0:
+        return
+    missing_ratio = total_missing / total_cells
+    if missing_ratio <= _FEATURE_MISSING_WARN_RATIO:
+        return
+    worst = sorted(missing_counts.items(), key=lambda kv: kv[1], reverse=True)
+    missing_detail = ", ".join(
+        f"{name}={count * 100 // sample_count}%" for name, count in worst[:5] if count > 0
+    )
+    LOGGER.warning(
+        "[predict] rank 特征缺失率 %.1f%% 超过阈值 %.0f%%（样本 %d，特征 %d 项）；"
+        "缺失最多：%s。疑似 predict 入参与训练 schema 命名不匹配，已继续推理，请检查。",
+        missing_ratio * 100,
+        _FEATURE_MISSING_WARN_RATIO * 100,
+        sample_count,
+        len(missing_counts),
+        missing_detail or "无",
+    )
 
 
 def _resolve_model_version(rank_used: bool, chance_used: bool) -> str:
