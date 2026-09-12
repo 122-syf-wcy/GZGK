@@ -1,3 +1,5 @@
+import complianceTerms from '../../../gzly-server/src/main/resources/compliance-terms.json'
+
 /**
  * 合规常量。
  *
@@ -25,35 +27,15 @@ export const DISCLAIMER_CONFIRM_TEXT =
 /**
  * 客户端本地文案的违禁词自检。
  *
- * 与后端 `SensitiveWordMatcher` 及 `gzly-web/scripts/check-compliance.mjs` 对齐。
+ * 词表为单一事实源：`gzly-server/src/main/resources/compliance-terms.json`，
+ * 由后端 AiService 启动期加载、web/app 构建脚本（check-compliance.mjs）与
+ * 两端 constants 共读同一份文件，禁止在此再维护硬编码词条（只增不删）。
  * 服务端会清洗自己产出的内容，但 App 本地写死的空状态、按钮、推送、应用商店描述
  * 不经过服务端，必须自检。
  */
-export const BANNED_TERMS_HARD = [
-  '录取概率',
-  '上岸概率',
-  '保证录取',
-  '保录',
-  '确保录取',
-  '铁定录取',
-  '包录取',
-  '包上',
-  '稳上',
-  '必上',
-  '必录',
-  '一定能上',
-  '一定录取',
-  '100%录取',
-  '百分百录取',
-  '绝对安全',
-  '没有风险',
-  '零风险',
-  '保证不滑档',
-  '闭眼报',
-  '随便报都能上',
-] as const
+export const BANNED_TERMS_HARD: readonly string[] = complianceTerms.hard
 
-export const BANNED_TERMS_SOFT = ['录取率', '稳了', '命中率', '成功率'] as const
+export const BANNED_TERMS_SOFT: readonly string[] = complianceTerms.soft
 
 /** 正确说法对照，供 UI 文案参考 */
 export const APPROVED_WORDING = {

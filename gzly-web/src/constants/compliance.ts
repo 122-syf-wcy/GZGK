@@ -1,3 +1,9 @@
+/**
+ * 注意：本文件不含违禁词表。合规违禁词为单一事实源
+ * `gzly-server/src/main/resources/compliance-terms.json`，由
+ * `scripts/check-compliance.mjs`（构建门禁）与后端 AiService 共读；
+ * 请勿在此重新维护硬编码词条，避免三端漂移。
+ */
 export const DISCLAIMER_VERSION = '2026-04-27-v1'
 export const DISCLAIMER_UPDATED_AT = '2026年4月27日'
 

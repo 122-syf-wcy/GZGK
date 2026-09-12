@@ -1,25 +1,49 @@
 /**
  * 合规词自检：扫描 src 下所有源码文本，命中违禁词即失败退出。
  *
- * 词表与 `src/constants/compliance.ts` 及后端 SensitiveWordMatcher 同源。
+ * 词表为单一事实源：gzly-server/src/main/resources/compliance-terms.json，
+ * 与 `src/constants/compliance.ts` 及 web 端 check-compliance.mjs 共读同一文件。
  * 服务端会清洗自己产出的内容，但客户端写死的文案（按钮、空态、提示、
  * 商店描述）不经过服务端，必须在构建前拦截。
  *
  * 用法：node scripts/check-compliance.mjs
  */
 import { readdir, readFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import process from 'node:process'
 
-const SRC = path.resolve(process.cwd(), 'src')
+// 以脚本自身位置定位，保证从仓库根或 gzly-app 目录运行结果一致
+const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const SRC = path.join(APP_ROOT, 'src')
 
-/** 与 constants/compliance.ts 的 BANNED_TERMS_HARD 保持一致 */
-const BANNED = [
-  '录取概率', '上岸概率', '保证录取', '保录', '确保录取', '铁定录取',
-  '包录取', '包上', '稳上', '必上', '必录', '一定能上', '一定录取',
-  '100%录取', '百分百录取', '绝对安全', '没有风险', '零风险',
-  '保证不滑档', '闭眼报', '随便报都能上',
-]
+/** 合规违禁词单一事实源：三端共读同一份 JSON，本文件禁止再维护硬编码词条。 */
+const CANONICAL_TERMS_PATH = path.join(
+  APP_ROOT, '..', 'gzly-server', 'src', 'main', 'resources', 'compliance-terms.json',
+)
+
+async function loadCanonicalTerms() {
+  let raw
+  try {
+    raw = (await readFile(CANONICAL_TERMS_PATH, 'utf-8')).replace(/^﻿/, '')
+  } catch (err) {
+    console.error(`[合规][FATAL] 无法读取规范词表 ${CANONICAL_TERMS_PATH}: ${err.message}`)
+    process.exit(1)
+  }
+  let parsed
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err) {
+    console.error(`[合规][FATAL] 规范词表解析失败 ${CANONICAL_TERMS_PATH}: ${err.message}`)
+    process.exit(1)
+  }
+  const hard = Array.isArray(parsed.hard) ? parsed.hard.filter(t => typeof t === 'string' && t.length > 0) : []
+  if (hard.length === 0) {
+    console.error('[合规][FATAL] 规范词表 hard 为空，拒绝以空词表通过合规门禁')
+    process.exit(1)
+  }
+  return hard
+}
 
 /** 词表自身的定义文件不扫，否则永远命中 */
 const EXCLUDE = [path.join('constants', 'compliance.ts')]
@@ -41,6 +65,7 @@ async function collect(dir) {
 }
 
 async function main() {
+  const banned = await loadCanonicalTerms()
   const files = await collect(SRC)
   const hits = []
 
@@ -50,7 +75,7 @@ async function main() {
     const text = await readFile(file, 'utf-8')
     const lines = text.split(/\r?\n/)
     lines.forEach((line, idx) => {
-      for (const term of BANNED) {
+      for (const term of banned) {
         if (line.includes(term)) {
           hits.push({ file: rel, line: idx + 1, term, sample: line.trim().slice(0, 80) })
         }

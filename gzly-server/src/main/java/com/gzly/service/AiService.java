@@ -7,15 +7,19 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.gzly.common.ComplianceConstants;
 import com.gzly.compliance.ComplianceTextGuard;
 import com.gzly.util.ThinkTagStreamSplitter;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.BufferedReader;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -111,14 +115,56 @@ public class AiService {
                     + "5. 优先指出：该保留谁、该删谁、为什么、还要复核什么；必须具体到当前志愿里的院校和专业。";
 
     private static final Pattern AI_NOTICE_PATTERN = Pattern.compile("AI\\s*生成|本内容由\\s*AI\\s*生成");
-    private static final List<String> BANNED_TERMS = List.of(
+
+    /**
+     * 内置兜底词表：仅当 classpath 规范词表 compliance-terms.json 加载失败时使用。
+     * 规范词表是三端单一事实源（gzly-server / gzly-web / gzly-app 共读），加载成功时以其为准。
+     */
+    private static final List<String> DEFAULT_BANNED_TERMS = List.of(
             "内部信息", "内部数据", "保录取", "不滑档", "不脱档", "100%录取",
             "成功率", "录取率", "上榜率", "录取概率", "命中率", "上岸概率",
             "稳上", "必上", "保送", "包过", "稳进"
     );
+
+    /** 规范词表资源路径，与 gzly-web/gzly-app 的 scripts/check-compliance.mjs 共读同一文件。 */
+    private static final String COMPLIANCE_TERMS_RESOURCE = "compliance-terms.json";
+
+    /** 运行期生效的违禁词表，启动时从 classpath:compliance-terms.json 加载；加载失败回退内置兜底词表。 */
+    private List<String> bannedTerms = DEFAULT_BANNED_TERMS;
     private static final String SAFE_AI_FALLBACK =
             "> " + ComplianceConstants.AI_GENERATED_NOTICE + "\n\n"
                     + "AI 解读结果触发了安全复核，系统已停止展示原始输出。请以当前志愿列表、近三年录取记录、官方招生计划、招生章程、专业目录和对应省级考试院信息为准逐条复核。";
+
+    /**
+     * 启动期加载规范违禁词表（classpath:compliance-terms.json）。
+     * 规范词表是合规红线的单一事实源，web/app 两端构建脚本共读同一文件；
+     * 任一端历史独有词条均已并入且只增不删，加载失败时回退内置兜底词表以保证服务可用。
+     */
+    @PostConstruct
+    void loadBannedTerms() {
+        try (InputStream in = new ClassPathResource(COMPLIANCE_TERMS_RESOURCE).getInputStream()) {
+            JsonNode hard = objectMapper.readTree(in).path("hard");
+            if (!hard.isArray()) {
+                log.warn("compliance-terms.json 缺少 hard 数组，使用内置兜底词表");
+                return;
+            }
+            List<String> terms = new ArrayList<>();
+            for (JsonNode node : hard) {
+                String term = node.asText("");
+                if (!term.isBlank()) {
+                    terms.add(term);
+                }
+            }
+            if (terms.isEmpty()) {
+                log.warn("compliance-terms.json 的 hard 词表为空，使用内置兜底词表");
+                return;
+            }
+            bannedTerms = List.copyOf(terms);
+            log.info("已加载合规违禁词表 compliance-terms.json，共 {} 词", bannedTerms.size());
+        } catch (Exception e) {
+            log.warn("加载 compliance-terms.json 失败，使用内置兜底词表: {}", e.getMessage());
+        }
+    }
 
     @lombok.Data
     public static class AdvisorSkillChatMessage {
@@ -494,7 +540,7 @@ public class AiService {
         if (complianceTextGuard != null) {
             return complianceTextGuard.sanitizeText("ai_output", "runtime", output);
         }
-        boolean containsBannedTerm = BANNED_TERMS.stream().anyMatch(output::contains);
+        boolean containsBannedTerm = bannedTerms.stream().anyMatch(output::contains);
         if (containsBannedTerm) {
             log.warn("AI 输出触发安全兜底: containsBannedTerm=true");
             return SAFE_AI_FALLBACK;
