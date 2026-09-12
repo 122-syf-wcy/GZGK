@@ -111,7 +111,7 @@ watch(
   position: fixed;
   inset: 0;
   z-index: 1200;
-  background: rgba(15, 23, 42, 0.48);
+  background: rgba(23, 24, 28, 0.48);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -123,10 +123,10 @@ watch(
   width: min(720px, 100%);
   max-height: min(80vh, 720px);
   overflow: auto;
-  background: #fffdfa;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  border: 1px solid rgba(23, 24, 28, 0.08);
   border-radius: 24px;
-  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 28px 60px rgba(23, 24, 28, 0.18);
   padding: 24px;
 }
 
@@ -138,8 +138,8 @@ watch(
   height: 36px;
   border: none;
   border-radius: 10px;
-  background: #f8fafc;
-  color: #475569;
+  background: #fafaf8;
+  color: #4b4d54;
   cursor: pointer;
 }
 
@@ -153,7 +153,7 @@ watch(
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  background: #0f172a;
+  background: #17181c;
   color: #fff;
   display: flex;
   align-items: center;
@@ -164,7 +164,7 @@ watch(
 .announcement-kicker {
   font-size: 12px;
   font-weight: 800;
-  color: #1d4ed8;
+  color: #17181c;
   letter-spacing: 0.06em;
 }
 
@@ -173,21 +173,21 @@ watch(
   font-size: 24px;
   line-height: 1.25;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .announcement-body {
   margin-top: 18px;
   font-size: 14px;
   line-height: 1.75;
-  color: #334155;
+  color: #383a40;
 }
 
 .announcement-body :deep(h2),
 .announcement-body :deep(h3),
 .announcement-body :deep(h4) {
   margin: 0 0 10px;
-  color: #111827;
+  color: #17181c;
 }
 
 .announcement-body :deep(h2:not(:first-child)),
@@ -212,9 +212,9 @@ watch(
 .announcement-body :deep(blockquote) {
   margin: 12px 0;
   padding: 10px 12px;
-  border-left: 3px solid #1d4ed8;
-  background: #f8fafc;
-  color: #475569;
+  border-left: 3px solid #17181c;
+  background: #fafaf8;
+  color: #4b4d54;
 }
 
 .announcement-actions {
@@ -228,7 +228,7 @@ watch(
   padding: 0 18px;
   border: none;
   border-radius: 12px;
-  background: #0f172a;
+  background: #17181c;
   color: #fff;
   font-size: 14px;
   font-weight: 800;

@@ -92,7 +92,7 @@ function navigateTo(path: string) {
   <!-- Admin Login Gate -->
   <div v-if="!isAuthed" class="admin-login-gate">
     <div class="login-card">
-      <Lock :size="32" style="color: var(--gz-primary, #2563eb); margin-bottom: 16px;" />
+      <Lock :size="32" style="color: var(--gz-primary, #17181c); margin-bottom: 16px;" />
       <h2 style="margin: 0 0 8px; font-size: 20px;">管理后台</h2>
       <p style="color: #6b7280; font-size: 14px; margin: 0 0 20px;">请输入管理密码</p>
       <form @submit.prevent="doAdminLogin" style="width: 100%;">
@@ -102,7 +102,7 @@ function navigateTo(path: string) {
           placeholder="管理密码"
           class="login-input"
         />
-        <p v-if="loginError" style="color: #ef4444; font-size: 13px; margin: 0 0 8px;">{{ loginError }}</p>
+        <p v-if="loginError" style="color: #c04848; font-size: 13px; margin: 0 0 8px;">{{ loginError }}</p>
         <button
           type="submit"
           :disabled="loginLoading || !loginPassword"
@@ -184,8 +184,8 @@ function navigateTo(path: string) {
   background: linear-gradient(180deg, #fbfaf7 0%, #f3efe7 100%);
 }
 .login-card {
-  background: #fffdfa;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  border: 1px solid rgba(23, 24, 28, 0.08);
   border-radius: 20px;
   padding: 40px 32px;
   width: 360px;
@@ -193,7 +193,7 @@ function navigateTo(path: string) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 16px 34px rgba(23, 24, 28, 0.06);
 }
 .login-input {
   width: 100%;
@@ -206,7 +206,7 @@ function navigateTo(path: string) {
   margin-bottom: 12px;
 }
 .login-input:focus {
-  border-color: #2563eb;
+  border-color: #17181c;
 }
 
 .admin-layout {
@@ -228,7 +228,7 @@ function navigateTo(path: string) {
   background: rgba(255, 253, 250, 0.94);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-bottom: 1px solid rgba(23, 24, 28, 0.08);
 }
 
 .menu-toggle {
@@ -272,8 +272,8 @@ function navigateTo(path: string) {
   z-index: 200;
   display: flex;
   flex-direction: column;
-  background: #fffdfa;
-  border-right: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  border-right: 1px solid rgba(23, 24, 28, 0.08);
   transform: translateX(-100%);
   transition: transform var(--gz-transition-normal);
 }
@@ -287,14 +287,14 @@ function navigateTo(path: string) {
   align-items: center;
   gap: var(--gz-space-3);
   padding: var(--gz-space-5) var(--gz-space-4);
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-bottom: 1px solid rgba(23, 24, 28, 0.08);
 }
 
 .brand-icon {
   width: 40px;
   height: 40px;
   border-radius: var(--gz-radius-md);
-  background: #0f172a;
+  background: #17181c;
   color: #fff;
   display: flex;
   align-items: center;
@@ -372,20 +372,20 @@ function navigateTo(path: string) {
 }
 
 .nav-item:hover {
-  background: rgba(15, 23, 42, 0.04);
+  background: rgba(23, 24, 28, 0.04);
   color: var(--gz-text-primary);
 }
 
 .nav-item.active {
   background: #f5f7fb;
-  color: #0f172a;
+  color: #17181c;
   font-weight: 700;
-  box-shadow: inset 3px 0 0 #1d4ed8;
+  box-shadow: inset 3px 0 0 #17181c;
 }
 
 .sidebar-footer {
   padding: var(--gz-space-3);
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-top: 1px solid rgba(23, 24, 28, 0.08);
 }
 
 .nav-item--logout {
@@ -394,7 +394,7 @@ function navigateTo(path: string) {
 
 .nav-item--logout:hover {
   color: var(--gz-danger);
-  background: rgba(239, 68, 68, 0.06);
+  background: rgba(192, 72, 72, 0.06);
 }
 
 /* ---- Main Content ---- */

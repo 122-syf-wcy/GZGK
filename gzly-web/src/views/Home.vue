@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { submitFeedback } from '@/api/feedback'
 import { PROVINCE_LIST, type ProvinceConfig } from '@/constants/provinces'
 import OnlineCounter from '@/components/OnlineCounter.vue'
+import OnboardingGuide from '@/components/OnboardingGuide.vue'
 import { showSuccessToast, showToast } from 'vant'
 import {
   ArrowRight,
@@ -11,7 +12,9 @@ import {
   Building2,
   CheckCircle2,
   Clock3,
+  FolderOpen,
   GraduationCap,
+  HeartHandshake,
   MessageSquare,
   ShieldAlert,
   Table2,
@@ -34,6 +37,33 @@ const moduleLinks = [
   { label: '分数线查询', path: '/score-line', icon: Table2 },
   { label: '特长生专区', path: '/special-admissions', icon: BookOpenCheck },
 ] as const
+
+/** 首页核心能力导航：AI 志愿依赖省份上下文，点击滚动到省份选择区。img 缺失时回退线性图标。 */
+type FeatureLink = {
+  key: string
+  label: string
+  desc: string
+  icon: typeof GraduationCap
+  img: string
+  path?: string
+}
+
+const featureLinks: FeatureLink[] = [
+  { key: 'volunteer', label: 'AI 志愿', desc: '96/45 平行志愿草稿', icon: GraduationCap, img: '/icons/volunteer.png' },
+  { key: 'university', label: '院校查询', desc: '2198 所院校档案', icon: Building2, img: '/icons/university.png', path: '/university' },
+  { key: 'scoreline', label: '分数线', desc: '历年投档位次', icon: Table2, img: '/icons/scoreline.png', path: '/score-line' },
+  { key: 'special', label: '特长生', desc: '强基/艺体/专项', icon: BookOpenCheck, img: '/icons/special.png', path: '/special-admissions' },
+  { key: 'encourage', label: '加油墙', desc: '考生互相打气', icon: HeartHandshake, img: '/icons/encourage.png', path: '/encouragement' },
+  { key: 'myplans', label: '我的方案', desc: '找回历史志愿表', icon: FolderOpen, img: '/icons/myplans.png', path: '/my-plans' },
+]
+
+function onFeatureClick(item: FeatureLink): void {
+  if (item.path) {
+    router.push(item.path)
+    return
+  }
+  document.querySelector('.province-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 function provinceRoute(province: ProvinceConfig): { path: string; query: ProvinceConfig['routeQuery'] } {
   return {
@@ -85,19 +115,38 @@ async function submitFeedbackForm(): Promise<void> {
 
 <template>
   <div class="home-page">
+    <OnboardingGuide />
     <section class="home-hero">
       <div class="home-hero__inner">
-        <div class="home-hero__top">
-          <div class="home-hero__badge">
-            <ShieldAlert :size="14" />
-            公益高考志愿辅助
+        <nav class="home-hero__nav">
+          <span class="home-hero__wordmark">志愿辅助</span>
+          <div class="home-hero__nav-actions">
+            <OnlineCounter class="home-hero__online" />
+            <button
+              class="home-hero__nav-btn"
+              type="button"
+              data-testid="home-my-plans-entry"
+              @click="router.push('/my-plans')"
+            >
+              我的方案
+            </button>
           </div>
-          <OnlineCounter class="home-hero__online" />
+        </nav>
+
+        <div class="home-hero__center">
+          <span class="home-hero__eyebrow">公益 · 免费 · 不代替官方</span>
+          <h1 class="home-hero__title">把每一分，<br />都填在最合适的地方。</h1>
+          <p class="home-hero__desc">
+            基于官方一分一段与历年投档数据，为新高考考生整理 96/45 个平行志愿参考草稿。
+          </p>
+          <div class="home-hero__cta-row">
+            <button type="button" class="home-hero__cta" @click="onFeatureClick(featureLinks[0])">
+              选择省份，开始填报
+              <ArrowRight :size="15" />
+            </button>
+          </div>
         </div>
-        <h1 class="home-hero__title">选择省份，进入 AI 志愿工作台</h1>
-        <p class="home-hero__desc">
-          当前为 2026 官方数据待发布阶段，系统基于 2024/2025 历史数据提供预估参考。AI 志愿、院校查询、分数线查询、特长生专区和政策/数据状态统一从省份工作台进入。
-        </p>
+
         <div class="home-hero__metrics" aria-label="地区入口状态">
           <div class="home-hero__metric">
             <strong>{{ PROVINCE_LIST.length }}</strong>
@@ -105,17 +154,35 @@ async function submitFeedbackForm(): Promise<void> {
           </div>
           <div class="home-hero__metric">
             <strong>{{ openCount }}</strong>
-            <span>个工作台入口</span>
+            <span>个工作台开放</span>
           </div>
           <div class="home-hero__metric">
-            <strong>0</strong>
-            <span>套重复页面</span>
+            <strong>2198</strong>
+            <span>所院校档案</span>
           </div>
         </div>
       </div>
     </section>
 
     <main class="page-container home-main">
+      <section class="feature-grid" aria-label="核心功能">
+        <button
+          v-for="feature in featureLinks"
+          :key="feature.key"
+          type="button"
+          class="feature-card"
+          :data-testid="`home-feature-${feature.key}`"
+          @click="onFeatureClick(feature)"
+        >
+          <span class="feature-card__icon" :class="{ 'has-img': feature.img }">
+            <img v-if="feature.img" :src="feature.img" :alt="''" loading="lazy" />
+            <component :is="feature.icon" v-else :size="21" :stroke-width="1.6" />
+          </span>
+          <strong class="feature-card__label">{{ feature.label }}</strong>
+          <span class="feature-card__desc">{{ feature.desc }}</span>
+        </button>
+      </section>
+
       <section class="province-grid" aria-label="地区选择">
         <article
           v-for="province in PROVINCE_LIST"
@@ -153,7 +220,7 @@ async function submitFeedbackForm(): Promise<void> {
               class="province-card__module"
               :data-testid="`province-card-${province.code}-${module.label}`"
             >
-              <component :is="module.icon" :size="13" />
+              <component :is="module.icon" :size="13" :stroke-width="1.8" />
               {{ module.label }}
             </router-link>
           </span>
@@ -192,13 +259,13 @@ async function submitFeedbackForm(): Promise<void> {
       position="bottom"
       round
       :close-on-click-overlay="!feedbackSubmitting"
-      :style="{ maxHeight: '82%', background: '#fffdfa' }"
+      :style="{ maxHeight: '82%', background: '#ffffff' }"
       @closed="feedbackContent = ''"
     >
       <div class="feedback-popup">
         <div class="feedback-popup__head">
           <div>
-            <div class="feedback-popup__kicker">public beta</div>
+            <div class="feedback-popup__kicker">公测期</div>
             <h3 class="feedback-popup__title">公测意见反馈</h3>
             <p class="feedback-popup__desc">如果你发现问题、体验不顺或有建议，欢迎直接留言。</p>
           </div>
@@ -243,108 +310,261 @@ async function submitFeedbackForm(): Promise<void> {
 
 .home-hero {
   position: relative;
-  padding: 64px 20px 52px;
+  display: flex;
+  min-height: 72vh;
+  padding: 14px 18px 46px;
   color: #ffffff;
   background:
-    linear-gradient(135deg, rgba(15, 23, 42, 0.82) 0%, rgba(29, 78, 216, 0.7) 100%),
-    url('/hero-bg.png') center/cover no-repeat;
-}
-
-.home-hero::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 48px;
-  background: linear-gradient(180deg, rgba(245, 243, 238, 0), var(--gz-bg));
+    linear-gradient(180deg, rgba(12, 16, 14, 0.38) 0%, rgba(12, 16, 14, 0.06) 30%, rgba(12, 16, 14, 0.1) 62%, rgba(12, 16, 14, 0.52) 100%),
+    url('/icons/hero-landscape.png') center 58% / cover no-repeat #29302b;
 }
 
 .home-hero__inner {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  max-width: 1080px;
+  max-width: 1120px;
   margin: 0 auto;
 }
 
-.home-hero__top {
+.home-hero__nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
 }
 
-.home-hero__badge {
+.home-hero__wordmark {
+  font-family: var(--gz-font-display);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-shadow: 0 1px 12px rgba(12, 16, 14, 0.4);
+}
+
+.home-hero__nav-actions {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 34px;
-  padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 999px;
-  background: rgba(255, 253, 250, 0.14);
-  font-size: 13px;
-  font-weight: 700;
 }
 
 .home-hero__online {
-  background: rgba(255, 255, 255, 0.92);
-  color: #0f172a;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.18);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fff;
+  backdrop-filter: blur(8px);
+}
+
+.home-hero__nav-btn {
+  min-height: 34px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.home-hero__nav-btn:hover,
+.home-hero__nav-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.home-hero__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin: auto 0;
+  padding: 64px 0 48px;
+}
+
+.home-hero__eyebrow {
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
 }
 
 .home-hero__title {
-  max-width: 760px;
   margin-top: 22px;
-  font-size: clamp(34px, 8vw, 60px);
-  line-height: 1.08;
-  font-weight: 850;
-  letter-spacing: -0.04em;
+  font-family: var(--gz-font-display);
+  font-size: clamp(32px, 7vw, 58px);
+  line-height: 1.22;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 22px rgba(12, 16, 14, 0.45);
 }
 
 .home-hero__desc {
-  max-width: 620px;
+  max-width: 520px;
   margin-top: 16px;
-  font-size: 15px;
-  line-height: 1.8;
-  color: rgba(255, 255, 255, 0.88);
+  font-size: 14px;
+  line-height: 1.9;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 10px rgba(12, 16, 14, 0.4);
+}
+
+.home-hero__cta-row {
+  margin-top: 26px;
+}
+
+.home-hero__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 26px;
+  border: none;
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--gz-ink);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(12, 16, 14, 0.32);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.home-hero__cta:hover,
+.home-hero__cta:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 34px rgba(12, 16, 14, 0.4);
 }
 
 .home-hero__metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  max-width: 560px;
-  margin-top: 28px;
+  gap: 8px;
+  max-width: 520px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .home-hero__metric {
   min-width: 0;
-  padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.12);
+  padding: 12px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 14px;
+  background: rgba(12, 16, 14, 0.28);
+  backdrop-filter: blur(10px);
+  text-align: center;
 }
 
 .home-hero__metric strong {
   display: block;
-  font-size: 26px;
+  font-size: 22px;
   line-height: 1;
-  font-weight: 850;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .home-hero__metric span {
   display: block;
-  margin-top: 7px;
-  font-size: 12px;
+  margin-top: 6px;
+  font-size: 11px;
   line-height: 1.4;
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: 0.06em;
 }
 
 .home-main {
   padding-top: 10px;
+}
+
+/* ---- 核心功能导航：黑白细线卡 ---- */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.feature-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 16px 8px 14px;
+  border: 1px solid var(--gz-card-border);
+  border-radius: var(--gz-radius-md);
+  background: var(--gz-card-bg);
+  box-shadow: var(--gz-card-shadow);
+  cursor: pointer;
+  transition: transform var(--gz-transition-normal), box-shadow var(--gz-transition-normal), border-color var(--gz-transition-normal);
+}
+
+.feature-card:hover,
+.feature-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(23, 24, 28, 0.32);
+  box-shadow: var(--gz-card-shadow-hover);
+}
+
+.feature-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(23, 24, 28, 0.14);
+  border-radius: 999px;
+  background: var(--gz-bg-subtle);
+  color: var(--gz-ink);
+  overflow: hidden;
+}
+
+.feature-card__icon.has-img {
+  width: 56px;
+  height: 56px;
+  border: none;
+  background: transparent;
+}
+
+.feature-card__icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 999px;
+  transform: scale(1.02);
+}
+
+.feature-card__label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gz-text-primary);
+}
+
+.feature-card__desc {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--gz-text-tertiary);
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .feature-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .feature-card__label {
+    font-size: 14px;
+  }
+
+  .feature-card__desc {
+    font-size: 11px;
+  }
 }
 
 .province-grid {
@@ -363,16 +583,16 @@ async function submitFeedbackForm(): Promise<void> {
   color: inherit;
   text-decoration: none;
   cursor: pointer;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(23, 24, 28, 0.08);
 }
 
 .province-card:focus-visible {
-  outline: 3px solid rgba(29, 78, 216, 0.32);
+  outline: 3px solid rgba(23, 24, 28, 0.3);
   outline-offset: 3px;
 }
 
 .province-card.is-preparing {
-  background: linear-gradient(180deg, rgba(255, 253, 250, 0.98), rgba(255, 251, 235, 0.94));
+  background: var(--gz-bg-subtle);
 }
 
 .province-card__status {
@@ -380,58 +600,71 @@ async function submitFeedbackForm(): Promise<void> {
   align-items: center;
   gap: 6px;
   min-height: 30px;
-  padding: 0 10px;
+  padding: 0 11px;
   border-radius: 999px;
-  background: #ecfdf5;
-  color: #047857;
+  border: 1px solid rgba(23, 24, 28, 0.12);
+  background: #ffffff;
+  color: var(--gz-ink-soft);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
+}
+
+.province-card__status svg {
+  color: var(--gz-success);
 }
 
 .province-card__data-status {
   display: inline-flex;
   align-items: center;
+  gap: 7px;
   min-height: 28px;
   margin-top: 10px;
-  padding: 0 10px;
+  padding: 0 11px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border: 1px solid rgba(23, 24, 28, 0.1);
+  background: var(--gz-bg-subtle);
+  color: var(--gz-text-secondary);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
-.province-card__data-status.is-green,
-.province-card__data-status.is-blue {
-  background: #ecfdf5;
-  color: #047857;
+.province-card__data-status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--gz-text-tertiary);
 }
 
-.province-card__data-status.is-amber,
-.province-card__data-status.is-red {
-  background: #fffbeb;
-  color: #92400e;
+.province-card__data-status.is-green::before,
+.province-card__data-status.is-blue::before {
+  background: var(--gz-success);
 }
 
-.province-card.is-preparing .province-card__status {
-  background: #fffbeb;
-  color: #92400e;
+.province-card__data-status.is-amber::before,
+.province-card__data-status.is-red::before {
+  background: var(--gz-warning-yellow);
+}
+
+.province-card.is-preparing .province-card__status svg {
+  color: var(--gz-warning-yellow);
 }
 
 .province-card__title {
   margin-top: 14px;
+  font-family: var(--gz-font-display);
   font-size: 24px;
   line-height: 1.15;
-  font-weight: 850;
-  letter-spacing: -0.03em;
-  color: #0f172a;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--gz-ink);
 }
 
 .province-card__desc {
   margin-top: 10px;
   font-size: 14px;
   line-height: 1.65;
-  color: #475569;
+  color: #4b4d54;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -451,9 +684,9 @@ async function submitFeedbackForm(): Promise<void> {
   min-height: 30px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: #f8fafc;
-  color: #475569;
+  border: 1px solid rgba(23, 24, 28, 0.08);
+  background: #fafaf8;
+  color: #4b4d54;
   font-size: 12px;
   font-weight: 700;
 }
@@ -471,21 +704,21 @@ async function submitFeedbackForm(): Promise<void> {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 36px;
+  min-height: 38px;
   padding: 0 10px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 12px;
-  background: #fffdfa;
-  color: #334155;
+  border: 1px solid var(--gz-card-border);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--gz-ink-soft);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   text-decoration: none;
 }
 
 .province-card__module:hover,
 .province-card__module:focus-visible {
-  border-color: rgba(29, 78, 216, 0.22);
-  color: #1d4ed8;
+  border-color: rgba(23, 24, 28, 0.4);
+  color: var(--gz-ink);
   outline: none;
 }
 
@@ -497,7 +730,7 @@ async function submitFeedbackForm(): Promise<void> {
   margin-top: auto;
   padding: 0 16px;
   border-radius: 12px;
-  background: #0f172a;
+  background: #17181c;
   color: #ffffff;
   font-size: 14px;
   font-weight: 800;
@@ -513,21 +746,21 @@ async function submitFeedbackForm(): Promise<void> {
 .home-notice svg {
   flex-shrink: 0;
   margin-top: 3px;
-  color: #92400e;
+  color: #7c5f33;
 }
 
 .home-notice h2 {
   margin: 0;
   font-size: 18px;
   line-height: 1.25;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .home-notice p {
   margin-top: 6px;
   font-size: 13px;
   line-height: 1.75;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .home-footer {
@@ -572,7 +805,7 @@ async function submitFeedbackForm(): Promise<void> {
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.06em;
-  color: #1d4ed8;
+  color: var(--gz-text-tertiary);
   text-transform: uppercase;
 }
 
@@ -581,14 +814,14 @@ async function submitFeedbackForm(): Promise<void> {
   font-size: 22px;
   line-height: 1.2;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .feedback-popup__desc {
   margin-top: 8px;
   font-size: 13px;
   line-height: 1.7;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .feedback-popup__close {
@@ -596,8 +829,8 @@ async function submitFeedbackForm(): Promise<void> {
   height: 36px;
   border: none;
   border-radius: 10px;
-  background: #f8fafc;
-  color: #475569;
+  background: #fafaf8;
+  color: #4b4d54;
   flex-shrink: 0;
 }
 
@@ -609,19 +842,19 @@ async function submitFeedbackForm(): Promise<void> {
   width: 100%;
   min-height: 170px;
   padding: 14px 16px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(23, 24, 28, 0.12);
   border-radius: 16px;
   background: #fff;
   font-size: 14px;
   line-height: 1.7;
-  color: #0f172a;
+  color: #17181c;
   resize: vertical;
   outline: none;
 }
 
 .feedback-popup__textarea:focus {
-  border-color: rgba(29, 78, 216, 0.35);
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.08);
+  border-color: rgba(23, 24, 28, 0.4);
+  box-shadow: 0 0 0 3px rgba(23, 24, 28, 0.06);
 }
 
 .feedback-popup__meta {
@@ -630,11 +863,11 @@ async function submitFeedbackForm(): Promise<void> {
   justify-content: space-between;
   gap: 12px;
   font-size: 12px;
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .feedback-popup__meta .is-danger {
-  color: #dc2626;
+  color: #b34040;
 }
 
 .feedback-popup__actions {
@@ -653,12 +886,12 @@ async function submitFeedbackForm(): Promise<void> {
 }
 
 .feedback-popup__btn--ghost {
-  background: #f8fafc;
-  color: #334155;
+  background: #fafaf8;
+  color: #383a40;
 }
 
 .feedback-popup__btn--primary {
-  background: #0f172a;
+  background: #17181c;
   color: #fff;
 }
 

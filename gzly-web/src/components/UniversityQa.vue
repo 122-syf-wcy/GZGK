@@ -218,7 +218,7 @@ onMounted(() => {
   gap: 6px;
   font-size: 16px;
   font-weight: 700;
-  color: #111827;
+  color: #17181c;
 }
 
 .qa-count {
@@ -229,10 +229,10 @@ onMounted(() => {
 
 .ask-btn {
   padding: 6px 14px;
-  border: 1px solid #2563eb;
+  border: 1px solid #17181c;
   border-radius: 20px;
   background: #fff;
-  color: #2563eb;
+  color: #17181c;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -240,15 +240,15 @@ onMounted(() => {
 }
 
 .ask-btn:active {
-  background: #2563eb;
+  background: #17181c;
   color: #fff;
 }
 
 .ask-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  color: #94a3b8;
-  border-color: #cbd5e1;
+  color: #97999e;
+  border-color: #cdccc7;
 }
 
 .qa-alert {
@@ -258,9 +258,9 @@ onMounted(() => {
   padding: 10px 12px;
   margin-bottom: 12px;
   border-radius: 10px;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  color: #92400e;
+  background: #faf7ef;
+  border: 1px solid #e6dcbd;
+  color: #7c5f33;
   font-size: 12px;
   line-height: 1.6;
 }
@@ -300,8 +300,8 @@ onMounted(() => {
   border-radius: 4px;
   font-size: 10px;
   font-weight: 500;
-  background: #eff6ff;
-  color: #2563eb;
+  background: #f4f4f2;
+  color: #17181c;
 }
 
 .qa-badge--alumni {
@@ -344,12 +344,12 @@ onMounted(() => {
 }
 
 .qa-action-btn:active {
-  color: #2563eb;
+  color: #17181c;
 }
 
 .qa-answer-tip {
   font-size: 12px;
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .qa-answers {
@@ -382,7 +382,7 @@ onMounted(() => {
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 14px;
-  color: #111827;
+  color: #17181c;
   background: #fff;
   outline: none;
   transition: border-color 0.15s;
@@ -390,7 +390,7 @@ onMounted(() => {
 }
 
 .qa-input:focus {
-  border-color: #2563eb;
+  border-color: #17181c;
 }
 
 .qa-input--name {
@@ -426,7 +426,7 @@ onMounted(() => {
   padding: 6px 16px;
   border: none;
   border-radius: 8px;
-  background: #2563eb;
+  background: #17181c;
   color: #fff;
   font-size: 13px;
   font-weight: 500;
@@ -480,7 +480,7 @@ onMounted(() => {
 .qa-dialog-title {
   font-size: 16px;
   font-weight: 700;
-  color: #111827;
+  color: #17181c;
   margin: 0;
 }
 

@@ -26,6 +26,8 @@ import {
   Search,
 } from 'lucide-vue-next'
 
+defineOptions({ name: 'ScoreLineQuery' })
+
 const router = useRouter()
 const route = useRoute()
 
@@ -300,9 +302,9 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
     </header>
 
     <main class="gz-shell-main score-main">
-      <section class="gz-shell-hero score-hero">
+      <section class="gz-shell-hero gz-shell-hero--photo score-hero" style="--gz-hero-photo-y: 12%">
         <div class="score-hero__copy">
-          <span class="gz-shell-kicker">score line workspace</span>
+          <span class="gz-shell-kicker">历年分数线</span>
           <h1 class="gz-shell-hero-title">{{ currentProvince.name }}分数线工作台</h1>
           <p class="gz-shell-hero-desc">
             {{ currentProvince.scorelineSummary }} 当前为 2026 官方数据待发布阶段，只展示已导入且可核验的历史数据；缺少官方源的类型会保留入口和缺口说明。
@@ -310,7 +312,7 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
           <div class="gz-shell-chip-row score-hero__filters">
             <span class="gz-shell-chip is-soft-active">{{ currentProvince.scorelineStatusLabel }}</span>
             <span class="gz-shell-chip is-soft-active">最新官方数据年 {{ capability?.latestOfficialDataYear || 2025 }}</span>
-            <span class="gz-shell-chip is-soft-active">targetYear=2026 仅展示</span>
+            <span class="gz-shell-chip is-soft-active">面向 2026 届</span>
             <span v-if="isHi" class="gz-shell-chip is-soft-active">3+3 综合改革</span>
             <span v-if="isFirstYear" class="gz-shell-chip is-soft-active">2025 首年新高考</span>
           </div>
@@ -364,7 +366,7 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
         </div>
 
         <div v-if="loadingCapability" class="score-state score-state--compact">
-          <van-loading size="22" color="#0f172a" />
+          <van-loading size="22" color="#17181c" />
           <span>正在读取分数线能力…</span>
         </div>
 
@@ -473,7 +475,7 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
             </div>
 
             <div v-if="loadingRows" class="score-state gz-shell-panel">
-              <van-loading size="24" color="#0f172a" />
+              <van-loading size="24" color="#17181c" />
               <span>正在加载分数线数据…</span>
             </div>
 
@@ -685,14 +687,14 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
 
 .score-status-pill.is-green,
 .score-status-pill.is-blue {
-  color: #047857;
-  background: #ecfdf5;
+  color: #2f6650;
+  background: #eef2ee;
 }
 
 .score-status-pill.is-amber,
 .score-status-pill.is-red {
-  color: #92400e;
-  background: #fffbeb;
+  color: #7c5f33;
+  background: #faf7ef;
 }
 
 .score-province-row {
@@ -710,27 +712,27 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   align-items: flex-start;
   min-height: 50px;
   padding: 9px 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
   border-radius: 8px;
   background: #fff;
-  color: #334155;
+  color: #383a40;
   text-align: left;
 }
 
 .score-province-chip span {
   font-size: 14px;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .score-province-chip small {
   font-size: 11px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .score-province-chip.is-active {
-  border-color: #2563eb;
-  background: #eff6ff;
+  border-color: #17181c;
+  background: #f4f4f2;
 }
 
 .score-capability-grid {
@@ -746,17 +748,17 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   flex-direction: column;
   gap: 8px;
   align-items: flex-start;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
   border-radius: 8px;
   background: #fff;
-  color: #334155;
+  color: #383a40;
   text-align: left;
 }
 
 .score-capability-card.is-active {
-  border-color: #2563eb;
+  border-color: #17181c;
   background: #f8fbff;
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(23, 24, 28, 0.08);
 }
 
 .score-capability-card__status {
@@ -765,27 +767,27 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  background: #f1f5f9;
-  color: #475569;
+  background: #f2f2ef;
+  color: #4b4d54;
   font-size: 11px;
   font-weight: 800;
 }
 
 .score-capability-card.is-available .score-capability-card__status,
 .score-capability-card.is-partial .score-capability-card__status {
-  background: #ecfdf5;
-  color: #047857;
+  background: #eef2ee;
+  color: #2f6650;
 }
 
 .score-capability-card.is-missing .score-capability-card__status {
-  background: #fffbeb;
-  color: #92400e;
+  background: #faf7ef;
+  color: #7c5f33;
 }
 
 .score-capability-card strong {
   font-size: 16px;
   line-height: 1.25;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .score-capability-card small {
@@ -795,7 +797,7 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   overflow: hidden;
   font-size: 12px;
   line-height: 1.55;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .score-content-grid {
@@ -828,7 +830,7 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
 .score-filter-label {
   display: block;
   margin-bottom: 8px;
-  color: #475569;
+  color: #4b4d54;
   font-size: 13px;
   font-weight: 800;
 }
@@ -839,8 +841,8 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   gap: 6px;
   padding: 5px;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border: 1px solid #e3e2de;
+  background: #fafaf8;
 }
 
 .score-segment__btn {
@@ -848,15 +850,15 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #475569;
+  color: #4b4d54;
   font-size: 13px;
   font-weight: 700;
 }
 
 .score-segment__btn.is-active {
   background: #fff;
-  color: #0f172a;
-  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.05);
+  color: #17181c;
+  box-shadow: 0 3px 10px rgba(23, 24, 28, 0.05);
 }
 
 .score-subject-grid {
@@ -869,22 +871,22 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   min-height: 36px;
   padding: 0 12px;
   border-radius: 6px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
   background: #fff;
-  color: #334155;
+  color: #383a40;
   font-size: 13px;
   font-weight: 700;
 }
 
 .score-subject-chip.is-active {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: #17181c;
+  background: #f4f4f2;
+  color: #17181c;
 }
 
 .score-filter-note {
   margin-top: 8px;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 12px;
   line-height: 1.6;
 }
@@ -896,12 +898,12 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   min-height: 40px;
   padding: 0 12px;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
   background: #fff;
 }
 
 .score-search-field__icon {
-  color: #94a3b8;
+  color: #97999e;
   flex-shrink: 0;
 }
 
@@ -911,7 +913,7 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #0f172a;
+  color: #17181c;
   font-size: 14px;
 }
 
@@ -929,13 +931,13 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
 .score-results-head__title {
   font-size: 18px;
   line-height: 1.2;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .score-results-head__desc,
 .score-results-head__meta,
 .score-pagination__text {
-  color: #64748b;
+  color: #6a6c72;
   font-size: 13px;
   line-height: 1.65;
 }
@@ -947,7 +949,7 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .score-state--compact {
@@ -958,13 +960,13 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   display: flex;
   gap: 12px;
   padding: 18px;
-  border-color: #fde68a;
-  background: #fffbeb;
+  border-color: #e6dcbd;
+  background: #faf7ef;
 }
 
 .score-gap-card svg {
   flex-shrink: 0;
-  color: #92400e;
+  color: #7c5f33;
   margin-top: 2px;
 }
 
@@ -973,7 +975,7 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
 .score-notice-card h2,
 .score-gap-summary-card h2 {
   margin: 0;
-  color: #0f172a;
+  color: #17181c;
   font-size: 17px;
   line-height: 1.3;
 }
@@ -981,7 +983,7 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
 .score-gap-card p,
 .score-status-card p {
   margin-top: 8px;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 13px;
   line-height: 1.7;
 }
@@ -994,7 +996,7 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
 .score-gap-card summary,
 .score-gap-summary-card summary {
   cursor: pointer;
-  color: #334155;
+  color: #383a40;
   font-size: 13px;
   font-weight: 800;
 }
@@ -1012,17 +1014,17 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   align-items: center;
   padding: 0 9px;
   border-radius: 999px;
-  border: 1px solid #fde68a;
+  border: 1px solid #e6dcbd;
   background: #fff7ed;
-  color: #92400e;
+  color: #7c5f33;
   font-size: 12px;
   font-weight: 700;
 }
 
 .score-gap-list--ok span {
   border-color: #bbf7d0;
-  background: #ecfdf5;
-  color: #047857;
+  background: #eef2ee;
+  color: #2f6650;
 }
 
 .score-table-panel {
@@ -1050,29 +1052,29 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   vertical-align: top;
   font-size: 13px;
   line-height: 1.5;
-  color: #334155;
+  color: #383a40;
 }
 
 .score-table th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #f8fafc;
-  color: #64748b;
+  background: #fafaf8;
+  color: #6a6c72;
   font-size: 12px;
   font-weight: 800;
 }
 
 .score-table td strong {
   display: block;
-  color: #0f172a;
+  color: #17181c;
   font-size: 14px;
 }
 
 .score-table td small {
   display: block;
   margin-top: 3px;
-  color: #94a3b8;
+  color: #97999e;
   font-size: 12px;
 }
 
@@ -1083,10 +1085,10 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   max-width: 190px;
   min-height: 30px;
   padding: 0 8px;
-  border: 1px solid #dbeafe;
+  border: 1px solid #e7e6e1;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #f4f4f2;
+  color: #17181c;
   font-size: 12px;
   font-weight: 700;
   overflow: hidden;
@@ -1095,7 +1097,7 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
 }
 
 .source-row td {
-  background: #f8fafc;
+  background: #fafaf8;
 }
 
 .source-detail {
@@ -1107,12 +1109,12 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   display: grid;
   grid-template-columns: 90px minmax(0, 1fr);
   gap: 8px;
-  color: #475569;
+  color: #4b4d54;
   word-break: break-all;
 }
 
 .source-detail b {
-  color: #0f172a;
+  color: #17181c;
 }
 
 .score-pagination {
@@ -1138,8 +1140,8 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #f4f4f2;
+  color: #17181c;
 }
 
 .score-mini-grid {
@@ -1155,8 +1157,8 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   align-items: center;
   padding: 0 9px;
   border-radius: 999px;
-  background: #f1f5f9;
-  color: #475569;
+  background: #f2f2ef;
+  color: #4b4d54;
   font-size: 12px;
   font-weight: 700;
 }
@@ -1171,7 +1173,7 @@ function toggleSource(row: ScoreLineQueryRow, index: number): void {
   gap: 8px;
   margin: 12px 0 0;
   padding-left: 18px;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 13px;
   line-height: 1.65;
 }

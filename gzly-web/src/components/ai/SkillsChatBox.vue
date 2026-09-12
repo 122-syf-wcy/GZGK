@@ -5,7 +5,7 @@
     </button>
   </div>
 
-  <div class="zxf-chat-window" aria-live="polite">
+  <div ref="chatWindow" class="zxf-chat-window" aria-live="polite">
     <div v-if="!messages.length" class="zxf-chat-empty">
       <Bot :size="18" />
       <span>可以直接追问“哪些冲档值得留”“就业优先怎么排”“哪些专业需要避坑”。</span>
@@ -17,11 +17,38 @@
       :class="`is-${message.role}`"
     >
       <span class="zxf-chat-message__role">{{ message.role === 'user' ? '我' : 'skills' }}</span>
-      <div class="markdown-body zxf-chat-message__body" v-html="render(message.content)"></div>
+      <div class="zxf-chat-message__stack">
+        <div v-if="message.steps?.length" class="zxf-steps">
+          <div v-for="(step, si) in message.steps" :key="`step-${index}-${si}`" class="zxf-steps__item">
+            <span v-if="step.status === 'done'" class="zxf-steps__mark is-done"><Check :size="11" /></span>
+            <span v-else class="zxf-steps__mark is-running"></span>
+            <span class="zxf-steps__label">{{ step.label }}</span>
+          </div>
+        </div>
+        <details v-if="message.thinking" class="zxf-thinking-fold" :open="message.streaming && !message.content">
+          <summary>{{ message.streaming && !message.content ? '正在深度思考…' : '已深度思考，点击展开' }}</summary>
+          <div class="zxf-thinking-fold__body">{{ message.thinking }}</div>
+        </details>
+        <div v-if="message.content || message.role === 'user' || !hasProgress(message)" class="markdown-body zxf-chat-message__body">
+          <span v-html="render(message.content)"></span>
+          <span
+            v-if="(message.streaming || (typing && index === messages.length - 1)) && message.role === 'assistant' && message.content"
+            class="typewriter-cursor"
+          ></span>
+          <span
+            v-if="message.role === 'assistant' && message.streaming && !message.content && !hasProgress(message)"
+            class="zxf-thinking-live__dots"
+            aria-hidden="true"
+          ><i></i><i></i><i></i></span>
+        </div>
+      </div>
     </div>
-    <div v-if="loading" class="zxf-chat-loading">
-      <span class="status-dot status-dot--active"></span>
-      正在读取 skills 并结合当前方案分析...
+    <div v-if="loading" class="zxf-chat-message is-assistant">
+      <span class="zxf-chat-message__role">skills</span>
+      <div class="zxf-chat-message__body zxf-thinking-live">
+        <span class="zxf-thinking-live__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>{{ thinkingPhase }} {{ thinkingSeconds }}s</span>
+      </div>
     </div>
   </div>
 
@@ -44,23 +71,81 @@
 </template>
 
 <script setup lang="ts">
-import { Bot, SendHorizonal } from 'lucide-vue-next'
+import { onBeforeUnmount, ref, watch } from 'vue'
+import { Bot, Check, SendHorizonal } from 'lucide-vue-next'
 import type { ZxfSkillChatMessage } from '@/api/volunteer'
 
-defineProps<{
+/** 消息是否已有过程性内容（步骤/思考），有则不显示空白气泡的等待动画。 */
+function hasProgress(message: ZxfSkillChatMessage): boolean {
+  return Boolean(message.steps?.length || message.thinking)
+}
+
+const props = withDefaults(defineProps<{
   modelValue: string
   suggestions: string[]
   messages: ZxfSkillChatMessage[]
   loading: boolean
+  /** 回复正在打字机渐显中 */
+  typing?: boolean
   error: string
   render: (markdown: string) => string
-}>()
+}>(), {
+  typing: false,
+})
 
 defineEmits<{
   'update:modelValue': [value: string]
   pick: [value: string]
   send: []
 }>()
+
+/** 思考中气泡：阶段轮播 + 计时，与 ChatGPT 的等待反馈一致。 */
+const THINKING_PHASES = [
+  '正在阅读你的志愿方案…',
+  '正在检索 skills 知识片段…',
+  '正在核对位次与计划数据…',
+  '正在组织回复…',
+]
+const thinkingPhase = ref(THINKING_PHASES[0])
+const thinkingSeconds = ref(0)
+let phaseTimer: ReturnType<typeof setInterval> | null = null
+let tickTimer: ReturnType<typeof setInterval> | null = null
+
+watch(() => props.loading, (loading) => {
+  if (loading) {
+    let phaseIndex = 0
+    thinkingPhase.value = THINKING_PHASES[0]
+    thinkingSeconds.value = 0
+    tickTimer = setInterval(() => { thinkingSeconds.value += 1 }, 1000)
+    phaseTimer = setInterval(() => {
+      phaseIndex = (phaseIndex + 1) % THINKING_PHASES.length
+      thinkingPhase.value = THINKING_PHASES[phaseIndex]
+    }, 2600)
+  } else {
+    stopTimers()
+  }
+}, { immediate: true })
+
+function stopTimers() {
+  if (tickTimer) { clearInterval(tickTimer); tickTimer = null }
+  if (phaseTimer) { clearInterval(phaseTimer); phaseTimer = null }
+}
+
+onBeforeUnmount(stopTimers)
+
+/** 新消息/流式增量时自动滚底；用户主动上翻（距底 >120px）则不打扰。 */
+const chatWindow = ref<HTMLDivElement | null>(null)
+
+watch(() => props.messages, () => {
+  const el = chatWindow.value
+  if (!el) return
+  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120
+  if (nearBottom) {
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight
+    })
+  }
+}, { deep: true })
 </script>
 
 <style scoped>
@@ -105,7 +190,7 @@ defineEmits<{
   padding: 12px;
   border-radius: 12px;
   background: #fffdf7;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 13px;
   line-height: 1.6;
 }
@@ -122,10 +207,16 @@ defineEmits<{
   padding: 5px 8px;
   border-radius: 999px;
   background: #fffdf7;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 12px;
   font-weight: 900;
   text-align: center;
+}
+
+.zxf-chat-message__stack {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
 }
 
 .zxf-chat-message__body {
@@ -135,6 +226,108 @@ defineEmits<{
   background: #fffdf7;
   border: 1px solid rgba(31, 41, 51, 0.08);
   box-shadow: 0 4px 14px rgba(31, 41, 51, 0.04);
+}
+
+.zxf-steps {
+  display: grid;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid rgba(31, 41, 51, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 253, 247, 0.7);
+}
+
+.zxf-steps__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #4b4d54;
+}
+
+.zxf-steps__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.zxf-steps__mark.is-done {
+  background: #eef2ee;
+  color: #2f7d5d;
+}
+
+.zxf-steps__mark.is-running {
+  border: 2px solid rgba(31, 41, 51, 0.14);
+  border-top-color: #4b4d54;
+  animation: zxf-spin 0.9s linear infinite;
+}
+
+@keyframes zxf-spin {
+  to { transform: rotate(360deg); }
+}
+
+.zxf-thinking-fold {
+  border: 1px dashed rgba(31, 41, 51, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 253, 247, 0.7);
+  padding: 6px 10px;
+}
+
+.zxf-thinking-fold summary {
+  cursor: pointer;
+  color: #8e9097;
+  font-size: 12px;
+  font-weight: 600;
+  user-select: none;
+}
+
+.zxf-thinking-fold__body {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 6px;
+  color: #6a6c72;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.zxf-thinking-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6a6c72;
+  font-size: 13px;
+}
+
+.zxf-thinking-live__dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.zxf-thinking-live__dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #8e9097;
+  animation: zxf-bounce 1.2s ease-in-out infinite;
+}
+
+.zxf-thinking-live__dots i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.zxf-thinking-live__dots i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes zxf-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.5; }
+  50% { transform: translateY(-3px); opacity: 1; }
 }
 
 .zxf-chat-message.is-user .zxf-chat-message__role {
@@ -200,7 +393,7 @@ defineEmits<{
   border-radius: 12px;
   background: #fff7ed;
   border: 1px solid #fcd9b6;
-  color: #92400e;
+  color: #7c5f33;
   font-size: 12px;
   line-height: 1.6;
 }

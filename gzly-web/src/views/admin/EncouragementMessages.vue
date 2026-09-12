@@ -194,8 +194,8 @@ onMounted(loadData)
   align-items: flex-start;
   margin-bottom: 16px;
 }
-.page-title { font-size: 24px; font-weight: 800; color: #111827; }
-.page-desc { margin-top: 6px; font-size: 14px; line-height: 1.7; color: #64748b; }
+.page-title { font-size: 24px; font-weight: 800; color: #17181c; }
+.page-desc { margin-top: 6px; font-size: 14px; line-height: 1.7; color: #6a6c72; }
 .head-stats {
   display: flex;
   gap: 8px;
@@ -209,9 +209,9 @@ onMounted(loadData)
   align-items: center;
   gap: 4px;
   border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(23, 24, 28, 0.08);
   background: #fff;
-  color: #475569;
+  color: #4b4d54;
   font-size: 13px;
   font-weight: 700;
 }
@@ -236,16 +236,16 @@ onMounted(loadData)
   min-height: 38px;
   padding: 0 14px;
   border-radius: 10px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(23, 24, 28, 0.08);
   background: #fff;
-  color: #334155;
+  color: #383a40;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 }
 .filter-chip.active {
-  background: #0f172a;
-  border-color: #0f172a;
+  background: #17181c;
+  border-color: #17181c;
   color: #fff;
 }
 .refresh-btn:disabled,
@@ -258,13 +258,13 @@ onMounted(loadData)
 .empty-state {
   padding: 48px 20px;
   text-align: center;
-  color: #94a3b8;
+  color: #97999e;
   font-size: 14px;
 }
 .message-list { display: flex; flex-direction: column; }
 .message-item {
   padding: 18px 20px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  border-bottom: 1px solid rgba(23, 24, 28, 0.06);
   background: #fff;
 }
 .message-item.is-hidden {
@@ -289,7 +289,7 @@ onMounted(loadData)
 .message-id {
   font-size: 13px;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
 }
 .status-chip {
   display: inline-flex;
@@ -301,27 +301,27 @@ onMounted(loadData)
   font-weight: 800;
 }
 .status-chip--visible {
-  background: rgba(16, 185, 129, 0.12);
-  color: #047857;
+  background: rgba(47, 125, 93, 0.12);
+  color: #2f6650;
 }
 .status-chip--hidden {
   background: rgba(100, 116, 139, 0.12);
-  color: #475569;
+  color: #4b4d54;
 }
 .message-time {
   font-size: 12px;
-  color: #94a3b8;
+  color: #97999e;
 }
 .message-actions { gap: 8px; }
 .danger-btn {
-  border-color: rgba(220, 38, 38, 0.18);
-  color: #b91c1c;
+  border-color: rgba(179, 64, 64, 0.18);
+  color: #a03535;
   background: #fff7f7;
 }
 .hidden-note {
   gap: 6px;
   min-height: 38px;
-  color: #94a3b8;
+  color: #97999e;
   font-size: 13px;
   font-weight: 700;
 }
@@ -329,7 +329,7 @@ onMounted(loadData)
   margin-top: 10px;
   gap: 10px;
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 .message-content {
   margin-top: 12px;
@@ -352,9 +352,9 @@ onMounted(loadData)
   justify-content: center;
   gap: 12px;
   padding: 16px;
-  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  border-top: 1px solid rgba(23, 24, 28, 0.06);
 }
-.page-info { font-size: 13px; color: #64748b; }
+.page-info { font-size: 13px; color: #6a6c72; }
 
 @media (min-width: 768px) {
   .page-inner { padding: 28px 32px; }

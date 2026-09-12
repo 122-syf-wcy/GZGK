@@ -87,6 +87,11 @@ export function fetchVolunteerPlan(planId: number, accessKey: string) {
   return http.post<Result<VolunteerPlan>>('/volunteer/plan', { planId, accessKey })
 }
 
+/** skills 问答的推荐追问列表。 */
+export function fetchSkillSuggestedQuestions(planId: number) {
+  return http.get<Result<string[]>>(`/volunteer/plans/${planId}/skills/suggested-questions`)
+}
+
 /** AI 分析：换发短效一次性 SSE 凭证，避免长期 accessKey 出现在 URL 中。 */
 export function createAiAnalysisTicket(planId: number, accessKey: string, profile?: string) {
   return http.post<Result<{ ticket: string; expiresInSeconds: number }>>('/volunteer/ai-analysis-ticket', {
@@ -131,9 +136,22 @@ export function getAiAnalysis(planId: number, accessKey: string) {
   })
 }
 
+export interface ZxfSkillChatStep {
+  tool: string
+  label: string
+  status: 'running' | 'done'
+  summary?: string
+}
+
 export interface ZxfSkillChatMessage {
   role: 'user' | 'assistant'
   content: string
+  /** 模型思考过程（仅前端展示，不回传给后端） */
+  thinking?: string
+  /** Agent 工具调用步骤（仅前端展示，不回传给后端） */
+  steps?: ZxfSkillChatStep[]
+  /** 是否仍在流式生成中 */
+  streaming?: boolean
 }
 
 export interface ZxfSkillChatResponse {

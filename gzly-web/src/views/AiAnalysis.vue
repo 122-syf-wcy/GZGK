@@ -6,6 +6,7 @@ import {
   chatZxfSkill,
   createAiAnalysisTicket,
   exportPlanLongImage,
+  fetchSkillSuggestedQuestions,
   fetchVolunteerPlan,
   generateAiAnalysis,
   getAiAnalysisUrl,
@@ -16,12 +17,14 @@ import AiAnalysisHeader from '@/components/ai/AiAnalysisHeader.vue'
 import AiAnalysisSidebar from '@/components/ai/AiAnalysisSidebar.vue'
 import ConclusionSection from '@/components/ai/ConclusionSection.vue'
 import DiagnosisSection from '@/components/ai/DiagnosisSection.vue'
+import ThinkingBlock from '@/components/ai/ThinkingBlock.vue'
 import ActionStepsSection from '@/components/ai/ActionStepsSection.vue'
 import SkillsServiceCard from '@/components/ai/SkillsServiceCard.vue'
 import SkillsChatBox from '@/components/ai/SkillsChatBox.vue'
 import FloatingExportBar from '@/components/ai/FloatingExportBar.vue'
 import { buildAiProfileSummary, formDataFromPlan } from '@/utils/volunteer-plan'
 import { renderMarkdown } from '@/utils/markdown'
+import { postSseStream } from '@/utils/sse-fetch'
 import { AI_GENERATED_NOTICE } from '@/constants/compliance'
 import {
   AlertTriangle,
@@ -37,6 +40,12 @@ const volunteerStore = useVolunteerStore()
 const content = ref('')
 const isStreaming = ref(false)
 const isDone = ref(false)
+/** ── ChatGPT 式思考态 ── */
+const thinkingActive = ref(false)
+const thinkingText = ref('')
+const thinkingDurationMs = ref(0)
+let thinkingStartAt = 0
+let typewriterTimer: ReturnType<typeof setInterval> | null = null
 const contentRef = ref<HTMLDivElement | null>(null)
 const activeSection = ref('headline')
 const scrollProgress = ref(0)
@@ -197,11 +206,25 @@ const reportAnchors = computed(() => [
   { id: 'zxf-skills', label: 'skills 服务' },
 ])
 
-const skillSuggestions = computed(() => [
+const FALLBACK_SUGGESTIONS = [
   '按就业优先，帮我筛掉最不值得保留的冲档项',
   '这些志愿里哪些更值得保专业，哪些更值得保学校',
   '结合扩招指数和院校招生指数，重排前15个志愿',
-])
+]
+const remoteSuggestions = ref<string[]>([])
+const skillSuggestions = computed(() =>
+  (remoteSuggestions.value.length ? remoteSuggestions.value : FALLBACK_SUGGESTIONS).slice(0, 4),
+)
+
+async function loadSkillSuggestions() {
+  if (!volunteerStore.planId) return
+  try {
+    const res = await fetchSkillSuggestedQuestions(volunteerStore.planId)
+    remoteSuggestions.value = res.data.data || []
+  } catch {
+    // 拉取失败保留本地兜底问题
+  }
+}
 
 const executiveSummary = computed(() => {
   const firstSection = reportSections.value[0]
@@ -237,6 +260,45 @@ const actionList = computed(() => {
   return actions
 })
 
+function stopTypewriter() {
+  if (typewriterTimer) {
+    clearInterval(typewriterTimer)
+    typewriterTimer = null
+  }
+}
+
+/** 同步接口拿到全文后按 ChatGPT 的节奏逐块渐显。 */
+function typewriterReveal(fullText: string, onFinished?: () => void) {
+  stopTypewriter()
+  content.value = ''
+  isStreaming.value = true
+  isDone.value = false
+  let pos = 0
+  typewriterTimer = setInterval(() => {
+    pos = Math.min(fullText.length, pos + 9)
+    content.value = fullText.slice(0, pos)
+    if (pos >= fullText.length) {
+      stopTypewriter()
+      isStreaming.value = false
+      isDone.value = true
+      onFinished?.()
+    }
+  }, 30)
+}
+
+function beginThinking() {
+  thinkingActive.value = true
+  thinkingText.value = ''
+  thinkingDurationMs.value = 0
+  thinkingStartAt = Date.now()
+}
+
+function settleThinking() {
+  if (!thinkingActive.value) return
+  thinkingActive.value = false
+  thinkingDurationMs.value = Date.now() - thinkingStartAt
+}
+
 async function startStream() {
   if (!volunteerStore.planId || !volunteerStore.planAccessKey) {
     content.value = '缺少方案信息，暂时无法生成 AI 深度解读。'
@@ -250,16 +312,18 @@ async function startStream() {
     eventSource = null
   }
 
+  stopTypewriter()
   content.value = ''
   isStreaming.value = true
   isDone.value = false
+  beginThinking()
 
   try {
     const res = await generateAiAnalysis(volunteerStore.planId, volunteerStore.planAccessKey, true)
-    content.value = analysisToMarkdown(res.data.data)
-    isStreaming.value = false
-    isDone.value = true
-    volunteerStore.setAiContent(content.value)
+    settleThinking()
+    typewriterReveal(analysisToMarkdown(res.data.data), () => {
+      volunteerStore.setAiContent(content.value)
+    })
     return
   } catch {
     // 结构化接口不可用时保留旧 SSE 兼容链路。
@@ -270,6 +334,7 @@ async function startStream() {
     const ticketRes = await createAiAnalysisTicket(volunteerStore.planId, volunteerStore.planAccessKey, modeProfile.value)
     url = getAiAnalysisUrl(ticketRes.data.data.ticket)
   } catch (error: any) {
+    settleThinking()
     content.value = error?.message || 'AI 分析凭证获取失败，请稍后重试。'
     isStreaming.value = false
     isDone.value = true
@@ -281,6 +346,7 @@ async function startStream() {
   eventSource.onmessage = (event) => {
     const data = event.data
     if (data === '[DONE]') {
+      settleThinking()
       isStreaming.value = false
       isDone.value = true
       volunteerStore.setAiContent(content.value)
@@ -288,21 +354,44 @@ async function startStream() {
       return
     }
     if (data.startsWith('[ERROR]')) {
+      settleThinking()
       content.value += `\n\n${data}`
       isStreaming.value = false
       isDone.value = true
       eventSource?.close()
       return
     }
-    content.value += data
-    nextTick(() => {
-      if (contentRef.value) {
-        contentRef.value.scrollTop = contentRef.value.scrollHeight
+    // 新协议：{"type":"reasoning|content|final","text":"..."}；解析失败按旧协议纯文本处理。
+    try {
+      const parsed = JSON.parse(data)
+      if (parsed && typeof parsed === 'object' && typeof parsed.type === 'string') {
+        if (parsed.type === 'reasoning') {
+          thinkingText.value += parsed.text || ''
+          return
+        }
+        if (parsed.type === 'content') {
+          settleThinking()
+          content.value += parsed.text || ''
+          scrollContentToEnd()
+          return
+        }
+        if (parsed.type === 'final') {
+          settleThinking()
+          if (parsed.text) content.value = parsed.text
+          return
+        }
+        return
       }
-    })
+    } catch {
+      // 旧后端协议：data 即为整段文本
+    }
+    settleThinking()
+    content.value += data
+    scrollContentToEnd()
   }
 
   eventSource.onerror = () => {
+    settleThinking()
     if (isStreaming.value && !content.value) {
       content.value = 'AI 分析服务暂时不可用，请稍后重试。'
     }
@@ -310,6 +399,14 @@ async function startStream() {
     isDone.value = true
     eventSource?.close()
   }
+}
+
+function scrollContentToEnd() {
+  nextTick(() => {
+    if (contentRef.value) {
+      contentRef.value.scrollTop = contentRef.value.scrollHeight
+    }
+  })
 }
 
 function analysisToMarkdown(analysis: AiAnalysisResponse) {
@@ -359,6 +456,7 @@ onMounted(async () => {
     router.push('/volunteer')
     return
   }
+  void loadSkillSuggestions()
   if (volunteerStore.aiContent) {
     content.value = volunteerStore.aiContent
     isDone.value = true
@@ -392,6 +490,8 @@ onUnmounted(() => {
     eventSource.close()
     eventSource = null
   }
+  stopTypewriter()
+  stopSkillTypewriter()
   window.removeEventListener('scroll', onPageScroll)
 })
 
@@ -458,9 +558,60 @@ function formatSkillError(error: unknown) {
   return message || '咨询失败，请稍后再试。'
 }
 
+let skillTypeTimer: ReturnType<typeof setInterval> | null = null
+const skillTyping = ref(false)
+
+function stopSkillTypewriter() {
+  if (skillTypeTimer) {
+    clearInterval(skillTypeTimer)
+    skillTypeTimer = null
+  }
+  skillTyping.value = false
+}
+
+/** 回复到达后按打字机节奏渐显最后一条 assistant 消息。 */
+function typewriterSkillReveal(fullText: string) {
+  stopSkillTypewriter()
+  skillTyping.value = true
+  let pos = 0
+  skillTypeTimer = setInterval(() => {
+    pos = Math.min(fullText.length, pos + 6)
+    const list = [...skillMessages.value]
+    const lastIndex = list.length - 1
+    if (lastIndex >= 0 && list[lastIndex].role === 'assistant') {
+      list[lastIndex] = { ...list[lastIndex], content: fullText.slice(0, pos) }
+      skillMessages.value = list
+    }
+    if (pos >= fullText.length) {
+      stopSkillTypewriter()
+    }
+  }, 40)
+}
+
+/** 拆出回复中可能存在的 <think> 思考段（部分思维链模型会混在正文里）。 */
+function splitSkillReply(reply: string): { thinking: string; answer: string } {
+  const lastClose = reply.lastIndexOf('</think>')
+  if (lastClose === -1) {
+    return { thinking: '', answer: reply }
+  }
+  const thinking = reply.slice(0, lastClose).replace(/<\/?think>/g, '').trim()
+  const answer = reply.slice(lastClose + '</think>'.length).trim()
+  return { thinking, answer: answer || '暂时没有生成有效回复，请稍后再试。' }
+}
+
+/** 更新最后一条 assistant 消息（保持响应式）。 */
+function patchLastAssistant(patch: Partial<ZxfSkillChatMessage>) {
+  const list = [...skillMessages.value]
+  const lastIndex = list.length - 1
+  if (lastIndex >= 0 && list[lastIndex].role === 'assistant') {
+    list[lastIndex] = { ...list[lastIndex], ...patch }
+    skillMessages.value = list
+  }
+}
+
 async function sendSkillMessage() {
   const message = skillInput.value.trim()
-  if (!message || skillLoading.value) return
+  if (!message || skillLoading.value || skillTyping.value) return
   if (!volunteerStore.planId || !volunteerStore.planAccessKey) {
     skillError.value = '缺少当前志愿方案，暂时无法咨询。'
     return
@@ -468,26 +619,110 @@ async function sendSkillMessage() {
 
   skillError.value = ''
   skillInput.value = ''
+  const historyForModel = [...skillMessages.value, { role: 'user' as const, content: message }]
+    .slice(-8)
+    .map(({ role, content: text }) => ({ role, content: text }))
   skillMessages.value = [...skillMessages.value, { role: 'user', content: message }]
   skillLoading.value = true
 
+  // Agent 流式占位消息：steps / thinking / content 由事件逐步填充
+  skillMessages.value = [
+    ...skillMessages.value,
+    { role: 'assistant', content: '', thinking: '', steps: [], streaming: true },
+  ]
+  let receivedAnything = false
+  let degraded = false
+
+  await postSseStream(`/api/volunteer/plans/${volunteerStore.planId}/skills/ask-stream`, {
+    accessKey: volunteerStore.planAccessKey,
+    question: message,
+    messages: historyForModel,
+  }, {
+    onEvent: (event) => {
+      receivedAnything = true
+      const last = skillMessages.value[skillMessages.value.length - 1]
+      if (!last || last.role !== 'assistant') return
+      if (event.type === 'tool_call') {
+        patchLastAssistant({
+          steps: [...(last.steps || []), { tool: event.tool || '', label: event.label || '调用工具', status: 'running' }],
+        })
+        return
+      }
+      if (event.type === 'tool_result') {
+        const steps = [...(last.steps || [])]
+        for (let i = steps.length - 1; i >= 0; i--) {
+          if (steps[i].tool === event.tool && steps[i].status === 'running') {
+            steps[i] = { ...steps[i], status: 'done', summary: event.label || '' }
+            break
+          }
+        }
+        patchLastAssistant({ steps })
+        return
+      }
+      if (event.type === 'reasoning') {
+        patchLastAssistant({ thinking: (last.thinking || '') + (event.text || '') })
+        return
+      }
+      if (event.type === 'content') {
+        patchLastAssistant({ content: (last.content || '') + (event.text || '') })
+        return
+      }
+      if (event.type === 'sources' && Array.isArray(event.chunks)) {
+        skillSourceChunks.value = event.chunks
+        return
+      }
+      if (event.type === 'final' && event.text) {
+        patchLastAssistant({ content: event.text })
+      }
+    },
+    onDone: () => {
+      patchLastAssistant({ streaming: false })
+      skillLoading.value = false
+    },
+    onError: (msg, status) => {
+      // 旧后端没有流式端点：移除占位消息并降级到同步链路
+      if ((status === 404 || status === 405) && !receivedAnything) {
+        degraded = true
+        return
+      }
+      patchLastAssistant({ streaming: false })
+      skillMessages.value = skillMessages.value.filter(
+        item => !(item.role === 'assistant' && !item.content && !(item.steps || []).length),
+      )
+      skillError.value = msg
+      skillLoading.value = false
+      // 回填输入，方便用户直接重试
+      if (!skillInput.value) skillInput.value = message
+    },
+  })
+
+  if (degraded) {
+    skillMessages.value = skillMessages.value.slice(0, -1)
+    await sendSkillMessageLegacy(message, historyForModel)
+  }
+}
+
+/** 旧后端兼容：同步接口 + 打字机渐显。 */
+async function sendSkillMessageLegacy(message: string, historyForModel: Array<{ role: 'user' | 'assistant'; content: string }>) {
   try {
     const res = await chatZxfSkill({
-      planId: volunteerStore.planId,
+      planId: volunteerStore.planId!,
       accessKey: volunteerStore.planAccessKey,
       message,
       aiReport: content.value,
-      messages: skillMessages.value.slice(-8),
+      messages: historyForModel,
     })
-    const reply = res.data.data.answer || res.data.data.reply || '暂时没有生成有效回复，请稍后再试。'
+    const rawReply = res.data.data.answer || res.data.data.reply || '暂时没有生成有效回复，请稍后再试。'
+    const { thinking, answer } = splitSkillReply(rawReply)
     skillSourceChunks.value = res.data.data.sourceChunks || []
     skillReferencedVolunteers.value = res.data.data.referencedVolunteers || []
-    skillMessages.value = [...skillMessages.value, { role: 'assistant', content: reply }]
+    skillMessages.value = [...skillMessages.value, { role: 'assistant', content: '', thinking }]
+    skillLoading.value = false
+    typewriterSkillReveal(answer)
   } catch (error: unknown) {
     skillError.value = formatSkillError(error)
     skillMessages.value = skillMessages.value.filter(item => !(item.role === 'user' && item.content === message))
     skillInput.value = message
-  } finally {
     skillLoading.value = false
   }
 }
@@ -601,6 +836,11 @@ function downloadBlob(blob: Blob, filename: string) {
         <DiagnosisSection :streaming="isStreaming">
             <div class="ai-bubble gz-card">
               <div class="ai-bubble__title">逐条诊断正文</div>
+              <ThinkingBlock
+                :active="thinkingActive"
+                :reasoning="thinkingText"
+                :duration-ms="thinkingDurationMs"
+              />
               <div class="report-sections">
                 <section
                   v-for="(section, index) in reportSections"
@@ -666,6 +906,7 @@ function downloadBlob(blob: Blob, filename: string) {
             :suggestions="skillSuggestions"
             :messages="skillMessages"
             :loading="skillLoading"
+            :typing="skillTyping"
             :error="skillError"
             :render="renderMarkdown"
             @pick="fillSkillSuggestion"
@@ -710,7 +951,7 @@ function downloadBlob(blob: Blob, filename: string) {
 .ai-page {
   min-height: 100dvh;
   padding-bottom: 92px;
-  background: #f4f0e8;
+  background: var(--gz-bg);
   color: #1f2933;
 }
 
@@ -820,7 +1061,7 @@ function downloadBlob(blob: Blob, filename: string) {
 .report-nav__desc {
   font-size: 12px;
   line-height: 1.7;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .report-nav__progress {
@@ -835,7 +1076,7 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 .report-nav__progress span {
-  color: #64748b;
+  color: #6a6c72;
   font-size: 12px;
   font-weight: 800;
 }
@@ -853,7 +1094,7 @@ function downloadBlob(blob: Blob, filename: string) {
   border: 1px solid transparent;
   border-radius: 10px;
   background: transparent;
-  color: #475569;
+  color: #4b4d54;
   font-size: 12px;
   font-weight: 700;
   text-align: left;
@@ -873,7 +1114,7 @@ function downloadBlob(blob: Blob, filename: string) {
   width: 4px;
   height: 4px;
   border-radius: 999px;
-  background: #cbd5e1;
+  background: #cdccc7;
   transform: translateY(-50%);
 }
 
@@ -1001,7 +1242,7 @@ function downloadBlob(blob: Blob, filename: string) {
   margin-top: 6px;
   font-size: 13px;
   line-height: 1.62;
-  color: #475569;
+  color: #4b4d54;
 }
 
 .report-overview__meta {
@@ -1024,7 +1265,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 .report-overview__chip strong {
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .report-overview__chip span {
@@ -1095,13 +1336,13 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 .headline-card--warn::before {
-  background: #92400e;
+  background: #7c5f33;
 }
 
 .headline-card__label {
   display: block;
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .headline-card__value {
@@ -1121,7 +1362,7 @@ function downloadBlob(blob: Blob, filename: string) {
   margin-top: 8px;
   font-size: 13px;
   line-height: 1.62;
-  color: #475569;
+  color: #4b4d54;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -1164,7 +1405,7 @@ function downloadBlob(blob: Blob, filename: string) {
 .action-item span {
   font-size: 13px;
   line-height: 1.62;
-  color: #475569;
+  color: #4b4d54;
 }
 
 .zxf-skills-card {
@@ -1202,7 +1443,7 @@ function downloadBlob(blob: Blob, filename: string) {
   margin-top: 7px;
   font-size: 13px;
   line-height: 1.7;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .zxf-skills-card__source {
@@ -1262,7 +1503,7 @@ function downloadBlob(blob: Blob, filename: string) {
   padding: 12px;
   border-radius: 12px;
   background: #fffdf7;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 13px;
   line-height: 1.6;
 }
@@ -1279,7 +1520,7 @@ function downloadBlob(blob: Blob, filename: string) {
   padding: 5px 8px;
   border-radius: 999px;
   background: #fffdf7;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 12px;
   font-weight: 900;
   text-align: center;
@@ -1355,7 +1596,7 @@ function downloadBlob(blob: Blob, filename: string) {
   border-radius: 12px;
   background: #fff7ed;
   border: 1px solid #fcd9b6;
-  color: #92400e;
+  color: #7c5f33;
   font-size: 12px;
   line-height: 1.6;
 }
@@ -1412,7 +1653,7 @@ function downloadBlob(blob: Blob, filename: string) {
   gap: 6px;
   margin-top: 4px;
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .status-dot {
@@ -1422,7 +1663,7 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 .status-dot--active {
-  background: #10b981;
+  background: #2f7d5d;
 }
 
 .status-dot--done {
@@ -1501,9 +1742,10 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 .report-section__title {
+  font-family: var(--gz-font-display);
   font-size: 17px;
-  line-height: 1.35;
-  font-weight: 900;
+  line-height: 1.4;
+  font-weight: 700;
   color: #1f2933;
 }
 
@@ -1550,7 +1792,7 @@ function downloadBlob(blob: Blob, filename: string) {
   margin-top: 6px;
   font-size: 13px;
   line-height: 1.55;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .report-section__body {
@@ -1571,9 +1813,10 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 .markdown-body :deep(h2) {
+  font-family: var(--gz-font-display);
   font-size: 24px;
-  line-height: 1.25;
-  font-weight: 900;
+  line-height: 1.3;
+  font-weight: 700;
 }
 
 .markdown-body :deep(h3) {
@@ -1802,7 +2045,7 @@ function downloadBlob(blob: Blob, filename: string) {
   border-radius: 16px;
   background: #fff7ed;
   border: 1px solid #fcd9b6;
-  color: #92400e;
+  color: #7c5f33;
   font-size: 12px;
   line-height: 1.7;
 }
@@ -1811,7 +2054,7 @@ function downloadBlob(blob: Blob, filename: string) {
   display: block;
   margin-bottom: 4px;
   font-size: 13px;
-  color: #b45309;
+  color: #8a6d3b;
 }
 
 .ai-manual-review {
@@ -1834,13 +2077,13 @@ function downloadBlob(blob: Blob, filename: string) {
   margin: 0;
   font-size: 15px;
   font-weight: 700;
-  color: #b45309;
+  color: #8a6d3b;
 }
 
 .ai-manual-review header span {
   font-size: 12px;
   font-weight: 700;
-  color: #b45309;
+  color: #8a6d3b;
   background: #fff;
   border: 1px solid #fcd9b6;
   padding: 3px 10px;
@@ -1878,7 +2121,7 @@ function downloadBlob(blob: Blob, filename: string) {
   height: 24px;
   align-items: center;
   justify-content: center;
-  background: #b45309;
+  background: #8a6d3b;
   color: #fff;
   border-radius: 999px;
   font-size: 12px;
@@ -1887,13 +2130,13 @@ function downloadBlob(blob: Blob, filename: string) {
 .ai-manual-review__gradient {
   margin-left: auto;
   font-size: 11px;
-  color: #b45309;
+  color: #8a6d3b;
 }
 
 .ai-manual-review__reasons {
   margin: 6px 0 0;
   padding-left: 18px;
-  color: #92400e;
+  color: #7c5f33;
   font-size: 12px;
   line-height: 1.7;
 }

@@ -4,50 +4,62 @@
    ============================================ */
 
 :root {
-  /* ---- Color Tokens ---- */
-  --gz-primary: #1d4ed8;
-  --gz-primary-hover: #1e40af;
-  --gz-primary-light: #dbeafe;
-  --gz-primary-50: #eef4ff;
-  --gz-secondary: #2563eb;
-  --gz-accent: #b45309;
-  --gz-accent-hover: #92400e;
+  /* ---- Color Tokens ----
+     参考视觉：实景摄影 hero + 黑白极简 UI。
+     界面本身几乎无彩色，颜色由照片与少量语义色承担。 */
+  --gz-ink: #17181c;
+  --gz-ink-soft: #2b2d33;
+  --gz-primary: #17181c;
+  --gz-primary-hover: #000000;
+  --gz-primary-light: #ececec;
+  --gz-primary-50: #f4f4f2;
+  --gz-secondary: #55575e;
+  --gz-cyan: #55575e;
+  --gz-accent: #8a6d3b;
+  --gz-accent-hover: #6f5730;
 
-  --gz-danger: #ef4444;
-  --gz-success: #10b981;
-  --gz-warning-yellow: #f59e0b;
+  /* 主按钮：纯墨色，不再使用彩色渐变 */
+  --gz-brand-gradient: linear-gradient(135deg, #1c1d22 0%, #17181c 100%);
+  --gz-brand-gradient-soft: linear-gradient(135deg, rgba(23, 24, 28, 0.05), rgba(23, 24, 28, 0.02));
 
-  --gz-gradient-chong: linear-gradient(135deg, #b91c1c, #dc2626);
-  --gz-gradient-wen: linear-gradient(135deg, #1d4ed8, #2563eb);
-  --gz-gradient-bao: linear-gradient(135deg, #047857, #059669);
-  --gz-gradient-dian: linear-gradient(135deg, #b45309, #d97706);
-  --gz-chong: #ef4444;
-  --gz-wen: #2563eb;
-  --gz-bao: #10b981;
-  --gz-dian: #f59e0b;
+  --gz-danger: #d64545;
+  --gz-success: #2f7d5d;
+  --gz-warning-yellow: #b98a2f;
 
-  /* ---- Surface ---- */
-  --gz-bg: #f5f3ee;
-  --gz-bg-subtle: #fbfaf7;
-  --gz-card-bg: #fffdfa;
-  --gz-card-bg-solid: #fffdfa;
-  --gz-card-border: rgba(15, 23, 42, 0.08);
-  --gz-card-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
-  --gz-card-shadow-hover: 0 18px 38px rgba(15, 23, 42, 0.08);
+  --gz-gradient-chong: linear-gradient(135deg, #a03535, #c04848);
+  --gz-gradient-wen: linear-gradient(135deg, #2f3a52, #43507a);
+  --gz-gradient-bao: linear-gradient(135deg, #2f6650, #3c8266);
+  --gz-gradient-dian: linear-gradient(135deg, #8a6d3b, #a5854e);
+  --gz-chong: #c04848;
+  --gz-wen: #43507a;
+  --gz-bao: #3c8266;
+  --gz-dian: #a5854e;
+
+  /* ---- Surface：暖纸白，细灰边 ---- */
+  --gz-bg: #f6f5f2;
+  --gz-bg-subtle: #fbfaf8;
+  --gz-card-bg: #ffffff;
+  --gz-card-bg-solid: #ffffff;
+  --gz-card-border: rgba(23, 24, 28, 0.1);
+  --gz-card-shadow: 0 1px 2px rgba(23, 24, 28, 0.04);
+  --gz-card-shadow-hover: 0 10px 26px rgba(23, 24, 28, 0.08);
 
   /* ---- Text ---- */
-  --gz-text-primary: #111827;
-  --gz-text-secondary: #475569;
-  --gz-text-tertiary: #8b98aa;
+  --gz-text-primary: #17181c;
+  --gz-text-secondary: #4b4d54;
+  --gz-text-tertiary: #8e9097;
   --gz-text-inverse: #ffffff;
 
+  /* ---- Typography：编辑级排版，大标题走衬线（覆盖 Win/macOS/Android 中文衬线回退） ---- */
+  --gz-font-display: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', '宋体', Georgia, 'Times New Roman', serif;
+
   /* ---- Warning ---- */
-  --gz-warning-bg: #fefce8;
-  --gz-warning-border: #fde047;
-  --gz-warning-text: #854d0e;
+  --gz-warning-bg: #faf7ef;
+  --gz-warning-border: #e6dcbd;
+  --gz-warning-text: #7c5f33;
 
   /* ---- Radius ---- */
-  --gz-radius-sm: 8px;
+  --gz-radius-sm: 10px;
   --gz-radius-md: 14px;
   --gz-radius-lg: 20px;
   --gz-radius-xl: 28px;
@@ -65,9 +77,9 @@
   --gz-space-12: 48px;
 
   /* ---- Surface Detail ---- */
-  --gz-glass-blur: 0px;
-  --gz-glass-bg: rgba(255, 253, 250, 0.96);
-  --gz-glass-border: 1px solid rgba(15, 23, 42, 0.08);
+  --gz-glass-blur: 12px;
+  --gz-glass-bg: rgba(255, 255, 255, 0.82);
+  --gz-glass-border: 1px solid rgba(23, 24, 28, 0.08);
 
   /* ---- Transition ---- */
   --gz-transition-fast: 150ms ease;
@@ -85,6 +97,12 @@
   --gz-z-sticky: 100;
   --gz-z-modal: 1000;
   --gz-z-toast: 2000;
+}
+
+/* ---- Generated app icon (crop the tile out of its rendered backdrop) ---- */
+.gz-app-icon {
+  clip-path: inset(7% round 19%);
+  transform: scale(1.15);
 }
 
 /* ---- Reset ---- */
@@ -111,20 +129,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Subtle editorial background */
+/* Quiet paper background, no colored glow */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
-  background:
-    linear-gradient(rgba(15, 23, 42, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 23, 42, 0.03) 1px, transparent 1px),
-    radial-gradient(circle at 15% 12%, rgba(29, 78, 216, 0.05) 0%, transparent 26%),
-    radial-gradient(circle at 82% 18%, rgba(180, 83, 9, 0.05) 0%, transparent 24%),
-    var(--gz-bg);
-  background-size: 28px 28px, 28px 28px, auto, auto, auto;
-  background-position: 0 0, 0 0, center, center, center;
+  background: var(--gz-bg);
   pointer-events: none;
 }
 
@@ -154,7 +165,7 @@ button, [role="button"] { cursor: pointer; }
 
 .gz-card:hover {
   box-shadow: var(--gz-card-shadow-hover);
-  border-color: rgba(15, 23, 42, 0.12);
+  border-color: rgba(23, 24, 28, 0.12);
   transform: translateY(-1px);
 }
 
@@ -351,7 +362,7 @@ a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid rgba(29, 78, 216, 0.5);
+  outline: 2px solid rgba(23, 24, 28, 0.45);
   outline-offset: 2px;
 }
 
@@ -377,10 +388,10 @@ select:focus-visible {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(15, 23, 42, 0.12);
+    background: rgba(23, 24, 28, 0.12);
     border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(15, 23, 42, 0.22);
+    background: rgba(23, 24, 28, 0.22);
   }
 }

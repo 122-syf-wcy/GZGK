@@ -337,10 +337,10 @@ function goOfficialGap(field: string) {
   flex-shrink: 0;
 }
 
-.stat-card--blue .stat-icon { background: linear-gradient(135deg, #2563eb, #3b82f6); }
+.stat-card--blue .stat-icon { background: linear-gradient(135deg, #17181c, #2b2d33); }
 .stat-card--purple .stat-icon { background: linear-gradient(135deg, #7c3aed, #a855f7); }
-.stat-card--green .stat-icon { background: linear-gradient(135deg, #059669, #10b981); }
-.stat-card--amber .stat-icon { background: linear-gradient(135deg, #d97706, #f59e0b); }
+.stat-card--green .stat-icon { background: linear-gradient(135deg, #2f7d5d, #2f7d5d); }
+.stat-card--amber .stat-icon { background: linear-gradient(135deg, #a5793a, #b98a2f); }
 
 .stat-body {
   flex: 1;
@@ -367,7 +367,7 @@ function goOfficialGap(field: string) {
   right: var(--gz-space-3);
   padding: 2px 8px;
   border-radius: var(--gz-radius-full);
-  background: rgba(37, 99, 235, 0.08);
+  background: rgba(23, 24, 28, 0.08);
   color: var(--gz-primary);
   font-size: 11px;
   font-weight: 600;
@@ -397,7 +397,7 @@ function goOfficialGap(field: string) {
   color: #fff;
   font-size: 12px;
   font-weight: 700;
-  background: #111827;
+  background: #17181c;
   border: 0;
   border-radius: var(--gz-radius-full);
 }
@@ -412,8 +412,8 @@ function goOfficialGap(field: string) {
   color: var(--gz-text-secondary);
   font-size: 12px;
   font-weight: 700;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #fafaf8;
+  border: 1px solid #e3e2de;
   border-radius: var(--gz-radius-full);
 }
 
@@ -426,14 +426,14 @@ function goOfficialGap(field: string) {
 
 .quality-metric {
   padding: var(--gz-space-4);
-  background: rgba(16, 185, 129, 0.08);
-  border: 1px solid rgba(16, 185, 129, 0.16);
+  background: rgba(47, 125, 93, 0.08);
+  border: 1px solid rgba(47, 125, 93, 0.16);
   border-radius: var(--gz-radius-md);
 }
 
 .quality-metric--warn {
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.22);
+  background: rgba(185, 138, 47, 0.1);
+  border-color: rgba(185, 138, 47, 0.22);
 }
 
 .quality-value {
@@ -481,7 +481,7 @@ function goOfficialGap(field: string) {
 .coverage-bar span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, #2563eb, #10b981);
+  background: linear-gradient(90deg, #17181c, #2f7d5d);
   border-radius: inherit;
 }
 
@@ -500,7 +500,7 @@ function goOfficialGap(field: string) {
   color: var(--gz-text-secondary);
   font-size: 12px;
   background: #fff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
   border-radius: var(--gz-radius-sm);
 }
 
@@ -512,7 +512,7 @@ function goOfficialGap(field: string) {
 .ai-status {
   display: inline-flex;
   padding: 6px 10px;
-  color: #991b1b;
+  color: #8f3030;
   font-size: 12px;
   font-weight: 800;
   background: #fee2e2;
@@ -537,19 +537,19 @@ function goOfficialGap(field: string) {
 
 .generation-metric {
   padding: var(--gz-space-4);
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #fafaf8;
+  border: 1px solid #e3e2de;
   border-radius: var(--gz-radius-md);
 }
 
 .generation-metric--ok {
-  background: rgba(16, 185, 129, 0.08);
-  border-color: rgba(16, 185, 129, 0.18);
+  background: rgba(47, 125, 93, 0.08);
+  border-color: rgba(47, 125, 93, 0.18);
 }
 
 .generation-metric--warn {
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.22);
+  background: rgba(185, 138, 47, 0.1);
+  border-color: rgba(185, 138, 47, 0.22);
 }
 
 .generation-value {
@@ -630,7 +630,7 @@ function goOfficialGap(field: string) {
 }
 
 .bar--plans {
-  background: linear-gradient(to top, #2563eb, #60a5fa);
+  background: linear-gradient(to top, #17181c, #55575e);
 }
 
 .bar--users {
@@ -665,7 +665,7 @@ function goOfficialGap(field: string) {
   border-radius: 50%;
 }
 
-.legend-dot--plans { background: #2563eb; }
+.legend-dot--plans { background: #17181c; }
 .legend-dot--users { background: #7c3aed; }
 
 /* ---- Quick Stats ---- */
@@ -691,11 +691,11 @@ function goOfficialGap(field: string) {
   flex-shrink: 0;
 }
 
-.quick-dot--blue { background: #2563eb; }
-.quick-dot--green { background: #10b981; }
+.quick-dot--blue { background: #17181c; }
+.quick-dot--green { background: #2f7d5d; }
 .quick-dot--purple { background: #7c3aed; }
-.quick-dot--amber { background: #f59e0b; }
-.quick-dot--red { background: #ef4444; }
+.quick-dot--amber { background: #b98a2f; }
+.quick-dot--red { background: #c04848; }
 
 .quick-text {
   flex: 1;

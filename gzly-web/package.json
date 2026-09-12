@@ -8,6 +8,7 @@
     "build": "vue-tsc && vite build",
     "build:safe": "npm run check:compliance && npm run typecheck && vite build",
     "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
     "check:compliance": "node scripts/check-compliance.mjs",
     "check:compliance:strict": "node scripts/check-compliance.mjs --strict",
     "preview": "vite preview"
@@ -21,7 +22,8 @@
     "vant": "^4.8.4",
     "vue": "^3.4.21",
     "vue-router": "^4.3.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@vant/auto-import-resolver": "^1.2.1",
@@ -30,6 +32,7 @@
     "unplugin-auto-import": "^0.17.5",
     "unplugin-vue-components": "^0.26.0",
     "vite": "^5.2.0",
+    "vitest": "^4.1.10",
     "vue-tsc": "^2.0.6"
   }
 }

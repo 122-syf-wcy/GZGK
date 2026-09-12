@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showSuccessToast, showToast } from 'vant'
 import { fetchVolunteerPlan } from '@/api/volunteer'
 import { useVolunteerStore } from '@/stores/volunteer'
+import MetricGlossarySheet from '@/components/MetricGlossarySheet.vue'
 import RecommendSection from '@/components/RecommendSection.vue'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
-import type { GradientRangeDetail } from '@/types'
+import type { GradientRangeDetail, VolunteerItem } from '@/types'
 import { buildPlanModeItems, formDataFromPlan, summarizePlan, type PlanMode } from '@/utils/volunteer-plan'
 import { sanitizeHttpUrl } from '@/utils/markdown'
 import { getProvinceConfig, normalizeProvinceCode } from '@/constants/provinces'
@@ -19,6 +20,8 @@ import {
   Download,
   ExternalLink,
   FileSpreadsheet,
+  FolderOpen,
+  HelpCircle,
   Info,
   MapPin,
   ShieldAlert,
@@ -37,6 +40,26 @@ const compareIds = ref<string[]>([])
 const restoring = ref(false)
 const showAllReview = ref(false)
 const expandedRows = ref<Set<string>>(new Set())
+const showMetricGlossary = ref(false)
+
+/** 把位次差翻译成一句白话依据，直接显示在卡片摘要上。 */
+function evidenceLine(item: VolunteerItem): string {
+  const year = item.referenceYear
+  const gap = item.rankGap
+  if (typeof gap === 'number' && year) {
+    const ratio = typeof item.rankGapRatio === 'number' && Number.isFinite(item.rankGapRatio)
+      ? `（约为你位次的 ${Math.abs(Math.round(item.rankGapRatio))}%）`
+      : ''
+    if (gap > 0) {
+      return `依据：${year} 年该志愿最低录取位次比你的位次宽松约 ${gap.toLocaleString()} 位${ratio}，按「${item.gradient}」档纳入。`
+    }
+    if (gap < 0) {
+      return `依据：${year} 年该志愿最低录取位次比你的位次高约 ${Math.abs(gap).toLocaleString()} 位${ratio}，属于「${item.gradient}」档尝试。`
+    }
+    return `依据：${year} 年该志愿最低录取位次与你的位次基本持平，归入「${item.gradient}」档。`
+  }
+  return `依据：该志愿历史位次数据有限（置信度 ${confidenceText(item)}），请展开详情并结合官方数据复核。`
+}
 
 /** 志愿草稿状态：保留 / 待查 / 淘汰 / 默认。本地持久化。 */
 type DraftStatus = 'keep' | 'review' | 'drop' | 'default'
@@ -132,10 +155,10 @@ const visibleManualReviews = computed(() => {
 })
 
 const gradientConfig: Record<string, { color: string; bg: string }> = {
-  冲: { color: '#dc2626', bg: '#fef2f2' },
-  稳: { color: '#2563eb', bg: '#eff6ff' },
-  保: { color: '#059669', bg: '#ecfdf5' },
-  垫: { color: '#d97706', bg: '#fffbeb' },
+  冲: { color: '#b34040', bg: '#f7efef' },
+  稳: { color: '#17181c', bg: '#f4f4f2' },
+  保: { color: '#2f7d5d', bg: '#eef2ee' },
+  垫: { color: '#a5793a', bg: '#faf7ef' },
 }
 
 const modeItems = computed(() => buildPlanModeItems(volunteerStore.planItems, activeMode.value))
@@ -187,8 +210,32 @@ const filteredItems = computed(() => {
   return modeItems.value.filter(item => item.gradient === activeTab.value)
 })
 
+/** 渐进渲染：96 条全量 DOM 一次性渲染太重，先渲染一批，滚动到底部哨兵再补。 */
+const RENDER_BATCH = 24
+const visibleCount = ref(RENDER_BATCH)
+const visibleItems = computed(() => filteredItems.value.slice(0, visibleCount.value))
+const hasMoreToRender = computed(() => visibleCount.value < filteredItems.value.length)
+const listSentinel = ref<HTMLDivElement | null>(null)
+let sentinelObserver: IntersectionObserver | null = null
+
+function ensureSentinelObserver() {
+  if (sentinelObserver || typeof IntersectionObserver === 'undefined') return
+  sentinelObserver = new IntersectionObserver((entries) => {
+    if (entries.some(entry => entry.isIntersecting) && hasMoreToRender.value) {
+      visibleCount.value = Math.min(filteredItems.value.length, visibleCount.value + RENDER_BATCH)
+    }
+  }, { rootMargin: '600px 0px' })
+}
+
+watch(listSentinel, (el, prev) => {
+  ensureSentinelObserver()
+  if (prev) sentinelObserver?.unobserve(prev)
+  if (el) sentinelObserver?.observe(el)
+})
+
 watch([activeTab, activeMode], () => {
   expandedRows.value = new Set()
+  visibleCount.value = RENDER_BATCH
 })
 
 const topKeeps = computed(() =>
@@ -217,6 +264,11 @@ onMounted(async () => {
     showToast('暂无志愿数据，请重新生成方案')
     router.push('/volunteer')
   }
+})
+
+onUnmounted(() => {
+  sentinelObserver?.disconnect()
+  sentinelObserver = null
 })
 
 async function restorePlan() {
@@ -579,6 +631,9 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       <div class="header-inner">
         <button class="header-back" @click="router.back()"><ArrowLeft :size="20" /></button>
         <h1 class="header-title">{{ planTitle }}</h1>
+        <button class="header-btn" title="我的志愿空间" @click="router.push('/my-plans')">
+          <FolderOpen :size="18" />
+        </button>
         <button class="header-btn" @click="exportExcel" title="导出 Excel">
           <FileSpreadsheet :size="18" />
         </button>
@@ -602,6 +657,13 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
       <div class="reference-banner">
         <ShieldAlert :size="16" />
         <span>{{ volunteerStore.referenceProbabilityNotice }}</span>
+      </div>
+      <div class="reference-banner reference-banner--data-limit">
+        <Info :size="16" />
+        <span>
+          新高考模式下可比历史数据年份有限，历史位次的年际波动可能偏大；「参考匹配」「机会指数」均为基于有限样本的估算，
+          请结合省考试院一分一段表与高校招生章程复核后再做决策。
+        </span>
       </div>
       <div class="hero-main">
         <div class="hero-metrics">
@@ -876,8 +938,8 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
     <section class="plan-list">
       <article
-        v-for="item in filteredItems"
-        :key="`${activeMode}-${item.index}-${item.schoolId}`"
+        v-for="item in visibleItems"
+        :key="statusKey(item)"
         :class="[
           'plan-row',
           'gz-card',
@@ -930,7 +992,13 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
             <span><em>招生指数</em><strong>{{ indexText(item.schoolEnrollmentIndex, '分') }}</strong></span>
             <span><em>精度</em><strong>{{ item.precisionScore ? `${item.precisionScore}分` : '待核验' }}</strong></span>
             <span><em>顺位</em><strong>{{ item.index }}</strong></span>
+            <button class="quick-help" type="button" title="这些指标是什么意思？" @click.stop="showMetricGlossary = true">
+              <HelpCircle :size="12" />
+              指标说明
+            </button>
           </div>
+
+          <p class="plan-row__evidence">{{ evidenceLine(item) }}</p>
 
           <div class="plan-row__compact-footer">
             <span class="fit-text">{{ item.suitableFor || '适合作为梯度中的功能位志愿，建议横向比较后排序。' }}</span>
@@ -1052,6 +1120,10 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
           </div>
         </transition>
       </article>
+
+      <div v-if="hasMoreToRender" ref="listSentinel" class="plan-list__sentinel">
+        已显示 {{ visibleItems.length }} / {{ filteredItems.length }} 条，继续下滑加载
+      </div>
     </section>
 
     <RecommendSection />
@@ -1070,6 +1142,8 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
         导出 Excel
       </button>
     </div>
+
+    <MetricGlossarySheet v-model:show="showMetricGlossary" />
   </div>
 </template>
 
@@ -1077,7 +1151,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 .result-page {
   min-height: 100dvh;
   padding-bottom: 96px;
-  background: #f8fafc;
+  background: var(--gz-bg);
 }
 
 .result-header {
@@ -1086,7 +1160,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   z-index: 30;
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  border-bottom: 1px solid rgba(23, 24, 28, 0.06);
 }
 
 .header-inner {
@@ -1108,14 +1182,14 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   align-items: center;
   justify-content: center;
   background: #f3f4f6;
-  color: #334155;
+  color: #383a40;
 }
 
 .header-title {
   flex: 1;
   font-size: 18px;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .hero-panel,
@@ -1139,10 +1213,10 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
 .result-warning {
   padding: 12px 14px;
-  border: 1px solid #fde68a;
+  border: 1px solid #e6dcbd;
   border-radius: 16px;
-  background: #fffbeb;
-  color: #92400e;
+  background: #faf7ef;
+  color: #7c5f33;
   font-size: 13px;
   line-height: 1.6;
 }
@@ -1152,16 +1226,16 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   align-items: flex-start;
   gap: 8px;
   padding: 12px 14px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid #d9d8d3;
   border-radius: 16px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #f4f4f2;
+  color: #17181c;
   font-size: 12px;
   line-height: 1.6;
 }
 
 .rank-estimate-banner--auto {
-  border-color: #fed7aa;
+  border-color: #e8dcc5;
   background: #fff7ed;
   color: #9a3412;
 }
@@ -1170,8 +1244,8 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   padding: 22px;
   border-radius: 24px;
   background: linear-gradient(145deg, #ffffff, #eef4ff);
-  border: 1px solid rgba(37, 99, 235, 0.08);
-  box-shadow: 0 18px 40px rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(23, 24, 28, 0.08);
+  box-shadow: 0 18px 40px rgba(23, 24, 28, 0.08);
 }
 
 .hero-metrics,
@@ -1191,23 +1265,25 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   font-size: 12px;
   font-weight: 700;
   background: #fff;
-  color: #334155;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: #383a40;
+  border: 1px solid rgba(23, 24, 28, 0.08);
 }
 
 .hero-title {
   margin-top: 14px;
+  font-family: var(--gz-font-display);
   font-size: 28px;
-  line-height: 1.15;
-  font-weight: 900;
-  color: #0f172a;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #17181c;
 }
 
 .hero-desc {
   margin-top: 10px;
   font-size: 14px;
   line-height: 1.7;
-  color: #475569;
+  color: #4b4d54;
 }
 
 .hero-profile {
@@ -1224,19 +1300,19 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   padding: 16px;
   border-radius: 20px;
   background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(23, 24, 28, 0.06);
 }
 
 .metric-label {
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .metric-value {
   margin-top: 6px;
   font-size: 24px;
   font-weight: 900;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .mode-switch {
@@ -1249,17 +1325,17 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   flex: 1;
   min-height: 42px;
   border-radius: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(23, 24, 28, 0.08);
   background: #fff;
-  color: #475569;
+  color: #4b4d54;
   font-size: 14px;
   font-weight: 700;
 }
 
 .mode-btn.active {
-  background: #0f172a;
+  background: #17181c;
   color: #fff;
-  border-color: #0f172a;
+  border-color: #17181c;
 }
 
 .algorithm-card {
@@ -1267,7 +1343,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 }
 
 .algorithm-card__details {
-  border: 1px solid #dbeafe;
+  border: 1px solid #e7e6e1;
   border-radius: 18px;
   background: #fff;
   padding: 14px 16px;
@@ -1279,27 +1355,27 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   justify-content: space-between;
   gap: 12px;
   cursor: pointer;
-  color: #0f172a;
+  color: #17181c;
   font-size: 14px;
   font-weight: 800;
 }
 
 .algorithm-card__details summary::marker {
-  color: #2563eb;
+  color: #17181c;
 }
 
 .algorithm-card__details summary strong {
   flex-shrink: 0;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #f4f4f2;
+  color: #17181c;
   font-size: 12px;
 }
 
 .algorithm-card__details p {
   margin-top: 10px;
-  color: #475569;
+  color: #4b4d54;
   font-size: 12px;
   line-height: 1.7;
 }
@@ -1307,8 +1383,8 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 .algorithm-card__note {
   padding: 8px 10px;
   border-radius: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #fafaf8;
+  border: 1px solid #e3e2de;
 }
 
 .algorithm-metrics {
@@ -1324,9 +1400,9 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   min-height: 26px;
   padding: 4px 9px;
   border-radius: 999px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #475569;
+  background: #fafaf8;
+  border: 1px solid #e3e2de;
+  color: #4b4d54;
   font-size: 11px;
   font-weight: 700;
 }
@@ -1340,8 +1416,8 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 .algorithm-range-item {
   padding: 10px 12px;
   border-radius: 14px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border: 1px solid #e3e2de;
+  background: #fafaf8;
   display: grid;
   gap: 3px;
 }
@@ -1350,8 +1426,8 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   width: 28px;
   height: 28px;
   border-radius: 10px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #f4f4f2;
+  color: #17181c;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1360,12 +1436,12 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 }
 
 .algorithm-range-item strong {
-  color: #0f172a;
+  color: #17181c;
   font-size: 13px;
 }
 
 .algorithm-range-item small {
-  color: #64748b;
+  color: #6a6c72;
   font-size: 11px;
   line-height: 1.5;
 }
@@ -1374,9 +1450,9 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   margin-top: 12px;
   padding: 18px;
   border-radius: 22px;
-  border: 1px solid #dbeafe;
+  border: 1px solid #e7e6e1;
   background: linear-gradient(145deg, #f8fbff, #ffffff);
-  box-shadow: 0 16px 42px rgba(37, 99, 235, 0.08);
+  box-shadow: 0 16px 42px rgba(23, 24, 28, 0.08);
 }
 
 .advisor-card__head {
@@ -1397,7 +1473,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 .advisor-card__eyebrow {
   display: inline-flex;
   margin-bottom: 4px;
-  color: #2563eb;
+  color: #17181c;
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -1405,7 +1481,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
 .advisor-card__head h3 {
   margin: 0;
-  color: #0f172a;
+  color: #17181c;
   font-size: 18px;
   font-weight: 900;
 }
@@ -1414,7 +1490,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   flex-shrink: 0;
   padding: 5px 10px;
   border-radius: 999px;
-  background: #0f172a;
+  background: #17181c;
   color: #fff;
   font-size: 12px;
   font-weight: 800;
@@ -1424,7 +1500,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #2563eb;
+  color: #17181c;
   font-size: 12px;
   font-weight: 800;
   text-decoration: none;
@@ -1437,14 +1513,14 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
 .advisor-card__grid article {
   padding: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.82);
 }
 
 .advisor-card__grid strong,
 .advisor-card__lists h4 {
-  color: #0f172a;
+  color: #17181c;
   font-size: 13px;
   font-weight: 900;
 }
@@ -1452,7 +1528,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 .advisor-card__grid p,
 .advisor-card__note {
   margin: 6px 0 0;
-  color: #475569;
+  color: #4b4d54;
   font-size: 12px;
   line-height: 1.7;
 }
@@ -1466,8 +1542,8 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 .advisor-card__lists > div {
   padding: 12px;
   border-radius: 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #fafaf8;
+  border: 1px solid #e3e2de;
 }
 
 .advisor-card__lists h4 {
@@ -1478,14 +1554,14 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 .advisor-card__lists ol {
   margin: 0;
   padding-left: 18px;
-  color: #475569;
+  color: #4b4d54;
   font-size: 12px;
   line-height: 1.75;
 }
 
 .advisor-card__note {
   margin-top: 10px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .digest-grid {
@@ -1497,7 +1573,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 .digest-card {
   border-radius: 22px;
   background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(23, 24, 28, 0.06);
   padding: 18px;
 }
 
@@ -1511,7 +1587,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   gap: 8px;
   font-size: 15px;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .digest-list {
@@ -1524,18 +1600,18 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 .digest-item {
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  background: #f8fafc;
+  border: 1px solid rgba(23, 24, 28, 0.06);
+  background: #fafaf8;
   text-align: left;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  color: #334155;
+  color: #383a40;
 }
 
 .digest-item strong {
   font-size: 14px;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .digest-item span {
@@ -1555,22 +1631,22 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   min-height: 40px;
   padding: 8px 14px;
   border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(23, 24, 28, 0.08);
   background: #fff;
-  color: #475569;
+  color: #4b4d54;
   font-size: 13px;
   font-weight: 700;
 }
 
 .tab-btn.active {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border-color: #93c5fd;
+  background: #f4f4f2;
+  color: #17181c;
+  border-color: #b9bbc0;
 }
 
 .tab-num {
   margin-left: 6px;
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .compare-bar {
@@ -1585,7 +1661,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 }
 
 .compare-bar--active {
-  background: #eff6ff;
+  background: #f4f4f2;
 }
 
 .compare-copy {
@@ -1595,13 +1671,13 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 .compare-title {
   font-size: 15px;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .compare-desc {
   margin-top: 4px;
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .compare-btn {
@@ -1611,7 +1687,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #0f172a;
+  background: #17181c;
   color: #fff;
   font-size: 13px;
   font-weight: 700;
@@ -1643,11 +1719,11 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 }
 
 .plan-row__summary:focus-visible {
-  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.35);
+  box-shadow: inset 0 0 0 2px rgba(23, 24, 28, 0.35);
 }
 
 .plan-row--expanded .plan-row__summary {
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  border-bottom: 1px solid rgba(23, 24, 28, 0.06);
 }
 
 .plan-row__header {
@@ -1696,40 +1772,41 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 }
 
 .grad-badge {
-  border: 1px solid rgba(15, 23, 42, 0.05);
+  border: 1px solid rgba(23, 24, 28, 0.05);
 }
 
 .match-badge {
-  color: #1d4ed8;
-  background: #eff6ff;
+  color: #17181c;
+  background: #f4f4f2;
 }
 
 .source-badge {
-  color: #0f766e;
-  background: #ecfdf5;
+  color: #4b4d54;
+  background: #eef2ee;
 }
 
 .confidence--high {
-  color: #047857;
-  background: #ecfdf5;
+  color: #2f6650;
+  background: #eef2ee;
 }
 
 .confidence--mid {
-  color: #b45309;
-  background: #fffbeb;
+  color: #8a6d3b;
+  background: #faf7ef;
 }
 
 .confidence--low {
-  color: #b91c1c;
-  background: #fef2f2;
+  color: #a03535;
+  background: #f7efef;
 }
 
 .plan-row__school {
   margin-top: 8px;
+  font-family: var(--gz-font-display);
   font-size: 18px;
-  line-height: 1.2;
-  font-weight: 900;
-  color: #0f172a;
+  line-height: 1.3;
+  font-weight: 700;
+  color: #17181c;
 }
 
 .plan-row__major {
@@ -1737,7 +1814,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   font-size: 14px;
   line-height: 1.45;
   font-weight: 700;
-  color: #2563eb;
+  color: #17181c;
   display: -webkit-box;
   overflow: hidden;
   -webkit-line-clamp: 2;
@@ -1747,7 +1824,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 .plan-row__meta {
   margin-top: 8px;
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .plan-row__meta span {
@@ -1764,15 +1841,15 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   justify-content: space-between;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(23, 24, 28, 0.06);
   border-radius: 12px;
-  background: #f8fafc;
+  background: #fafaf8;
 }
 
 .plan-row__aside-prob {
   font-size: 22px;
   font-weight: 900;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .plan-row__aside-fit {
@@ -1782,12 +1859,12 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
 .plan-row__aside-label {
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .meta-tag {
-  color: #334155;
-  background: #f8fafc;
+  color: #383a40;
+  background: #fafaf8;
 }
 
 .compare-toggle {
@@ -1795,15 +1872,15 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   min-height: 30px;
   padding: 6px 10px;
   border-radius: 10px;
-  border: 1px solid rgba(37, 99, 235, 0.15);
+  border: 1px solid rgba(23, 24, 28, 0.15);
   background: #fff;
-  color: #2563eb;
+  color: #17181c;
   font-size: 12px;
   font-weight: 700;
 }
 
 .compare-toggle.active {
-  background: #eff6ff;
+  background: #f4f4f2;
 }
 
 .plan-row__quick {
@@ -1816,8 +1893,8 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   min-height: 30px;
   padding: 5px 8px;
   border-radius: 999px;
-  background: #f8fafc;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: #fafaf8;
+  border: 1px solid rgba(23, 24, 28, 0.06);
   display: flex;
   align-items: center;
   gap: 5px;
@@ -1827,13 +1904,13 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 .plan-row__quick em {
   font-style: normal;
   font-size: 11px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .plan-row__quick strong {
   min-width: 0;
   font-size: 12px;
-  color: #0f172a;
+  color: #17181c;
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
@@ -1851,9 +1928,9 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   min-height: 32px;
   padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border: 1px solid #d9d8d3;
+  background: #f4f4f2;
+  color: #17181c;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1882,7 +1959,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   padding: 14px;
   border-radius: 16px;
   background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(23, 24, 28, 0.06);
 }
 
 .reason-box--warn {
@@ -1891,7 +1968,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
 .reason-box--info {
   background: #f8fbff;
-  border-color: #bfdbfe;
+  border-color: #d9d8d3;
 }
 
 .reason-box--precision {
@@ -1905,21 +1982,21 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   gap: 6px;
   font-size: 13px;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .reason-box p {
   margin-top: 8px;
   font-size: 13px;
   line-height: 1.75;
-  color: #475569;
+  color: #4b4d54;
 }
 
 .history-card {
   margin-top: 12px;
   padding: 14px;
   border-radius: 16px;
-  border: 1px solid #dbeafe;
+  border: 1px solid #e7e6e1;
   background: #f8fbff;
 }
 
@@ -1932,13 +2009,13 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
 .history-card__head h4 {
   font-size: 14px;
-  color: #0f172a;
+  color: #17181c;
   font-weight: 900;
 }
 
 .history-card__head p {
   margin-top: 4px;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 12px;
   line-height: 1.6;
 }
@@ -1947,15 +2024,15 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   flex-shrink: 0;
   padding: 4px 9px;
   border-radius: 999px;
-  background: #ecfdf5;
-  color: #047857;
+  background: #eef2ee;
+  color: #2f6650;
   font-size: 11px;
   font-weight: 800;
 }
 
 .history-card__badge--warn {
   background: #fff7ed;
-  color: #b45309;
+  color: #8a6d3b;
 }
 
 .group-major-tags {
@@ -1972,8 +2049,8 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   padding: 5px 10px;
   border-radius: 999px;
   background: #fff;
-  border: 1px solid #dbeafe;
-  color: #334155;
+  border: 1px solid #e7e6e1;
+  color: #383a40;
   font-size: 12px;
   font-weight: 700;
 }
@@ -1989,7 +2066,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   grid-template-columns: 52px repeat(3, minmax(0, 1fr));
   gap: 8px;
   padding: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
   border-radius: 14px;
   background: #fff;
 }
@@ -1998,7 +2075,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   width: 44px;
   height: 32px;
   border-radius: 10px;
-  background: #0f172a;
+  background: #17181c;
   color: #fff;
   display: inline-flex;
   align-items: center;
@@ -2016,12 +2093,12 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
 .history-record em {
   font-style: normal;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 11px;
 }
 
 .history-record strong {
-  color: #0f172a;
+  color: #17181c;
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
@@ -2029,7 +2106,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 }
 
 .history-record__source {
-  color: #0f766e;
+  color: #4b4d54;
   font-size: 11px;
   font-weight: 800;
   justify-content: center;
@@ -2046,24 +2123,24 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 }
 
 .history-record__rank-source.is-original {
-  color: #047857;
-  background: #ecfdf5;
+  color: #2f6650;
+  background: #eef2ee;
 }
 
 .history-record__rank-source.is-converted {
-  color: #1d4ed8;
-  background: #eff6ff;
+  color: #17181c;
+  background: #f4f4f2;
 }
 
 .history-record__rank-source.is-missing {
-  color: #b45309;
+  color: #8a6d3b;
   background: #fff7ed;
 }
 
 .history-record__note {
   grid-column: 2 / -1;
   margin: 0;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 11px;
   line-height: 1.55;
 }
@@ -2073,7 +2150,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   padding: 10px 12px;
   border-radius: 12px;
   background: #fff7ed;
-  color: #92400e;
+  color: #7c5f33;
   font-size: 12px;
   line-height: 1.6;
 }
@@ -2089,7 +2166,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   flex: 1;
   min-width: 0;
   font-size: 13px;
-  color: #475569;
+  color: #4b4d54;
   line-height: 1.6;
   display: -webkit-box;
   overflow: hidden;
@@ -2101,10 +2178,10 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   align-self: flex-start;
   min-height: 32px;
   padding: 0 12px;
-  border: 1px solid rgba(37, 99, 235, 0.15);
+  border: 1px solid rgba(23, 24, 28, 0.15);
   border-radius: 999px;
   background: #fff;
-  color: #2563eb;
+  color: #17181c;
   font-size: 13px;
   font-weight: 800;
 }
@@ -2131,7 +2208,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   gap: 10px;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(14px);
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-top: 1px solid rgba(23, 24, 28, 0.08);
 }
 
 .action-btn {
@@ -2148,13 +2225,14 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
 .action-btn--primary {
   grid-column: 1 / -1;
-  background: #0f172a;
+  background: var(--gz-brand-gradient);
   color: #fff;
+  box-shadow: 0 8px 20px rgba(23, 24, 28, 0.28);
 }
 
 .action-btn--secondary {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #f4f4f2;
+  color: #17181c;
 }
 
 @media (min-width: 1024px) {
@@ -2212,8 +2290,8 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
     width: 540px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     border-radius: 18px;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.12);
+    border: 1px solid rgba(23, 24, 28, 0.08);
+    box-shadow: 0 16px 30px rgba(23, 24, 28, 0.12);
   }
 
   .action-btn--primary {
@@ -2248,7 +2326,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   .compare-bar {
     padding-left: 24px;
     padding-right: 24px;
-    border: 1px solid rgba(15, 23, 42, 0.06);
+    border: 1px solid rgba(23, 24, 28, 0.06);
     background: rgba(255, 255, 255, 0.92);
   }
 }
@@ -2295,18 +2373,64 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   padding: 10px 14px;
   border-radius: 14px;
   background: #fff7ed;
-  border: 1px solid #fed7aa;
-  color: #b45309;
+  border: 1px solid #e8dcc5;
+  color: #8a6d3b;
   font-size: 12px;
   line-height: 1.6;
 }
+
+.reference-banner--data-limit {
+  background: #f4f4f2;
+  border-color: #d9d8d3;
+  color: #17181c;
+}
+
+.plan-row__evidence {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--gz-bg-subtle);
+  border: 1px dashed rgba(23, 24, 28, 0.2);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--gz-ink-soft);
+}
+
+.quick-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px dashed rgba(23, 24, 28, 0.3);
+  background: #fff;
+  color: var(--gz-ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.quick-help:hover,
+.quick-help:focus-visible {
+  background: var(--gz-bg-subtle);
+}
+
+.plan-list__sentinel {
+  padding: 18px 0 6px;
+  text-align: center;
+  color: var(--gz-text-tertiary);
+  font-size: 12px;
+}
+
+/* 指标术语表样式已随 MetricGlossarySheet 组件迁移 */
 
 .draft-status-bar {
   margin: 16px 0;
   padding: 14px 18px;
   border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  border: 1px solid #e3e2de;
+  background: linear-gradient(180deg, #ffffff, #fafaf8);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2321,12 +2445,12 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
 .draft-status-bar__title {
   font-weight: 700;
-  color: #0f172a;
+  color: #17181c;
   font-size: 14px;
 }
 
 .draft-status-bar__hint {
-  color: #64748b;
+  color: #6a6c72;
   font-size: 12px;
   line-height: 1.55;
 }
@@ -2348,31 +2472,31 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 }
 
 .draft-status-pill--keep {
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
+  background: #eef2ee;
+  color: #2f6650;
+  border: 1px solid #c2d5c5;
 }
 
 .draft-status-pill--review {
   background: #fff7ed;
-  color: #b45309;
-  border: 1px solid #fed7aa;
+  color: #8a6d3b;
+  border: 1px solid #e8dcc5;
 }
 
 .draft-status-pill--drop {
-  background: #fef2f2;
-  color: #b91c1c;
-  border: 1px solid #fecaca;
+  background: #f7efef;
+  color: #a03535;
+  border: 1px solid #e3cbcb;
 }
 
 .draft-export-btn {
   min-height: 30px;
   padding: 0 12px;
-  color: #0f172a;
+  color: #17181c;
   font-size: 12px;
   font-weight: 700;
   background: #fff;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #cdccc7;
   border-radius: 999px;
 }
 
@@ -2397,12 +2521,12 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   gap: 6px;
   font-size: 15px;
   font-weight: 700;
-  color: #b45309;
+  color: #8a6d3b;
 }
 
 .manual-review-card__desc {
   margin-top: 6px;
-  color: #92400e;
+  color: #7c5f33;
   font-size: 12px;
   line-height: 1.7;
 }
@@ -2412,7 +2536,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   align-self: flex-start;
   font-size: 12px;
   font-weight: 700;
-  color: #b45309;
+  color: #8a6d3b;
   background: #fff;
   border: 1px solid #fcd9b6;
   border-radius: 999px;
@@ -2444,7 +2568,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   width: 26px;
   height: 26px;
   border-radius: 999px;
-  background: #b45309;
+  background: #8a6d3b;
   color: #fff;
   font-size: 12px;
   font-weight: 700;
@@ -2461,13 +2585,13 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
 
 .manual-review-list__gradient {
   font-size: 12px;
-  color: #b45309;
+  color: #8a6d3b;
 }
 
 .manual-review-list__reasons {
   margin-top: 6px;
   padding-left: 18px;
-  color: #b45309;
+  color: #8a6d3b;
   font-size: 12px;
   line-height: 1.7;
 }
@@ -2487,13 +2611,13 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   border-radius: 999px;
   background: #fff7ed;
   border: 1px solid #fcd9b6;
-  color: #92400e;
+  color: #7c5f33;
   font-size: 11px;
   text-decoration: none;
 }
 
 .manual-review-list__links a:hover {
-  background: #fed7aa;
+  background: #e8dcc5;
 }
 
 .manual-review-card__toggle {
@@ -2502,7 +2626,7 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   border-radius: 999px;
   background: transparent;
   border: 1px solid #fcd9b6;
-  color: #b45309;
+  color: #8a6d3b;
   font-size: 12px;
   cursor: pointer;
 }
@@ -2511,15 +2635,15 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   margin-top: 12px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
+  background: #fafaf8;
+  border: 1px dashed #cdccc7;
 }
 
 .evidence-chain__head {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #475569;
+  color: #4b4d54;
   font-size: 12px;
   font-weight: 600;
 }
@@ -2539,23 +2663,23 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   padding: 3px 8px;
   border-radius: 999px;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  color: #2563eb;
+  border: 1px solid #e3e2de;
+  color: #17181c;
   font-size: 11px;
   text-decoration: none;
 }
 
 .evidence-chain__links a:hover {
-  background: #eff6ff;
+  background: #f4f4f2;
 }
 
 .evidence-chain__flag {
   display: inline-flex;
   padding: 3px 8px;
   border-radius: 999px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #b91c1c;
+  background: #f7efef;
+  border: 1px solid #e3cbcb;
+  color: #a03535;
   font-size: 11px;
   font-weight: 600;
 }
@@ -2571,42 +2695,42 @@ function fallbackDownload(file: File, fileName: string, nav?: Navigator & {
   padding: 4px 12px;
   font-size: 12px;
   font-weight: 600;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #cdccc7;
   background: #ffffff;
-  color: #475569;
+  color: #4b4d54;
   cursor: pointer;
   transition: background 0.18s ease, border-color 0.18s ease;
 }
 
 .status-toggle:hover {
-  background: #f8fafc;
+  background: #fafaf8;
 }
 
 .status-toggle--keep {
-  background: #ecfdf5;
-  border-color: #a7f3d0;
-  color: #047857;
+  background: #eef2ee;
+  border-color: #c2d5c5;
+  color: #2f6650;
 }
 
 .status-toggle--review {
   background: #fff7ed;
-  border-color: #fed7aa;
-  color: #b45309;
+  border-color: #e8dcc5;
+  color: #8a6d3b;
 }
 
 .status-toggle--drop {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #b91c1c;
+  background: #f7efef;
+  border-color: #e3cbcb;
+  color: #a03535;
 }
 
 .plan-row--status-keep {
-  border-color: #a7f3d0;
-  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2);
+  border-color: #c2d5c5;
+  box-shadow: 0 0 0 1px rgba(47, 125, 93, 0.2);
 }
 
 .plan-row--status-review {
-  border-color: #fed7aa;
+  border-color: #e8dcc5;
 }
 
 .plan-row--status-drop {

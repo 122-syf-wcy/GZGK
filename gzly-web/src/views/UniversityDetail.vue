@@ -30,6 +30,7 @@ import type { OfficialLink, University } from '@/types'
 import axios from 'axios'
 import { listMedia, checkSchoolHasAdmin } from '@/api/alumni'
 import { sanitizeHttpUrl } from '@/utils/markdown'
+import { fetchSchoolPhotos } from '@/utils/school-photos'
 import SafeExternalLink from '@/components/SafeExternalLink.vue'
 import UniversityQa from '@/components/UniversityQa.vue'
 import { getProvinceConfig, normalizeProvinceCode } from '@/constants/provinces'
@@ -106,9 +107,8 @@ async function fetchCdnInfo(sid: string) {
   } catch { /* CDN data is optional */ }
 
   try {
-    const r2 = await axios.get('/school_photos.json', { timeout: 5000 })
-    const allPhotos = r2.data as Record<string, string[]>
-    if (allPhotos[sid]) photos.value = mergeUniqueMedia([], allPhotos[sid], MAX_GALLERY_PHOTOS)
+    const schoolPhotos = await fetchSchoolPhotos(sid)
+    if (schoolPhotos.length) photos.value = mergeUniqueMedia([], schoolPhotos, MAX_GALLERY_PHOTOS)
   } catch { /* photos are optional */ }
 
   try {
@@ -175,10 +175,10 @@ function safeMailHref(email?: string | null) {
 
 function tagColor(tag: string): string {
   const map: Record<string, string> = {
-    '985': '#dc2626', '211': '#d97706', '双一流': '#2563eb',
-    '公办': '#059669', '民办': '#7c3aed', '中外合作办学': '#0891b2',
+    '985': '#b34040', '211': '#a5793a', '双一流': '#17181c',
+    '公办': '#2f7d5d', '民办': '#7c3aed', '中外合作办学': '#4b4d54',
   }
-  return map[tag] || '#64748b'
+  return map[tag] || '#6a6c72'
 }
 
 function tagIcon(tag: string) {
@@ -407,7 +407,7 @@ const parsedRules = computed(() => {
 
       <!-- Hero Banner -->
       <div v-if="heroBanners.length > 0" class="gallery-section">
-        <van-swipe class="banner-swipe" :autoplay="4000" indicator-color="#2563eb">
+        <van-swipe class="banner-swipe" :autoplay="4000" indicator-color="#17181c">
           <van-swipe-item v-for="(url, idx) in heroBanners" :key="'b'+idx">
             <img class="banner-img" :src="url" loading="lazy" @error="($event.target as HTMLImageElement).style.display = 'none'" />
           </van-swipe-item>
@@ -432,7 +432,7 @@ const parsedRules = computed(() => {
         <van-swipe
           class="gallery-swipe"
           :autoplay="4000"
-          indicator-color="#2563eb"
+          indicator-color="#17181c"
           @change="(idx: number) => activePhotoIdx = idx"
         >
           <van-swipe-item v-for="(url, idx) in photos" :key="idx">
@@ -752,7 +752,7 @@ const parsedRules = computed(() => {
   flex: 1;
   font-size: 17px;
   font-weight: 700;
-  color: #111827;
+  color: #17181c;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -779,7 +779,7 @@ const parsedRules = computed(() => {
 .hero-bg {
   position: relative;
   height: 190px;
-  background: linear-gradient(135deg, #f0f4ff 0%, #e8ecf8 100%);
+  background: linear-gradient(135deg, #eceded 0%, #e3e2de 100%);
   background-size: cover;
   background-position: center;
   overflow: hidden;
@@ -849,12 +849,12 @@ const parsedRules = computed(() => {
   align-items: center;
   gap: 3px;
   font-size: 13px;
-  color: #64748b;
+  color: #6a6c72;
 }
 .hero-type {
   font-size: 12px;
-  color: #2563eb;
-  background: #eff6ff;
+  color: #17181c;
+  background: #f4f4f2;
   padding: 2px 10px;
   border-radius: 20px;
   font-weight: 600;
@@ -863,7 +863,7 @@ const parsedRules = computed(() => {
   margin-top: 8px;
   font-size: 13px;
   line-height: 1.6;
-  color: #64748b;
+  color: #6a6c72;
   text-align: left;
 }
 .hero-tags {
@@ -883,19 +883,19 @@ const parsedRules = computed(() => {
   font-weight: 600;
 }
 .hero-tag--outline {
-  color: #64748b !important;
-  background: #f8fafc !important;
-  border: 1px solid #e2e8f0;
+  color: #6a6c72 !important;
+  background: #fafaf8 !important;
+  border: 1px solid #e3e2de;
   box-shadow: none;
 }
 .hero-motto {
   text-align: center;
   padding: 10px 20px 16px;
   font-size: 13px;
-  color: #64748b;
+  color: #6a6c72;
   font-style: italic;
   letter-spacing: 0.06em;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid #f2f2ef;
 }
 
 /* ---- Banner ---- */
@@ -934,11 +934,11 @@ const parsedRules = computed(() => {
 .gallery-title {
   font-size: 15px;
   font-weight: 700;
-  color: #334155;
+  color: #383a40;
 }
 .gallery-count {
   font-size: 12px;
-  color: #94a3b8;
+  color: #97999e;
   font-variant-numeric: tabular-nums;
 }
 .gallery-swipe {
@@ -970,14 +970,14 @@ const parsedRules = computed(() => {
 .tuition-card-title {
   font-size: 16px;
   font-weight: 700;
-  color: #0f172a;
+  color: #17181c;
   margin-bottom: 4px;
 }
 
 .tuition-card-subtitle {
   font-size: 12px;
   line-height: 1.6;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .tuition-card-link {
@@ -988,8 +988,8 @@ const parsedRules = computed(() => {
   min-height: 36px;
   padding: 0 12px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: #f4f4f2;
+  color: #17181c;
   font-size: 12px;
   font-weight: 700;
 }
@@ -997,7 +997,7 @@ const parsedRules = computed(() => {
 .tuition-card-text {
   font-size: 13px;
   line-height: 1.85;
-  color: #334155;
+  color: #383a40;
 }
 
 .tuition-card-note {
@@ -1006,7 +1006,7 @@ const parsedRules = computed(() => {
   border-top: 1px dashed #e5e7eb;
   font-size: 12px;
   line-height: 1.7;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 /* ---- Media Banner ---- */
@@ -1090,13 +1090,13 @@ const parsedRules = computed(() => {
 .rank-num {
   font-size: 22px;
   font-weight: 800;
-  color: #111827;
+  color: #17181c;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 .rank-label {
   font-size: 11px;
-  color: #94a3b8;
+  color: #97999e;
   font-weight: 500;
 }
 
@@ -1113,7 +1113,7 @@ const parsedRules = computed(() => {
 }
 
 .decision-card--primary {
-  background: linear-gradient(180deg, #ffffff, #eff6ff);
+  background: linear-gradient(180deg, #ffffff, #f4f4f2);
 }
 
 .decision-card--warn {
@@ -1121,13 +1121,13 @@ const parsedRules = computed(() => {
 }
 
 .decision-card--safe {
-  background: linear-gradient(180deg, #ffffff, #ecfdf5);
+  background: linear-gradient(180deg, #ffffff, #eef2ee);
 }
 
 .decision-card-title {
   font-size: 12px;
   font-weight: 700;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .decision-card-value {
@@ -1135,14 +1135,14 @@ const parsedRules = computed(() => {
   font-size: 19px;
   line-height: 1.3;
   font-weight: 900;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .decision-card-hint {
   margin-top: 8px;
   font-size: 12px;
   line-height: 1.7;
-  color: #475569;
+  color: #4b4d54;
 }
 
 .decision-links-card {
@@ -1158,14 +1158,14 @@ const parsedRules = computed(() => {
 .decision-links-head h4 {
   font-size: 15px;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .decision-links-head p {
   margin-top: 4px;
   font-size: 12px;
   line-height: 1.6;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .decision-link-actions {
@@ -1181,8 +1181,8 @@ const parsedRules = computed(() => {
   min-height: 36px;
   padding: 0 12px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #f4f4f2;
+  color: #17181c;
   font-size: 12px;
   font-weight: 700;
   text-decoration: none;
@@ -1226,12 +1226,12 @@ const parsedRules = computed(() => {
 
 .official-doc-card:not(.official-doc-card--empty):hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 24px rgba(23, 24, 28, 0.08);
 }
 
 .official-doc-card--empty {
   cursor: default;
-  background: #f8fafc;
+  background: #fafaf8;
 }
 
 .official-doc-head {
@@ -1244,7 +1244,7 @@ const parsedRules = computed(() => {
 .official-doc-title {
   font-size: 14px;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .official-doc-status {
@@ -1258,26 +1258,26 @@ const parsedRules = computed(() => {
 }
 
 .official-doc-status--ok {
-  background: #ecfdf5;
-  color: #047857;
+  background: #eef2ee;
+  color: #2f6650;
 }
 
 .official-doc-status--empty {
-  background: #f1f5f9;
-  color: #64748b;
+  background: #f2f2ef;
+  color: #6a6c72;
 }
 
 .official-doc-url {
   font-size: 12px;
   line-height: 1.7;
-  color: #475569;
+  color: #4b4d54;
   word-break: break-all;
 }
 
 .official-doc-action {
   font-size: 12px;
   font-weight: 700;
-  color: #2563eb;
+  color: #17181c;
 }
 
 .official-remark-card {
@@ -1287,14 +1287,14 @@ const parsedRules = computed(() => {
 .official-remark-card h4 {
   font-size: 14px;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .official-remark-card p {
   margin-top: 8px;
   font-size: 12px;
   line-height: 1.7;
-  color: #475569;
+  color: #4b4d54;
 }
 
 .rule-grid {
@@ -1309,14 +1309,14 @@ const parsedRules = computed(() => {
 .rule-title {
   font-size: 12px;
   font-weight: 800;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .rule-text {
   margin-top: 8px;
   font-size: 13px;
   line-height: 1.75;
-  color: #334155;
+  color: #383a40;
 }
 
 /* ---- Subject Rankings ---- */
@@ -1341,14 +1341,14 @@ const parsedRules = computed(() => {
 }
 .xueke-count {
   font-size: 10px;
-  color: #64748b;
+  color: #6a6c72;
 }
-.xueke--a { background: #fef3c7; }
-.xueke--a .xueke-grade { color: #d97706; }
-.xueke--b { background: #dbeafe; }
-.xueke--b .xueke-grade { color: #2563eb; }
-.xueke--c { background: #f1f5f9; }
-.xueke--c .xueke-grade { color: #64748b; }
+.xueke--a { background: #f3ecd9; }
+.xueke--a .xueke-grade { color: #a5793a; }
+.xueke--b { background: #e7e6e1; }
+.xueke--b .xueke-grade { color: #17181c; }
+.xueke--c { background: #f2f2ef; }
+.xueke--c .xueke-grade { color: #6a6c72; }
 
 /* ---- (motto moved into hero-motto) ---- */
 
@@ -1366,7 +1366,7 @@ const parsedRules = computed(() => {
   gap: 6px;
   font-size: 15px;
   font-weight: 600;
-  color: #111827;
+  color: #17181c;
   margin-bottom: 10px;
   padding-left: 2px;
 }
@@ -1379,7 +1379,7 @@ const parsedRules = computed(() => {
 .intro-text {
   font-size: 14px;
   line-height: 1.75;
-  color: #475569;
+  color: #4b4d54;
   text-align: justify;
 }
 .info-grid {
@@ -1390,20 +1390,20 @@ const parsedRules = computed(() => {
 .info-row {
   display: flex;
   padding: 10px 0;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f2f2ef;
 }
 .info-row:last-child { border-bottom: none; }
 .info-label {
   flex-shrink: 0;
   width: 80px;
   font-size: 13px;
-  color: #94a3b8;
+  color: #97999e;
   font-weight: 500;
 }
 .info-value {
   flex: 1;
   font-size: 14px;
-  color: #334155;
+  color: #383a40;
   font-weight: 500;
 }
 .info-value--address {
@@ -1423,9 +1423,9 @@ const parsedRules = computed(() => {
   align-items: center;
   gap: 10px;
   padding: 12px 0;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f2f2ef;
   text-decoration: none;
-  color: #2563eb;
+  color: #17181c;
   font-size: 13px;
   transition: opacity 0.15s;
 }
@@ -1445,12 +1445,12 @@ const parsedRules = computed(() => {
 .alumni-news-title {
   font-size: 15px;
   font-weight: 700;
-  color: #0f172a;
+  color: #17181c;
   margin-bottom: 6px;
 }
 .alumni-news-content {
   font-size: 13px;
-  color: #64748b;
+  color: #6a6c72;
   line-height: 1.6;
   margin-bottom: 8px;
 }
@@ -1459,7 +1459,7 @@ const parsedRules = computed(() => {
   align-items: center;
   gap: 4px;
   font-size: 13px;
-  color: #2563eb;
+  color: #17181c;
   text-decoration: none;
   font-weight: 500;
 }
@@ -1477,9 +1477,9 @@ const parsedRules = computed(() => {
   align-items: center;
   gap: 12px;
   padding: 12px 0;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f2f2ef;
   text-decoration: none;
-  color: #2563eb;
+  color: #17181c;
   transition: opacity 0.15s;
 }
 .alumni-file-item:last-child { border-bottom: none; }
@@ -1488,8 +1488,8 @@ const parsedRules = computed(() => {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: #f4f4f2;
+  color: #17181c;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1510,16 +1510,16 @@ const parsedRules = computed(() => {
   text-align: center;
 }
 .alumni-empty-icon {
-  color: #cbd5e1;
+  color: #cdccc7;
 }
 .alumni-empty-text {
   font-size: 15px;
   font-weight: 600;
-  color: #64748b;
+  color: #6a6c72;
 }
 .alumni-empty-hint {
   font-size: 12px;
-  color: #94a3b8;
+  color: #97999e;
 }
 .alumni-empty-btn {
   display: inline-flex;
@@ -1549,12 +1549,12 @@ const parsedRules = computed(() => {
   margin-top: 24px;
   margin-bottom: 20px;
   padding: 16px 20px;
-  background: linear-gradient(135deg, #eff6ff, #f0fdf4);
-  border: 1px solid #dbeafe;
+  background: var(--gz-bg-subtle);
+  border: 1px solid #e7e6e1;
   border-radius: 14px;
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
-  color: #2563eb;
+  color: #17181c;
 }
 .alumni-cta:hover {
   transform: translateY(-1px);
@@ -1568,11 +1568,11 @@ const parsedRules = computed(() => {
 .alumni-cta-title {
   font-size: 14px;
   font-weight: 700;
-  color: #1e40af;
+  color: #17181c;
 }
 .alumni-cta-desc {
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 /* ---- Video Modal ---- */

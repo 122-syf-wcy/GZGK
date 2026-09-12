@@ -75,18 +75,18 @@ const modelLabel = computed(() => {
   font-weight: 800;
 }
 .pill-ok {
-  background: #ecfeff;
-  color: #0e7490;
+  background: #f4f4f2;
+  color: #4b4d54;
   border: 1px solid rgba(14, 116, 144, 0.25);
 }
 .pill-warn {
-  background: #fef3c7;
-  color: #92400e;
+  background: #f3ecd9;
+  color: #7c5f33;
   border: 1px solid rgba(146, 64, 14, 0.3);
 }
 .ai-meta-card__model {
   font-size: 12px;
-  color: #475569;
+  color: #4b4d54;
   font-weight: 700;
   background: #f7f2e8;
   padding: 3px 9px;
@@ -99,7 +99,7 @@ const modelLabel = computed(() => {
   gap: 6px;
   font-size: 12px;
   line-height: 1.55;
-  color: #92400e;
+  color: #7c5f33;
 }
 .ai-meta-card__issues {
   border-top: 1px dashed rgba(31, 41, 51, 0.12);
@@ -116,7 +116,7 @@ const modelLabel = computed(() => {
 .ai-meta-card__issues-count {
   margin-left: auto;
   font-size: 11px;
-  color: #64748b;
+  color: #6a6c72;
   font-weight: 700;
 }
 .ai-meta-card__issues ul {
@@ -128,6 +128,6 @@ const modelLabel = computed(() => {
 .ai-meta-card__issues li {
   font-size: 13px;
   line-height: 1.6;
-  color: #475569;
+  color: #4b4d54;
 }
 </style>

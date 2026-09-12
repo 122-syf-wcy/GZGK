@@ -59,7 +59,7 @@ defineEmits<{ 'show-sources': [] }>()
   margin-top: 7px;
   font-size: 13px;
   line-height: 1.7;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .zxf-skills-card__source {

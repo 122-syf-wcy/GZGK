@@ -6,6 +6,8 @@ import { ArrowLeft, MapPin, Search, Crown, Award, Star, Building2, ChevronLeft, 
 import { getProvinceConfig, normalizeProvinceCode } from '@/constants/provinces'
 import type { University } from '@/types'
 
+defineOptions({ name: 'UniversitySearch' })
+
 const router = useRouter()
 const route = useRoute()
 const keyword = ref('')
@@ -18,12 +20,12 @@ const page = ref(1)
 const pageSize = 20
 
 const tagOptions = [
-  { key: '全部', icon: null, color: '#0f172a' },
-  { key: '985', icon: Crown, color: '#b91c1c' },
-  { key: '211', icon: Award, color: '#b45309' },
-  { key: '双一流', icon: Star, color: '#2563eb' },
-  { key: '公办', icon: Building2, color: '#0f766e' },
-  { key: '民办', icon: Building2, color: '#92400e' },
+  { key: '全部', icon: null, color: '#17181c' },
+  { key: '985', icon: Crown, color: '#a03535' },
+  { key: '211', icon: Award, color: '#8a6d3b' },
+  { key: '双一流', icon: Star, color: '#17181c' },
+  { key: '公办', icon: Building2, color: '#4b4d54' },
+  { key: '民办', icon: Building2, color: '#7c5f33' },
 ]
 
 const regionOptions = [
@@ -135,22 +137,22 @@ function nextPage() {
 
 function tagColor(tag: string): string {
   const map: Record<string, string> = {
-    '985': '#b91c1c',
-    '211': '#b45309',
-    '双一流': '#2563eb',
-    '公办': '#0f766e',
-    '民办': '#92400e',
-    '中外合作办学': '#0891b2',
+    '985': '#a03535',
+    '211': '#8a6d3b',
+    '双一流': '#17181c',
+    '公办': '#4b4d54',
+    '民办': '#7c5f33',
+    '中外合作办学': '#4b4d54',
   }
-  return map[tag] || '#475569'
+  return map[tag] || '#4b4d54'
 }
 
 function tierStyle(tags: string[]) {
-  if (tags.includes('985')) return { accent: '#b91c1c', soft: 'rgba(185, 28, 28, 0.08)', label: '985' }
-  if (tags.includes('211')) return { accent: '#b45309', soft: 'rgba(180, 83, 9, 0.08)', label: '211' }
-  if (tags.includes('双一流')) return { accent: '#2563eb', soft: 'rgba(37, 99, 235, 0.08)', label: '双一流' }
-  if (tags.includes('民办')) return { accent: '#92400e', soft: 'rgba(146, 64, 14, 0.08)', label: '民办' }
-  return { accent: '#0f766e', soft: 'rgba(15, 118, 110, 0.08)', label: '公办' }
+  if (tags.includes('985')) return { accent: '#a03535', soft: 'rgba(185, 28, 28, 0.08)', label: '985' }
+  if (tags.includes('211')) return { accent: '#8a6d3b', soft: 'rgba(138, 109, 59, 0.08)', label: '211' }
+  if (tags.includes('双一流')) return { accent: '#17181c', soft: 'rgba(23, 24, 28, 0.08)', label: '双一流' }
+  if (tags.includes('民办')) return { accent: '#7c5f33', soft: 'rgba(146, 64, 14, 0.08)', label: '民办' }
+  return { accent: '#4b4d54', soft: 'rgba(15, 118, 110, 0.08)', label: '公办' }
 }
 
 function displayTags(uni: University) {
@@ -184,7 +186,7 @@ function secondaryMeta(uni: University) {
 function activeTagStyle(key: string, color: string) {
   if (activeTag.value !== key) return {}
   if (key === '全部') {
-    return { background: '#0f172a', borderColor: '#0f172a', color: '#fff' }
+    return { background: '#17181c', borderColor: '#17181c', color: '#fff' }
   }
   return {
     background: `${color}14`,
@@ -218,12 +220,12 @@ function goRegionHome(): void {
     </header>
 
     <div class="gz-shell-main university-main">
-      <section class="gz-shell-hero university-hero">
+      <section class="gz-shell-hero gz-shell-hero--photo university-hero" style="--gz-hero-photo-y: 78%">
         <div class="university-hero__copy">
-          <span class="gz-shell-kicker">universities</span>
+          <span class="gz-shell-kicker">全国院校库</span>
           <h1 class="gz-shell-hero-title">把学校筛到足够窄，再决定值不值得重点看</h1>
           <p class="gz-shell-hero-desc">
-            这页负责快速缩小院校范围：按平台标签、关键词和城市筛掉不相关选项，再进入详情页做深度判断。{{ currentProvince.universityContextHint }}
+            先按标签、关键词和城市缩小范围，再进入详情页仔细比较。{{ currentProvince.universityContextHint }}
           </p>
           <div class="gz-shell-chip-row university-hero__filters">
             <span v-for="tag in heroTags" :key="tag" class="gz-shell-chip is-soft-active">{{ tag }}</span>
@@ -335,7 +337,7 @@ function goRegionHome(): void {
       </div>
 
       <div v-if="loading" class="university-state gz-shell-panel">
-        <van-loading size="24" color="#0f172a" />
+        <van-loading size="24" color="#17181c" />
         <span>正在加载院校数据…</span>
       </div>
 
@@ -441,14 +443,14 @@ function goRegionHome(): void {
   margin: 0;
   font-size: 18px;
   line-height: 1.3;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .university-context-card p {
   margin-top: 8px;
   font-size: 13px;
   line-height: 1.75;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .university-context-card__facts {
@@ -463,9 +465,9 @@ function goRegionHome(): void {
   min-height: 30px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: #f8fafc;
-  color: #475569;
+  border: 1px solid rgba(23, 24, 28, 0.08);
+  background: #fafaf8;
+  color: #4b4d54;
   font-size: 12px;
   font-weight: 700;
 }
@@ -484,8 +486,8 @@ function goRegionHome(): void {
   align-items: center;
   padding: 0 10px;
   border-radius: 999px;
-  background: #fffbeb;
-  color: #92400e;
+  background: #faf7ef;
+  color: #7c5f33;
   font-size: 12px;
   font-weight: 700;
 }
@@ -509,12 +511,12 @@ function goRegionHome(): void {
   min-height: 52px;
   padding: 0 16px;
   border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border: 1px solid #e3e2de;
+  background: #fafaf8;
 }
 
 .university-search-field__icon {
-  color: #94a3b8;
+  color: #97999e;
   flex-shrink: 0;
 }
 
@@ -525,11 +527,11 @@ function goRegionHome(): void {
   outline: none;
   background: transparent;
   font-size: 14px;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .university-search-field__input::placeholder {
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .university-filter-row {
@@ -551,9 +553,9 @@ function goRegionHome(): void {
   min-height: 40px;
   padding: 0 14px;
   border-radius: 999px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
   background: #fff;
-  color: #334155;
+  color: #383a40;
   font-size: 13px;
   font-weight: 600;
   transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
@@ -561,12 +563,12 @@ function goRegionHome(): void {
 
 .university-tag-chip:hover {
   transform: translateY(-1px);
-  border-color: #cbd5e1;
+  border-color: #cdccc7;
 }
 
 .university-tag-chip--region.is-active {
-  background: #0f172a;
-  border-color: #0f172a;
+  background: #17181c;
+  border-color: #17181c;
   color: #fff;
 }
 
@@ -581,7 +583,7 @@ function goRegionHome(): void {
   font-size: 18px;
   line-height: 1.2;
   font-weight: 700;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .university-results-head__desc,
@@ -589,7 +591,7 @@ function goRegionHome(): void {
 .university-pagination__text {
   font-size: 13px;
   line-height: 1.7;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .university-state {
@@ -599,7 +601,7 @@ function goRegionHome(): void {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .university-list {
@@ -619,8 +621,8 @@ function goRegionHome(): void {
 
 .school-row:hover {
   transform: translateY(-2px);
-  border-color: rgba(15, 23, 42, 0.14);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.06);
+  border-color: rgba(23, 24, 28, 0.14);
+  box-shadow: 0 16px 32px rgba(23, 24, 28, 0.06);
 }
 
 .school-row__main {
@@ -643,9 +645,9 @@ function goRegionHome(): void {
   font-size: 22px;
   font-weight: 800;
   letter-spacing: -0.03em;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: #f8fafc;
-  color: #111827;
+  border: 1px solid rgba(23, 24, 28, 0.08);
+  background: #fafaf8;
+  color: #17181c;
 }
 
 .school-avatar--logo {
@@ -675,7 +677,7 @@ function goRegionHome(): void {
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #0f172a;
+  background: #17181c;
   color: #fff;
   font-size: 11px;
   font-weight: 800;
@@ -684,7 +686,7 @@ function goRegionHome(): void {
 
 .school-row__city {
   font-size: 12px;
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .school-row__name {
@@ -692,7 +694,7 @@ function goRegionHome(): void {
   font-size: 18px;
   line-height: 1.32;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
   letter-spacing: -0.02em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -708,7 +710,7 @@ function goRegionHome(): void {
   margin-top: 8px;
   font-size: 13px;
   line-height: 1.6;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .school-row__meta {
@@ -720,7 +722,7 @@ function goRegionHome(): void {
 }
 
 .school-row__sep {
-  color: #cbd5e1;
+  color: #cdccc7;
 }
 
 .school-row__side {
@@ -735,7 +737,7 @@ function goRegionHome(): void {
 .school-row__side-city,
 .school-row__side-type {
   font-size: 12px;
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .school-row__action {
@@ -743,7 +745,7 @@ function goRegionHome(): void {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .school-row__cta {

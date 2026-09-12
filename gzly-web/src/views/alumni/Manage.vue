@@ -5,6 +5,7 @@ import { uploadMedia, saveMedia, listMedia, submitContentEdit, deleteMedia, getM
 import request from '@/api/request'
 import { showToast, showSuccessToast } from 'vant'
 import { sanitizeHttpUrl } from '@/utils/markdown'
+import { fetchSchoolPhotos } from '@/utils/school-photos'
 import { fetchQaList, alumniReplyQa, fetchAlumniQaPending, fetchAlumniQaHistory, alumniReviewQa, updateAlumniQaNote, editAndResubmitAlumniReply } from '@/api/qa'
 import {
   ArrowLeft,
@@ -113,10 +114,7 @@ async function loadMyEdits() {
 
 async function loadDefaultPhotos(schoolId: string) {
   try {
-    const res = await fetch('/school_photos.json', { cache: 'no-store' })
-    if (!res.ok) throw new Error('load failed')
-    const allPhotos = await res.json() as Record<string, string[]>
-    defaultPhotos.value = Array.isArray(allPhotos[schoolId]) ? allPhotos[schoolId] : []
+    defaultPhotos.value = await fetchSchoolPhotos(schoolId)
   } catch {
     defaultPhotos.value = []
   }
@@ -267,7 +265,7 @@ function statusIcon(s: number) {
   return { 0: Clock, 1: CheckCircle, 2: XCircle, 3: Eye }[s] || Clock
 }
 function statusColor(s: number) {
-  return { 0: '#f59e0b', 1: '#10b981', 2: '#ef4444', 3: '#2563eb' }[s] || '#94a3b8'
+  return { 0: '#b98a2f', 1: '#2f7d5d', 2: '#c04848', 3: '#17181c' }[s] || '#97999e'
 }
 
 function parseAiLog(raw: string | null | undefined): { label: string; reason: string; cls: string } {
@@ -535,7 +533,7 @@ function safeNewsLink(caption: string) {
             <input type="file" accept="image/*" hidden @change="(e: Event) => onPhotoUpload(e, 'banner')" :disabled="uploading" />
           </label>
         </div>
-        <p style="font-size: 12px; color: #94a3b8; margin: 0 0 12px;">建议尺寸 1200x400px，宽高比 3:1，最大 5MB</p>
+        <p style="font-size: 12px; color: #97999e; margin: 0 0 12px;">建议尺寸 1200x400px，宽高比 3:1，最大 5MB</p>
         <div class="banner-list">
           <div v-for="b in banners" :key="b.id" class="banner-card">
             <img :src="b.url" loading="lazy" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px;" />
@@ -558,7 +556,7 @@ function safeNewsLink(caption: string) {
               </div>
             </div>
           </div>
-          <div v-if="banners.length === 0" style="padding: 20px; text-align: center; color: #94a3b8; font-size: 13px;">暂无横幅</div>
+          <div v-if="banners.length === 0" style="padding: 20px; text-align: center; color: #97999e; font-size: 13px;">暂无横幅</div>
         </div>
 
         <div class="content-toolbar" style="margin-top: 24px;">
@@ -567,7 +565,7 @@ function safeNewsLink(caption: string) {
             系统抓取默认校园图 ({{ defaultPhotos.length }})
           </h3>
         </div>
-        <p style="font-size: 12px; color: #94a3b8; margin: 0 0 12px;">
+        <p style="font-size: 12px; color: #97999e; margin: 0 0 12px;">
           这些图片来自系统自动抓取，会回显到当前学校详情页；你可以上传新的背景横幅或校园风光来覆盖默认展示。
         </p>
         <div v-if="defaultPhotos.length" class="photo-grid">
@@ -578,7 +576,7 @@ function safeNewsLink(caption: string) {
             <div class="photo-footer">
               <span class="photo-caption">系统默认图 {{ idx + 1 }}</span>
               <div class="photo-footer-right">
-                <span class="status-tag" style="color: #2563eb; border-color: #bfdbfe;">
+                <span class="status-tag" style="color: #17181c; border-color: #d9d8d3;">
                   <Eye :size="11" />
                   默认
                 </span>
@@ -603,7 +601,7 @@ function safeNewsLink(caption: string) {
             <input type="file" accept="image/*" multiple hidden @change="(e: Event) => onPhotoUpload(e, 'campus')" :disabled="uploading" />
           </label>
         </div>
-        <p style="font-size: 12px; color: #94a3b8; margin: 0 0 12px;">建议正方形或 4:3 比例，详情页以九宫格展示，最大 5MB</p>
+        <p style="font-size: 12px; color: #97999e; margin: 0 0 12px;">建议正方形或 4:3 比例，详情页以九宫格展示，最大 5MB</p>
 
         <div class="photo-grid">
           <div v-for="p in photos" :key="p.id" class="photo-card">
@@ -1045,7 +1043,7 @@ function safeNewsLink(caption: string) {
 <style scoped>
 .manage-page {
   min-height: 100dvh;
-  background: var(--gz-bg, #f8fafc);
+  background: var(--gz-bg, #fafaf8);
 }
 
 /* ---- Header ---- */
@@ -1053,7 +1051,7 @@ function safeNewsLink(caption: string) {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  background: linear-gradient(135deg, #1e3a8a, #17181c);
   color: #fff;
   box-shadow: 0 2px 20px rgba(30, 58, 138, 0.3);
 }
@@ -1128,7 +1126,7 @@ function safeNewsLink(caption: string) {
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(226, 232, 240, 0.9);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 10px 24px rgba(23, 24, 28, 0.04);
 }
 
 /* ---- Profile Card ---- */
@@ -1147,7 +1145,7 @@ function safeNewsLink(caption: string) {
   width: 56px;
   height: 56px;
   border-radius: 16px;
-  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  background: linear-gradient(135deg, #17181c, #7c3aed);
   color: #fff;
   display: flex;
   align-items: center;
@@ -1155,7 +1153,7 @@ function safeNewsLink(caption: string) {
   font-size: 24px;
   font-weight: 800;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 4px 12px rgba(23, 24, 28, 0.25);
 }
 
 .profile-info {
@@ -1166,12 +1164,12 @@ function safeNewsLink(caption: string) {
 .profile-name {
   font-size: 18px;
   font-weight: 700;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .profile-meta {
   font-size: 13px;
-  color: #64748b;
+  color: #6a6c72;
   margin-top: 3px;
 }
 
@@ -1181,8 +1179,8 @@ function safeNewsLink(caption: string) {
   gap: 5px;
   padding: 5px 12px;
   border-radius: 20px;
-  background: #ecfdf5;
-  color: #059669;
+  background: #eef2ee;
+  color: #2f7d5d;
   font-size: 12px;
   font-weight: 600;
   flex-shrink: 0;
@@ -1211,7 +1209,7 @@ function safeNewsLink(caption: string) {
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -1220,15 +1218,15 @@ function safeNewsLink(caption: string) {
 }
 
 .tab-item:hover {
-  background: #f1f5f9;
-  color: #334155;
+  background: #f2f2ef;
+  color: #383a40;
 }
 
 .tab-item.active {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  background: linear-gradient(135deg, #17181c, #2b2d33);
   color: #fff;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 4px 12px rgba(23, 24, 28, 0.25);
 }
 
 .tab-count {
@@ -1263,7 +1261,7 @@ function safeNewsLink(caption: string) {
   gap: 8px;
   font-size: 17px;
   font-weight: 700;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .hero-preview-card {
@@ -1286,7 +1284,7 @@ function safeNewsLink(caption: string) {
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.7;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .hero-source-badge {
@@ -1297,8 +1295,8 @@ function safeNewsLink(caption: string) {
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: #f4f4f2;
+  color: #17181c;
   font-size: 12px;
   font-weight: 700;
 }
@@ -1306,7 +1304,7 @@ function safeNewsLink(caption: string) {
 .hero-preview-image-wrap {
   border-radius: 14px;
   overflow: hidden;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
 }
 
 .hero-preview-image {
@@ -1319,9 +1317,9 @@ function safeNewsLink(caption: string) {
 .hero-preview-empty {
   padding: 24px;
   border-radius: 12px;
-  border: 1px dashed #cbd5e1;
-  background: #f8fafc;
-  color: #94a3b8;
+  border: 1px dashed #cdccc7;
+  background: #fafaf8;
+  color: #97999e;
   text-align: center;
   font-size: 13px;
 }
@@ -1341,14 +1339,14 @@ function safeNewsLink(caption: string) {
 }
 
 .action-btn--primary {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  background: linear-gradient(135deg, #17181c, #2b2d33);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 2px 8px rgba(23, 24, 28, 0.25);
 }
 
 .action-btn--primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 4px 14px rgba(23, 24, 28, 0.35);
 }
 
 .action-btn--primary:active {
@@ -1356,12 +1354,12 @@ function safeNewsLink(caption: string) {
 }
 
 .action-btn--ghost {
-  background: #f1f5f9;
-  color: #475569;
+  background: #f2f2ef;
+  color: #4b4d54;
 }
 
 .action-btn--ghost:hover {
-  background: #e2e8f0;
+  background: #e3e2de;
 }
 
 .action-btn.disabled {
@@ -1436,7 +1434,7 @@ function safeNewsLink(caption: string) {
 
 .photo-caption {
   font-size: 12px;
-  color: #475569;
+  color: #4b4d54;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1451,18 +1449,18 @@ function safeNewsLink(caption: string) {
   justify-content: center;
   gap: 8px;
   aspect-ratio: 4/3;
-  border: 2px dashed #cbd5e1;
+  border: 2px dashed #cdccc7;
   border-radius: 14px;
-  color: #94a3b8;
+  color: #97999e;
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .photo-add-card:hover {
-  border-color: #2563eb;
-  color: #2563eb;
-  background: rgba(37, 99, 235, 0.04);
+  border-color: #17181c;
+  color: #17181c;
+  background: rgba(23, 24, 28, 0.04);
 }
 
 .photo-add-card.disabled {
@@ -1505,13 +1503,13 @@ function safeNewsLink(caption: string) {
 .news-title {
   font-size: 16px;
   font-weight: 700;
-  color: #0f172a;
+  color: #17181c;
   margin-bottom: 6px;
 }
 
 .news-excerpt {
   font-size: 13px;
-  color: #64748b;
+  color: #6a6c72;
   line-height: 1.6;
   margin-bottom: 8px;
 }
@@ -1521,7 +1519,7 @@ function safeNewsLink(caption: string) {
   align-items: center;
   gap: 4px;
   font-size: 13px;
-  color: #2563eb;
+  color: #17181c;
   text-decoration: none;
   font-weight: 500;
 }
@@ -1535,7 +1533,7 @@ function safeNewsLink(caption: string) {
   justify-content: flex-end;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid #f2f2ef;
 }
 
 /* ---- File List ---- */
@@ -1564,8 +1562,8 @@ function safeNewsLink(caption: string) {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: #f4f4f2;
+  color: #17181c;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1580,7 +1578,7 @@ function safeNewsLink(caption: string) {
 .file-name {
   font-size: 14px;
   font-weight: 600;
-  color: #0f172a;
+  color: #17181c;
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1589,7 +1587,7 @@ function safeNewsLink(caption: string) {
 
 .file-download {
   font-size: 12px;
-  color: #2563eb;
+  color: #17181c;
   text-decoration: none;
 }
 
@@ -1603,9 +1601,9 @@ function safeNewsLink(caption: string) {
   gap: 6px;
   padding: 9px 12px;
   border-radius: 10px;
-  background: #f8fafc;
-  color: #64748b;
-  border: 1px solid #e2e8f0;
+  background: #fafaf8;
+  color: #6a6c72;
+  border: 1px solid #e3e2de;
 }
 
 .ai-log--compact {
@@ -1630,15 +1628,15 @@ function safeNewsLink(caption: string) {
 }
 
 .ai-reject {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #991b1b;
+  background: #f7efef;
+  border-color: #e3cbcb;
+  color: #8f3030;
 }
 
 .ai-error {
-  background: #fffbeb;
-  border-color: #fde68a;
-  color: #92400e;
+  background: #faf7ef;
+  border-color: #e6dcbd;
+  color: #7c5f33;
 }
 
 .review-note {
@@ -1677,7 +1675,7 @@ function safeNewsLink(caption: string) {
   gap: 10px;
   flex-wrap: wrap;
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .sub-stat-chip {
@@ -1686,8 +1684,8 @@ function safeNewsLink(caption: string) {
   min-height: 32px;
   padding: 0 12px;
   border-radius: 999px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #fafaf8;
+  border: 1px solid #e3e2de;
   font-weight: 600;
 }
 
@@ -1704,21 +1702,21 @@ function safeNewsLink(caption: string) {
   background: #fff;
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: #6a6c72;
   cursor: pointer;
   transition: all 0.18s;
 }
 
 .status-tabs button.active {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  background: linear-gradient(135deg, #17181c, #2b2d33);
   color: #fff;
   border-color: transparent;
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 6px 16px rgba(23, 24, 28, 0.22);
 }
 
 .status-tabs button:hover:not(.active) {
-  background: #f8fafc;
-  color: #334155;
+  background: #fafaf8;
+  color: #383a40;
 }
 
 .status-tabs--segment {
@@ -1726,7 +1724,7 @@ function safeNewsLink(caption: string) {
   align-items: center;
   gap: 4px;
   padding: 4px;
-  background: #f8fafc;
+  background: #fafaf8;
   border: 1px solid #dbe2ea;
   border-radius: 14px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
@@ -1742,9 +1740,9 @@ function safeNewsLink(caption: string) {
 }
 
 .status-tabs--segment button.active {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  background: linear-gradient(135deg, #17181c, #2b2d33);
   color: #fff;
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 8px 18px rgba(23, 24, 28, 0.22);
 }
 
 /* ---- Empty State ---- */
@@ -1754,13 +1752,13 @@ function safeNewsLink(caption: string) {
   align-items: center;
   gap: 8px;
   padding: 60px 20px;
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .empty-state p {
   font-size: 16px;
   font-weight: 600;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .empty-state span {
@@ -1794,13 +1792,13 @@ function safeNewsLink(caption: string) {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f2f2ef;
 }
 
 .dialog-header h3 {
   font-size: 17px;
   font-weight: 700;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .dialog-close {
@@ -1811,13 +1809,13 @@ function safeNewsLink(caption: string) {
   height: 32px;
   border: none;
   border-radius: 8px;
-  background: #f1f5f9;
-  color: #64748b;
+  background: #f2f2ef;
+  color: #6a6c72;
   cursor: pointer;
 }
 
 .dialog-close:hover {
-  background: #e2e8f0;
+  background: #e3e2de;
 }
 
 .dialog-body {
@@ -1831,30 +1829,30 @@ function safeNewsLink(caption: string) {
   display: block;
   font-size: 13px;
   font-weight: 600;
-  color: #334155;
+  color: #383a40;
   margin-bottom: 6px;
 }
 
 .required {
-  color: #ef4444;
+  color: #c04848;
 }
 
 .form-input {
   width: 100%;
   padding: 10px 14px;
-  border: 1.5px solid #e2e8f0;
+  border: 1.5px solid #e3e2de;
   border-radius: 10px;
   font-size: 14px;
-  color: #0f172a;
-  background: #f8fafc;
+  color: #17181c;
+  background: #fafaf8;
   transition: border-color 0.2s, box-shadow 0.2s;
   outline: none;
   box-sizing: border-box;
 }
 
 .form-input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: #17181c;
+  box-shadow: 0 0 0 3px rgba(23, 24, 28, 0.1);
   background: #fff;
 }
 
@@ -1869,7 +1867,7 @@ function safeNewsLink(caption: string) {
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid #f2f2ef;
 }
 
 /* ---- Photo Footer Right ---- */
@@ -1889,32 +1887,32 @@ function safeNewsLink(caption: string) {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: #94a3b8;
+  color: #97999e;
   cursor: pointer;
   transition: all 0.2s;
   flex-shrink: 0;
 }
 
 .delete-btn:hover {
-  background: #fef2f2;
-  color: #ef4444;
+  background: #f7efef;
+  color: #c04848;
 }
 
 /* ---- Edit Fields ---- */
 .edit-info-hint {
   padding: 10px 14px;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  background: #faf7ef;
+  border: 1px solid #e6dcbd;
   border-radius: 10px;
   font-size: 13px;
-  color: #92400e;
+  color: #7c5f33;
   margin-bottom: 16px;
 }
 
 .edit-info-hint--danger {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #991b1b;
+  background: #f7efef;
+  border-color: #e3cbcb;
+  color: #8f3030;
 }
 
 .edit-fields {
@@ -1940,7 +1938,7 @@ function safeNewsLink(caption: string) {
 .edit-field-label {
   font-size: 15px;
   font-weight: 700;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .edit-field-btn {
@@ -1948,10 +1946,10 @@ function safeNewsLink(caption: string) {
   align-items: center;
   gap: 4px;
   padding: 6px 14px;
-  border: 1.5px solid #e2e8f0;
+  border: 1.5px solid #e3e2de;
   border-radius: 8px;
   background: #fff;
-  color: #2563eb;
+  color: #17181c;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -1959,8 +1957,8 @@ function safeNewsLink(caption: string) {
 }
 
 .edit-field-btn:hover {
-  background: #eff6ff;
-  border-color: #2563eb;
+  background: #f4f4f2;
+  border-color: #17181c;
 }
 
 .edit-field-actions {
@@ -1969,17 +1967,17 @@ function safeNewsLink(caption: string) {
 }
 
 .edit-field-btn--cancel {
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .edit-field-btn--save {
-  background: #2563eb;
+  background: #17181c;
   color: #fff;
-  border-color: #2563eb;
+  border-color: #17181c;
 }
 
 .edit-field-btn--save:hover {
-  background: #1d4ed8;
+  background: #17181c;
 }
 
 .edit-field-btn--save:disabled {
@@ -1992,7 +1990,7 @@ function safeNewsLink(caption: string) {
 
 .edit-field-hint {
   font-size: 13px;
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .edit-history-list {
@@ -2019,7 +2017,7 @@ function safeNewsLink(caption: string) {
 .edit-history-value {
   font-size: 13px;
   line-height: 1.7;
-  color: #334155;
+  color: #383a40;
   margin-bottom: 10px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -2161,10 +2159,10 @@ function safeNewsLink(caption: string) {
 .qa-review-time { margin-left: auto; font-size: 12px; color: #9ca3af; }
 .qa-review-content { font-size: 14px; line-height: 1.6; color: #1f2937; margin: 0 0 8px; }
 .qa-review-actions { display: flex; gap: 8px; }
-.qa-review-note { font-size: 12px; color: #64748b; }
+.qa-review-note { font-size: 12px; color: #6a6c72; }
 
 .qa-badge { padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }
-.qa-badge--q { background: #eff6ff; color: #2563eb; }
+.qa-badge--q { background: #f4f4f2; color: #17181c; }
 .qa-badge--ans { background: #f0fdf4; color: #16a34a; }
 
 .qa-btn {
@@ -2174,10 +2172,10 @@ function safeNewsLink(caption: string) {
 }
 .qa-btn--pass { color: #16a34a; border-color: #bbf7d0; }
 .qa-btn--pass:hover { background: #f0fdf4; }
-.qa-btn--reject { color: #ef4444; border-color: #fecaca; }
-.qa-btn--reject:hover { background: #fef2f2; }
-.qa-btn--reply { color: #2563eb; border-color: #bfdbfe; }
-.qa-btn--reply:hover { background: #eff6ff; }
+.qa-btn--reject { color: #c04848; border-color: #e3cbcb; }
+.qa-btn--reject:hover { background: #f7efef; }
+.qa-btn--reply { color: #17181c; border-color: #d9d8d3; }
+.qa-btn--reply:hover { background: #f4f4f2; }
 
 .qa-thread-q { font-size: 14px; color: #1f2937; margin-bottom: 6px; }
 .qa-thread-a { font-size: 13px; color: #6b7280; margin-left: 16px; margin-bottom: 4px; padding-left: 8px; border-left: 2px solid #e5e7eb; }

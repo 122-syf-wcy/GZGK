@@ -10,7 +10,7 @@ import GlobalWarning from '@/components/GlobalWarning.vue'
     <main class="app-main">
       <router-view v-slot="{ Component }">
         <transition name="gz-fade" mode="out-in">
-          <keep-alive :include="['Home']">
+          <keep-alive :include="['Home', 'VolunteerForm', 'UniversitySearch', 'ScoreLineQuery']">
             <component :is="Component" />
           </keep-alive>
         </transition>

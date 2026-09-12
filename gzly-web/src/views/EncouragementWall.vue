@@ -78,7 +78,7 @@ async function submitMessage() {
     <main class="wall-main">
       <section class="hero-shell">
         <div class="hero-copy">
-          <span class="wall-kicker">FOR EVERY GZ EXAMINEE</span>
+          <span class="wall-kicker">写给每一位考生</span>
           <h2>把焦虑放轻一点，把祝福留给正在选择未来的人。</h2>
           <p>这里不做预测，不制造承诺，只收集来自同路人的一句稳定心态。最终填报仍以考试院、一分一段表和学校招生章程为准。</p>
           <div class="hero-metrics" aria-label="留言墙状态">
@@ -164,11 +164,8 @@ async function submitMessage() {
 <style scoped>
 .wall-page {
   min-height: 100dvh;
-  background:
-    radial-gradient(circle at 12% 12%, rgba(250, 204, 21, 0.25), transparent 28%),
-    radial-gradient(circle at 88% 4%, rgba(37, 99, 235, 0.16), transparent 26%),
-    linear-gradient(180deg, #fff7df 0%, #f8fafc 52%, #eef6ff 100%);
-  color: #0f172a;
+  background: var(--gz-bg);
+  color: #17181c;
 }
 
 .wall-header {
@@ -180,7 +177,7 @@ async function submitMessage() {
   gap: 12px;
   padding: 12px 18px;
   background: rgba(255, 253, 250, 0.9);
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-bottom: 1px solid rgba(23, 24, 28, 0.08);
   backdrop-filter: blur(12px);
 }
 
@@ -190,10 +187,10 @@ async function submitMessage() {
   justify-content: center;
   width: 40px;
   height: 40px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
   border-radius: 14px;
   background: #fff;
-  color: #0f172a;
+  color: #17181c;
   cursor: pointer;
 }
 
@@ -203,7 +200,7 @@ async function submitMessage() {
 }
 
 .wall-header p {
-  color: #64748b;
+  color: #6a6c72;
   font-size: 12px;
 }
 
@@ -218,9 +215,9 @@ async function submitMessage() {
 .featured-card,
 .message-card,
 .empty-card {
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(23, 24, 28, 0.08);
   background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 18px 36px rgba(23, 24, 28, 0.06);
 }
 
 .hero-shell {
@@ -234,12 +231,13 @@ async function submitMessage() {
 
 .hero-shell::before {
   content: "";
+  display: none;
   position: absolute;
   inset: auto -12% -44% 45%;
   height: 280px;
   border-radius: 999px;
-  background: rgba(37, 99, 235, 0.12);
-  filter: blur(8px);
+  background: transparent;
+  filter: none;
   pointer-events: none;
 }
 
@@ -256,29 +254,30 @@ async function submitMessage() {
 .wall-kicker {
   display: inline-flex;
   width: fit-content;
-  padding: 6px 10px;
-  border: 1px solid rgba(37, 99, 235, 0.18);
+  padding: 6px 12px;
+  border: 1px solid rgba(23, 24, 28, 0.16);
   border-radius: 999px;
-  background: rgba(239, 246, 255, 0.86);
-  color: #1d4ed8;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
+  background: #ffffff;
+  color: #4b4d54;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
 }
 
 .hero-copy h2 {
-  margin-top: 12px;
-  max-width: 15ch;
-  font-size: clamp(30px, 7vw, 54px);
-  line-height: 1;
-  letter-spacing: -0.05em;
-  font-weight: 900;
+  margin-top: 14px;
+  max-width: 16ch;
+  font-family: var(--gz-font-display);
+  font-size: clamp(28px, 6vw, 46px);
+  line-height: 1.28;
+  letter-spacing: 0.01em;
+  font-weight: 700;
 }
 
 .hero-copy p {
   margin-top: 12px;
   max-width: 58ch;
-  color: #475569;
+  color: #4b4d54;
   font-size: 14px;
   line-height: 1.72;
 }
@@ -296,12 +295,12 @@ async function submitMessage() {
   padding: 11px 12px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(23, 24, 28, 0.08);
 }
 
 .hero-metrics strong {
   display: block;
-  color: #0f172a;
+  color: #17181c;
   font-size: 26px;
   line-height: 1;
 }
@@ -309,19 +308,18 @@ async function submitMessage() {
 .hero-metrics span {
   display: block;
   margin-top: 8px;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 12px;
   line-height: 1.45;
 }
 
 .compose-card {
   padding: 16px;
-  border-radius: 20px;
-  background:
-    linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.94)),
-    #0f172a;
-  color: #fff;
-  box-shadow: 0 26px 54px rgba(15, 23, 42, 0.18);
+  border: 1px solid rgba(23, 24, 28, 0.1);
+  border-radius: 18px;
+  background: #ffffff;
+  color: var(--gz-ink);
+  box-shadow: 0 1px 2px rgba(23, 24, 28, 0.04);
 }
 
 .compose-title,
@@ -349,31 +347,31 @@ async function submitMessage() {
 }
 
 .compose-grid label span {
-  color: #cbd5e1;
+  color: #6a6c72;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .compose-grid input,
 .compose-grid textarea {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  border: 1px solid rgba(23, 24, 28, 0.14);
+  border-radius: 14px;
+  background: var(--gz-bg-subtle);
+  color: var(--gz-ink);
   font-size: 14px;
   outline: none;
 }
 
 .compose-grid input::placeholder,
 .compose-grid textarea::placeholder {
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .compose-grid input:focus,
 .compose-grid textarea:focus {
-  border-color: #facc15;
-  box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.16);
+  border-color: rgba(23, 24, 28, 0.45);
+  box-shadow: 0 0 0 3px rgba(23, 24, 28, 0.06);
 }
 
 .compose-grid input {
@@ -391,7 +389,7 @@ async function submitMessage() {
 .compose-actions {
   justify-content: space-between;
   margin-top: 12px;
-  color: #cbd5e1;
+  color: #8e9097;
   font-size: 12px;
 }
 
@@ -405,13 +403,13 @@ async function submitMessage() {
   align-items: center;
   gap: 6px;
   min-height: 40px;
-  padding: 0 16px;
+  padding: 0 18px;
   border: 0;
   border-radius: 999px;
-  background: #facc15;
-  color: #111827;
+  background: var(--gz-ink);
+  color: #ffffff;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -438,7 +436,7 @@ async function submitMessage() {
 }
 
 .section-kicker {
-  color: #2563eb;
+  color: #17181c;
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -447,19 +445,19 @@ async function submitMessage() {
 .section-head button {
   min-height: 34px;
   background: #fff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
+  color: #17181c;
+  border: 1px solid #d9d8d3;
 }
 
 .marquee {
   position: relative;
   overflow: hidden;
   border-radius: 22px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(23, 24, 28, 0.08);
   background:
-    linear-gradient(90deg, rgba(15, 23, 42, 0.04), transparent 18%, transparent 82%, rgba(15, 23, 42, 0.04)),
+    linear-gradient(90deg, rgba(23, 24, 28, 0.04), transparent 18%, transparent 82%, rgba(23, 24, 28, 0.04)),
     rgba(255, 255, 255, 0.78);
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 18px 36px rgba(23, 24, 28, 0.06);
 }
 
 .marquee::before,
@@ -512,7 +510,7 @@ async function submitMessage() {
 }
 
 .message-index {
-  color: #2563eb;
+  color: #17181c;
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -520,7 +518,7 @@ async function submitMessage() {
 
 .message-card p {
   margin-top: 9px;
-  color: #0f172a;
+  color: #17181c;
   font-size: 14px;
   line-height: 1.62;
   font-weight: 720;
@@ -532,7 +530,7 @@ async function submitMessage() {
   gap: 12px;
   display: flex;
   align-items: center;
-  color: #94a3b8;
+  color: #97999e;
   font-size: 12px;
 }
 
@@ -551,7 +549,7 @@ async function submitMessage() {
   min-height: 30px;
   padding: 0 9px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.78);
+  background: rgba(23, 24, 28, 0.78);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -559,7 +557,7 @@ async function submitMessage() {
 }
 
 .empty-card {
-  color: #64748b;
+  color: #6a6c72;
   text-align: center;
 }
 

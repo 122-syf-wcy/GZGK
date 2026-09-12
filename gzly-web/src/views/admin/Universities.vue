@@ -41,13 +41,13 @@ watch(searchQuery, () => {
 
 function levelColor(level: string): string {
   const map: Record<string, string> = {
-    '985': '#ef4444',
-    '211': '#2563eb',
+    '985': '#c04848',
+    '211': '#17181c',
     '双一流': '#7c3aed',
-    '一本': '#059669',
-    '二本': '#f59e0b',
+    '一本': '#2f7d5d',
+    '二本': '#b98a2f',
   }
-  return map[level] || '#94a3b8'
+  return map[level] || '#97999e'
 }
 
 onMounted(loadData)
@@ -101,13 +101,13 @@ onMounted(loadData)
                 </td>
                 <td class="td-city">{{ uni.city || '-' }}</td>
                 <td>
-                  <span v-if="uni.level985 || uni.level211 || uni.dualClass" class="level-tag" :style="{ color: uni.level985 ? '#ef4444' : uni.level211 ? '#2563eb' : '#7c3aed', background: (uni.level985 ? '#ef4444' : uni.level211 ? '#2563eb' : '#7c3aed') + '12' }">
+                  <span v-if="uni.level985 || uni.level211 || uni.dualClass" class="level-tag" :style="{ color: uni.level985 ? '#c04848' : uni.level211 ? '#17181c' : '#7c3aed', background: (uni.level985 ? '#c04848' : uni.level211 ? '#17181c' : '#7c3aed') + '12' }">
                     {{ uni.level985 ? '985' : uni.level211 ? '211' : '双一流' }}
                   </span>
                   <span v-else class="td-na">-</span>
                 </td>
                 <td>
-                  <span class="level-tag" :style="{ color: uni.schoolType === '公办' ? '#059669' : '#f59e0b', background: (uni.schoolType === '公办' ? '#059669' : '#f59e0b') + '12' }">
+                  <span class="level-tag" :style="{ color: uni.schoolType === '公办' ? '#2f7d5d' : '#b98a2f', background: (uni.schoolType === '公办' ? '#2f7d5d' : '#b98a2f') + '12' }">
                     {{ uni.schoolType || '普通' }}
                   </span>
                 </td>
@@ -193,7 +193,7 @@ onMounted(loadData)
   color: var(--gz-text-primary); white-space: nowrap;
 }
 
-.data-table tr:hover td { background: rgba(37, 99, 235, 0.02); }
+.data-table tr:hover td { background: rgba(23, 24, 28, 0.02); }
 
 .td-id { font-weight: 600; color: var(--gz-text-tertiary); font-variant-numeric: tabular-nums; }
 .td-city { color: var(--gz-text-tertiary); }
@@ -221,7 +221,7 @@ onMounted(loadData)
 .mini-tag {
   display: inline-block; padding: 1px 8px;
   border-radius: var(--gz-radius-full);
-  background: rgba(37, 99, 235, 0.06); color: var(--gz-primary);
+  background: rgba(23, 24, 28, 0.06); color: var(--gz-primary);
   font-size: 11px; font-weight: 600;
 }
 
@@ -230,8 +230,8 @@ onMounted(loadData)
   padding: 2px 10px; border-radius: var(--gz-radius-full);
   font-size: 12px; font-weight: 600;
 }
-.status--active { background: rgba(16, 185, 129, 0.08); color: #059669; }
-.status--disabled { background: rgba(239, 68, 68, 0.08); color: #ef4444; }
+.status--active { background: rgba(47, 125, 93, 0.08); color: #2f7d5d; }
+.status--disabled { background: rgba(192, 72, 72, 0.08); color: #c04848; }
 
 .btn-sm {
   display: inline-flex; align-items: center; gap: 3px;
@@ -239,10 +239,10 @@ onMounted(loadData)
   font-size: 12px; font-weight: 600; cursor: pointer;
   transition: all var(--gz-transition-fast);
 }
-.btn-sm--danger { background: rgba(239, 68, 68, 0.08); color: #ef4444; }
-.btn-sm--danger:hover { background: #ef4444; color: #fff; }
-.btn-sm--success { background: rgba(16, 185, 129, 0.08); color: #059669; }
-.btn-sm--success:hover { background: #10b981; color: #fff; }
+.btn-sm--danger { background: rgba(192, 72, 72, 0.08); color: #c04848; }
+.btn-sm--danger:hover { background: #c04848; color: #fff; }
+.btn-sm--success { background: rgba(47, 125, 93, 0.08); color: #2f7d5d; }
+.btn-sm--success:hover { background: #2f7d5d; color: #fff; }
 
 .pagination {
   display: flex; align-items: center; justify-content: center;

@@ -440,7 +440,7 @@ async function confirmReject() {
           <div v-for="m in medias" :key="m.id" class="media-card">
             <div class="media-preview" :style="{ cursor: (m.mediaType === 3 || m.mediaType === 1 || m.mediaType === 4) ? 'pointer' : 'default' }" @click="openMediaUrl(m)">
               <img v-if="m.mediaType === 1 || m.mediaType === 4" :src="m.url" loading="lazy" />
-              <div v-else style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #94a3b8; gap: 4px;">
+              <div v-else style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #97999e; gap: 4px;">
                 <FileText :size="32" />
                 <span style="font-size: 11px;">{{ m.mediaType === 2 ? '资讯' : '文件（点击查看）' }}</span>
               </div>
@@ -605,13 +605,13 @@ async function confirmReject() {
 .review-title {
   font-size: 24px;
   font-weight: 800;
-  color: var(--gz-text-primary, #0f172a);
+  color: var(--gz-text-primary, #17181c);
   margin-bottom: 4px;
 }
 
 .review-desc {
   font-size: 14px;
-  color: var(--gz-text-tertiary, #94a3b8);
+  color: var(--gz-text-tertiary, #97999e);
 }
 
 .refresh-btn {
@@ -622,7 +622,7 @@ async function confirmReject() {
   border: 1.5px solid rgba(0, 0, 0, 0.08);
   border-radius: 10px;
   background: #fff;
-  color: var(--gz-text-secondary, #64748b);
+  color: var(--gz-text-secondary, #6a6c72);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -630,8 +630,8 @@ async function confirmReject() {
 }
 
 .refresh-btn:hover {
-  border-color: var(--gz-primary, #2563eb);
-  color: var(--gz-primary, #2563eb);
+  border-color: var(--gz-primary, #17181c);
+  color: var(--gz-primary, #17181c);
 }
 
 .refresh-btn:disabled {
@@ -667,7 +667,7 @@ async function confirmReject() {
 }
 
 .mini-stat.highlight {
-  border-color: rgba(37, 99, 235, 0.15);
+  border-color: rgba(23, 24, 28, 0.15);
 }
 
 .mini-stat-icon {
@@ -681,10 +681,10 @@ async function confirmReject() {
   flex-shrink: 0;
 }
 
-.mini-stat-icon--blue { background: linear-gradient(135deg, #2563eb, #3b82f6); }
+.mini-stat-icon--blue { background: linear-gradient(135deg, #17181c, #2b2d33); }
 .mini-stat-icon--purple { background: linear-gradient(135deg, #7c3aed, #a855f7); }
-.mini-stat-icon--green { background: linear-gradient(135deg, #059669, #10b981); }
-.mini-stat-icon--amber { background: linear-gradient(135deg, #d97706, #f59e0b); }
+.mini-stat-icon--green { background: linear-gradient(135deg, #2f7d5d, #2f7d5d); }
+.mini-stat-icon--amber { background: linear-gradient(135deg, #a5793a, #b98a2f); }
 
 .mini-stat-body {
   display: flex;
@@ -694,14 +694,14 @@ async function confirmReject() {
 .mini-stat-val {
   font-size: 24px;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
 }
 
 .mini-stat-label {
   font-size: 12px;
-  color: #94a3b8;
+  color: #97999e;
   font-weight: 500;
 }
 
@@ -720,7 +720,7 @@ async function confirmReject() {
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid #e5e7eb;
   border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 24px rgba(23, 24, 28, 0.06);
   overflow: hidden;
 }
 
@@ -735,7 +735,7 @@ async function confirmReject() {
   border: none;
   border-radius: 12px;
   background: transparent;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -749,15 +749,15 @@ async function confirmReject() {
 }
 
 .review-tab:hover {
-  background: #f1f5f9;
-  color: #334155;
+  background: #f2f2ef;
+  color: #383a40;
 }
 
 .review-tab.active {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  background: linear-gradient(135deg, #17181c, #2b2d33);
   color: #fff;
   font-weight: 600;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 4px 12px rgba(23, 24, 28, 0.25);
 }
 
 .tab-badge {
@@ -768,8 +768,8 @@ async function confirmReject() {
   height: 20px;
   padding: 0 6px;
   border-radius: 10px;
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  background: rgba(192, 72, 72, 0.1);
+  color: #c04848;
   font-size: 11px;
   font-weight: 700;
 }
@@ -792,21 +792,21 @@ async function confirmReject() {
   background: #fff;
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: #6a6c72;
   cursor: pointer;
   transition: all 0.18s;
 }
 
 .status-tabs button.active {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  background: linear-gradient(135deg, #17181c, #2b2d33);
   color: #fff;
   border-color: transparent;
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 6px 16px rgba(23, 24, 28, 0.22);
 }
 
 .status-tabs button:hover:not(.active) {
-  background: #f8fafc;
-  color: #334155;
+  background: #fafaf8;
+  color: #383a40;
 }
 
 .status-tabs--segment {
@@ -814,7 +814,7 @@ async function confirmReject() {
   align-items: center;
   gap: 4px;
   padding: 4px;
-  background: #f8fafc;
+  background: #fafaf8;
   border: 1px solid #dbe2ea;
   border-radius: 14px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
@@ -830,9 +830,9 @@ async function confirmReject() {
 }
 
 .status-tabs--segment button.active {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  background: linear-gradient(135deg, #17181c, #2b2d33);
   color: #fff;
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 8px 18px rgba(23, 24, 28, 0.22);
 }
 
 .sub-filter-bar {
@@ -856,7 +856,7 @@ async function confirmReject() {
   gap: 10px;
   flex-wrap: wrap;
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .sub-stat-chip {
@@ -865,8 +865,8 @@ async function confirmReject() {
   min-height: 32px;
   padding: 0 12px;
   border-radius: 999px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #fafaf8;
+  border: 1px solid #e3e2de;
   font-weight: 600;
 }
 
@@ -895,14 +895,14 @@ async function confirmReject() {
 .batch-link {
   border: none;
   background: transparent;
-  color: #2563eb;
+  color: #17181c;
   cursor: pointer;
   font-size: 12px;
 }
 
 .batch-count {
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 /* ---- Panel ---- */
@@ -916,13 +916,13 @@ async function confirmReject() {
   align-items: center;
   gap: 12px;
   padding: 80px 20px;
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .empty-panel p {
   font-size: 15px;
   font-weight: 500;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 /* ---- App Cards ---- */
@@ -955,7 +955,7 @@ async function confirmReject() {
   width: 48px;
   height: 48px;
   border-radius: 14px;
-  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  background: linear-gradient(135deg, #17181c, #7c3aed);
   color: #fff;
   display: flex;
   align-items: center;
@@ -973,7 +973,7 @@ async function confirmReject() {
 .app-name {
   font-size: 17px;
   font-weight: 700;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .app-meta-row {
@@ -987,7 +987,7 @@ async function confirmReject() {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .app-details {
@@ -1002,7 +1002,7 @@ async function confirmReject() {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: #f8fafc;
+  background: #fafaf8;
   border-radius: 8px;
   font-size: 13px;
 }
@@ -1011,12 +1011,12 @@ async function confirmReject() {
   display: flex;
   align-items: center;
   gap: 3px;
-  color: #94a3b8;
+  color: #97999e;
   font-weight: 500;
 }
 
 .detail-val {
-  color: #334155;
+  color: #383a40;
   font-weight: 500;
 }
 
@@ -1025,13 +1025,13 @@ async function confirmReject() {
   align-items: flex-start;
   gap: 6px;
   font-size: 13px;
-  color: #64748b;
+  color: #6a6c72;
   line-height: 1.6;
   padding: 12px 14px;
-  background: #f8fafc;
+  background: #fafaf8;
   border-radius: 10px;
   margin-bottom: 16px;
-  border-left: 3px solid #2563eb;
+  border-left: 3px solid #17181c;
 }
 
 .app-actions {
@@ -1055,20 +1055,20 @@ async function confirmReject() {
 }
 
 .review-btn--approve {
-  background: linear-gradient(135deg, #059669, #10b981);
+  background: linear-gradient(135deg, #2f7d5d, #2f7d5d);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+  box-shadow: 0 2px 8px rgba(47, 125, 93, 0.25);
 }
 
 .review-btn--approve:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+  box-shadow: 0 4px 14px rgba(47, 125, 93, 0.35);
 }
 
 .review-btn--reject {
-  background: #fef2f2;
-  color: #ef4444;
-  border: 1px solid #fecaca;
+  background: #f7efef;
+  color: #c04848;
+  border: 1px solid #e3cbcb;
 }
 
 .review-btn--reject:hover {
@@ -1127,12 +1127,12 @@ async function confirmReject() {
   gap: 4px;
   font-size: 11px;
   font-weight: 600;
-  color: #2563eb;
+  color: #17181c;
 }
 
 .media-caption {
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1153,9 +1153,9 @@ async function confirmReject() {
   margin-top: 10px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #f8fafc;
-  color: #64748b;
-  border: 1px solid #e2e8f0;
+  background: #fafaf8;
+  color: #6a6c72;
+  border: 1px solid #e3e2de;
   font-size: 12px;
 }
 
@@ -1176,15 +1176,15 @@ async function confirmReject() {
 }
 
 .ai-reject {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #991b1b;
+  background: #f7efef;
+  border-color: #e3cbcb;
+  color: #8f3030;
 }
 
 .ai-error {
-  background: #fffbeb;
-  border-color: #fde68a;
-  color: #92400e;
+  background: #faf7ef;
+  border-color: #e6dcbd;
+  color: #7c5f33;
 }
 
 .review-note {
@@ -1211,22 +1211,22 @@ async function confirmReject() {
 }
 
 .icon-btn--approve {
-  background: #ecfdf5;
-  color: #059669;
+  background: #eef2ee;
+  color: #2f7d5d;
 }
 
 .icon-btn--approve:hover {
-  background: #10b981;
+  background: #2f7d5d;
   color: #fff;
 }
 
 .icon-btn--reject {
-  background: #fef2f2;
-  color: #ef4444;
+  background: #f7efef;
+  color: #c04848;
 }
 
 .icon-btn--reject:hover {
-  background: #ef4444;
+  background: #c04848;
   color: #fff;
 }
 
@@ -1254,7 +1254,7 @@ async function confirmReject() {
 .edit-field {
   font-size: 15px;
   font-weight: 700;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .edit-school {
@@ -1262,7 +1262,7 @@ async function confirmReject() {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: #2563eb;
+  color: #17181c;
   font-weight: 500;
 }
 
@@ -1280,25 +1280,25 @@ async function confirmReject() {
 }
 
 .diff-row--old {
-  background: #fef2f2;
-  border-left: 3px solid #ef4444;
+  background: #f7efef;
+  border-left: 3px solid #c04848;
 }
 
 .diff-row--new {
-  background: #ecfdf5;
-  border-left: 3px solid #10b981;
+  background: #eef2ee;
+  border-left: 3px solid #2f7d5d;
 }
 
 .diff-label {
   font-size: 11px;
   font-weight: 600;
-  color: #94a3b8;
+  color: #97999e;
   margin-bottom: 4px;
   display: block;
 }
 
 .diff-val {
-  color: #334155;
+  color: #383a40;
   line-height: 1.5;
 }
 
@@ -1331,19 +1331,19 @@ async function confirmReject() {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f2f2ef;
 }
 
 .dialog-footer {
   border-bottom: none;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid #f2f2ef;
   justify-content: flex-end;
   gap: 10px;
 }
 
 .dialog-close {
   border: none;
-  background: #f1f5f9;
+  background: #f2f2ef;
   width: 32px;
   height: 32px;
   border-radius: 8px;
@@ -1360,7 +1360,7 @@ async function confirmReject() {
 .dialog-desc {
   font-size: 13px;
   line-height: 1.6;
-  color: #64748b;
+  color: #6a6c72;
   margin-bottom: 12px;
 }
 
@@ -1383,12 +1383,12 @@ async function confirmReject() {
 }
 
 .dialog-btn--ghost {
-  background: #f1f5f9;
-  color: #475569;
+  background: #f2f2ef;
+  color: #4b4d54;
 }
 
 .dialog-btn--danger {
-  background: #ef4444;
+  background: #c04848;
   color: #fff;
 }
 

@@ -209,7 +209,7 @@ onMounted(loadData)
   color: var(--gz-text-primary); white-space: nowrap;
 }
 
-.data-table tr:hover td { background: rgba(37, 99, 235, 0.02); }
+.data-table tr:hover td { background: rgba(23, 24, 28, 0.02); }
 
 .td-id { font-weight: 600; color: var(--gz-text-tertiary); font-variant-numeric: tabular-nums; }
 .td-uni { font-weight: 600; }
@@ -231,7 +231,7 @@ onMounted(loadData)
   border-radius: var(--gz-radius-full);
   font-size: 12px; font-weight: 600;
 }
-.subject--physics { background: rgba(37, 99, 235, 0.08); color: #2563eb; }
+.subject--physics { background: rgba(23, 24, 28, 0.08); color: #17181c; }
 .subject--history { background: rgba(124, 58, 237, 0.08); color: #7c3aed; }
 
 .pagination {

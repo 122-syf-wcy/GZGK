@@ -8,12 +8,42 @@
         <h1 class="my-plans__title">我的志愿空间</h1>
         <p class="my-plans__sub">{{ greeting }}</p>
       </div>
-      <button class="logout-btn" type="button" @click="onLogout">
+      <button v-if="authed" class="logout-btn" type="button" @click="onLogout">
         <LogOut :size="14" /> 退出
       </button>
     </header>
 
-    <section v-if="profileSummary" class="profile-card">
+    <section v-if="!authed" class="login-cta">
+      <div>
+        <strong>邮箱登录，方案多设备同步</strong>
+        <span>登录后自动保存生成记录，不再需要手抄安全码。</span>
+      </div>
+      <button type="button" class="primary-btn" @click="router.push('/login?redirect=/my-plans')">
+        去登录
+      </button>
+    </section>
+
+    <section v-if="!authed" class="recover-card">
+      <h2 class="recover-card__title">用安全码找回方案</h2>
+      <p class="recover-card__desc">
+        不登录也可以：生成方案时页面会提示保存「方案 ID」和「安全码」，在这里输入即可在任何设备找回方案。
+      </p>
+      <label class="recover-card__field">
+        <span>方案 ID</span>
+        <input v-model.trim="recoverPlanId" type="text" inputmode="numeric" placeholder="例如 168" :disabled="recoverLoading" />
+      </label>
+      <label class="recover-card__field">
+        <span>安全码</span>
+        <input v-model.trim="recoverCode" type="text" placeholder="生成方案后提示保存的安全码" :disabled="recoverLoading" />
+      </label>
+      <p v-if="recoverError" class="recover-card__error">{{ recoverError }}</p>
+      <button type="button" class="primary-btn recover-card__submit" :disabled="!canRecover || recoverLoading" @click="submitRecover">
+        {{ recoverLoading ? '找回中…' : '找回方案' }}
+      </button>
+      <p class="recover-card__hint">还没有方案？<a @click.prevent="router.push('/volunteer')">去生成一份</a></p>
+    </section>
+
+    <section v-if="authed && hasQuota" class="profile-card">
       <div class="profile-card__row">
         <div class="profile-card__cell">
           <span class="profile-card__label">已生成 / 上限</span>
@@ -30,7 +60,7 @@
       </div>
     </section>
 
-    <section class="action-row">
+    <section v-if="authed" class="action-row">
       <button class="primary-btn" type="button" @click="router.push('/volunteer')">
         <Plus :size="16" /> 生成新方案
       </button>
@@ -70,13 +100,13 @@
       </div>
     </div>
 
-    <section v-if="loading" class="loading">加载中…</section>
-    <section v-else-if="!plans.length" class="empty-state">
+    <section v-if="authed && loading" class="loading">加载中…</section>
+    <section v-else-if="authed && !plans.length" class="empty-state">
       <ShieldAlert :size="32" />
       <p>还没有任何方案。</p>
       <p class="empty-tip">点击「生成新方案」开始你的志愿草稿。</p>
     </section>
-    <section v-else class="plans-list">
+    <section v-else-if="authed" class="plans-list">
       <article
         v-for="plan in plans"
         :key="plan.id"
@@ -135,16 +165,46 @@ import {
 } from 'lucide-vue-next'
 import { claimMyPlan, listMyPlans, type MyPlanListItem } from '@/api/myPlans'
 import { fetchMe } from '@/api/auth'
+import { fetchVolunteerPlan } from '@/api/volunteer'
 import { useAuthStore } from '@/stores/auth'
+import { useVolunteerStore } from '@/stores/volunteer'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const volunteerStore = useVolunteerStore()
 
 const plans = ref<MyPlanListItem[]>([])
 const total = ref(0)
 const page = ref(1)
 const size = ref(20)
 const loading = ref(true)
+
+/** 游客找回模式：当前系统无账号体系，用方案 ID + 安全码直接找回方案。 */
+const authed = ref(false)
+const recoverPlanId = ref('')
+const recoverCode = ref('')
+const recoverLoading = ref(false)
+const recoverError = ref('')
+const canRecover = computed(() => {
+  const pid = Number(recoverPlanId.value)
+  return Number.isInteger(pid) && pid > 0 && recoverCode.value.trim().length > 0
+})
+
+async function submitRecover() {
+  if (!canRecover.value || recoverLoading.value) return
+  recoverLoading.value = true
+  recoverError.value = ''
+  try {
+    const res = await fetchVolunteerPlan(Number(recoverPlanId.value), recoverCode.value.trim())
+    volunteerStore.setPlanFromResponse(res.data.data)
+    showSuccessToast('方案已找回')
+    router.push({ name: 'VolunteerResult', query: { planId: recoverPlanId.value } })
+  } catch (e: any) {
+    recoverError.value = e?.message || '找回失败，请核对方案 ID 与安全码'
+  } finally {
+    recoverLoading.value = false
+  }
+}
 
 // 绑定旧匿名方案对话框状态
 const claimOpen = ref(false)
@@ -158,6 +218,8 @@ const canClaim = computed(() => {
 })
 
 const profileSummary = computed(() => authStore.profile)
+/** 邮箱注册用户没有卡密额度字段，此时不展示额度卡，避免出现空的「/」 */
+const hasQuota = computed(() => typeof profileSummary.value.maxPlans === 'number')
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / size.value)))
 const greeting = computed(() => {
   const nick = authStore.profile.nickname?.trim()
@@ -269,11 +331,13 @@ function formatDate(value?: string | null) {
 
 onMounted(async () => {
   await refreshProfile()
-  if (!authStore.isAuthenticated) {
-    router.replace('/volunteer')
-    return
+  authed.value = authStore.isAuthenticated
+  if (authed.value) {
+    loadList()
+  } else {
+    // 无账号体系：游客模式展示"找回方案"，不再强制跳转走
+    loading.value = false
   }
-  loadList()
 })
 </script>
 
@@ -283,7 +347,7 @@ onMounted(async () => {
   margin: 0 auto;
   padding: 24px 16px 48px;
   min-height: 100dvh;
-  background: #fbf6e8;
+  background: #f6f5f2;
 }
 .my-plans__head {
   display: flex;
@@ -295,13 +359,15 @@ onMounted(async () => {
   flex: 1;
 }
 .my-plans__title {
+  font-family: var(--gz-font-display);
   font-size: 22px;
-  font-weight: 900;
-  color: #1f2933;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #17181c;
 }
 .my-plans__sub {
   font-size: 13px;
-  color: #475569;
+  color: #4b4d54;
   margin-top: 4px;
 }
 .auth-back, .logout-btn {
@@ -317,6 +383,110 @@ onMounted(async () => {
 }
 .auth-back { width: 36px; }
 .logout-btn { padding: 0 12px; gap: 4px; font-size: 12px; font-weight: 700; }
+.login-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #17181c;
+  color: #fff;
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+}
+
+.login-cta strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.login-cta span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.login-cta .primary-btn {
+  flex: none;
+  background: #ffffff;
+  color: #17181c;
+  border-radius: 999px;
+  padding: 0 18px;
+}
+
+.recover-card {
+  background: #ffffff;
+  border: 1px solid rgba(23, 24, 28, 0.1);
+  border-radius: 16px;
+  padding: 20px 18px;
+  margin-bottom: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.recover-card__title {
+  font-family: var(--gz-font-display);
+  font-size: 19px;
+  font-weight: 700;
+  color: #17181c;
+}
+
+.recover-card__desc {
+  font-size: 13px;
+  color: #4b4d54;
+  line-height: 1.7;
+}
+
+.recover-card__field {
+  display: grid;
+  gap: 5px;
+}
+
+.recover-card__field span {
+  font-size: 12px;
+  color: #6a6c72;
+  font-weight: 700;
+}
+
+.recover-card__field input {
+  height: 42px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(23, 24, 28, 0.14);
+  background: #fbfaf8;
+  font-size: 14px;
+  color: #17181c;
+  outline: none;
+}
+
+.recover-card__field input:focus {
+  border-color: rgba(23, 24, 28, 0.45);
+}
+
+.recover-card__error {
+  font-size: 12px;
+  color: #b34040;
+}
+
+.recover-card__submit {
+  justify-content: center;
+}
+
+.recover-card__hint {
+  font-size: 12px;
+  color: #8e9097;
+  text-align: center;
+}
+
+.recover-card__hint a {
+  color: #17181c;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .profile-card {
   background: #fffdf7;
   border: 1px solid rgba(95, 70, 48, 0.18);
@@ -335,7 +505,7 @@ onMounted(async () => {
 }
 .profile-card__label {
   font-size: 11px;
-  color: #64748b;
+  color: #6a6c72;
   font-weight: 700;
 }
 .profile-card__value {
@@ -360,7 +530,7 @@ onMounted(async () => {
   padding: 0 14px;
 }
 .primary-btn {
-  background: linear-gradient(140deg, #1f2933 0%, #0f172a 100%);
+  background: linear-gradient(140deg, #1f2933 0%, #17181c 100%);
   color: #fffdf7;
   border: none;
   flex: 1;
@@ -374,9 +544,9 @@ onMounted(async () => {
 .loading, .empty-state {
   text-align: center;
   padding: 32px 16px;
-  color: #475569;
+  color: #4b4d54;
 }
-.empty-tip { color: #94a3b8; margin-top: 4px; font-size: 12px; }
+.empty-tip { color: #97999e; margin-top: 4px; font-size: 12px; }
 .plans-list {
   display: grid;
   gap: 10px;
@@ -397,7 +567,7 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: #475569;
+  color: #4b4d54;
   font-weight: 700;
   margin-bottom: 8px;
 }
@@ -413,7 +583,7 @@ onMounted(async () => {
 }
 .plan-card__label {
   font-size: 11px;
-  color: #94a3b8;
+  color: #97999e;
 }
 .plan-card__big {
   font-size: 16px;
@@ -437,8 +607,8 @@ onMounted(async () => {
   border-radius: 999px;
   font-weight: 700;
 }
-.badge--ok { background: #ecfdf5; color: #047857; }
-.badge--muted { background: #f1f5f9; color: #64748b; }
+.badge--ok { background: #eef2ee; color: #2f6650; }
+.badge--muted { background: #f2f2ef; color: #6a6c72; }
 .plan-card__cta {
   display: inline-flex;
   align-items: center;
@@ -453,7 +623,7 @@ onMounted(async () => {
   justify-content: center;
   align-items: center;
   gap: 12px;
-  color: #475569;
+  color: #4b4d54;
   font-size: 13px;
 }
 .pager button {
@@ -471,7 +641,7 @@ onMounted(async () => {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(15, 23, 42, 0.45);
+  background: rgba(23, 24, 28, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -484,7 +654,7 @@ onMounted(async () => {
   border-radius: 16px;
   padding: 18px 18px 16px;
   border: 1px solid rgba(31, 41, 51, 0.1);
-  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 18px 32px rgba(23, 24, 28, 0.18);
   display: grid;
   gap: 12px;
 }
@@ -512,7 +682,7 @@ onMounted(async () => {
 }
 .claim-dialog__desc {
   font-size: 12px;
-  color: #475569;
+  color: #4b4d54;
   line-height: 1.55;
   margin: 0;
 }
@@ -522,7 +692,7 @@ onMounted(async () => {
 }
 .claim-dialog__field span {
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
   font-weight: 700;
 }
 .claim-dialog__field input {
@@ -541,7 +711,7 @@ onMounted(async () => {
 .claim-dialog__error {
   margin: 0;
   font-size: 12px;
-  color: #b91c1c;
+  color: #a03535;
 }
 .claim-dialog__foot {
   display: flex;

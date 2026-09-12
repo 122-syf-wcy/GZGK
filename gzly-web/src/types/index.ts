@@ -356,8 +356,18 @@ export interface VolunteerFormData {
   gradientRanges?: GradientRanges
 }
 
-/** 单个志愿项 */
-export interface VolunteerItem {
+/* ────────────────────────────────────────────────
+ * VolunteerItem 按职责拆为 4 个子结构（v8 收敛）：
+ *   Core     招生单位标识与展示基础
+ *   History  历史录取与位次
+ *   Scoring  评分 / 预测 / 风险
+ *   Evidence 证据链与人工复核
+ * VolunteerItem 组合四者，对既有消费方完全兼容；
+ * 未来安卓端 / 共享 SDK 可按块选用。
+ * ──────────────────────────────────────────────── */
+
+/** 招生单位标识与展示基础 */
+export interface VolunteerItemCore {
   index: number
   provinceCode?: 'GZ' | 'SC' | 'HB' | 'AH' | string
   volunteerUnitType?: 'MAJOR_96' | 'PROFESSIONAL_GROUP_45' | string
@@ -375,6 +385,10 @@ export interface VolunteerItem {
   schoolNature?: string
   /** 冲 | 稳 | 保 | 垫 */
   gradient: GradientKey
+}
+
+/** 历史录取与位次 */
+export interface VolunteerItemHistory {
   /** 历年最低分 */
   historyMinScore: number
   /** 历年最低位次 */
@@ -403,6 +417,10 @@ export interface VolunteerItem {
   rankGap?: number
   /** 位次差占考生位次比例，百分比 */
   rankGapRatio?: number
+}
+
+/** 评分 / 预测 / 风险 */
+export interface VolunteerItemScoring {
   /** 综合推荐分，仅用于排序解释 */
   recommendationScore?: number
   /** 推荐精度分：位次、计划、供给、数据置信度综合 */
@@ -449,7 +467,10 @@ export interface VolunteerItem {
   alternativeOption?: string
   /** 更适合哪类考生 */
   suitableFor?: string
-  /** ── 数据可信度证据链（v6.79 新增） ── */
+}
+
+/** 证据链与人工复核（含近三年记录与解释性字段） */
+export interface VolunteerItemEvidence {
   schoolOfficialUrl?: string
   admissionSiteUrl?: string
   admissionBrochureUrl?: string
@@ -481,6 +502,10 @@ export interface VolunteerItem {
   /** 被排除或需复核的特殊类型原因 */
   excludedReason?: string
 }
+
+/** 单个志愿项：四个子结构的组合，保持对既有代码完全兼容。 */
+export interface VolunteerItem
+  extends VolunteerItemCore, VolunteerItemHistory, VolunteerItemScoring, VolunteerItemEvidence {}
 
 /** 强制人工复核清单条目 */
 export interface ManualReviewItem {

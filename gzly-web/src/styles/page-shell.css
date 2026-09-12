@@ -1,16 +1,16 @@
 .gz-shell-page {
   min-height: 100dvh;
-  background: linear-gradient(180deg, #fbfaf7 0%, #f5f3ee 100%);
+  background: var(--gz-bg);
 }
 
 .gz-shell-header {
   position: sticky;
   top: 0;
   z-index: var(--gz-z-sticky);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  background: rgba(255, 253, 250, 0.92);
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(var(--gz-glass-blur));
+  -webkit-backdrop-filter: blur(var(--gz-glass-blur));
+  background: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid rgba(23, 24, 28, 0.08);
 }
 
 .gz-shell-header-inner {
@@ -29,17 +29,17 @@
   width: 40px;
   height: 40px;
   flex-shrink: 0;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
   border-radius: 12px;
   background: #fff;
-  color: #0f172a;
+  color: #17181c;
   transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
 }
 
 .gz-shell-back:hover {
   transform: translateY(-1px);
-  border-color: #cbd5e1;
-  background: #f8fafc;
+  border-color: #cdccc7;
+  background: #fafaf8;
 }
 
 .gz-shell-heading {
@@ -52,14 +52,14 @@
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.02em;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .gz-shell-subtitle {
   margin-top: 4px;
   font-size: 12px;
   line-height: 1.5;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .gz-shell-header-extra {
@@ -69,9 +69,9 @@
   min-height: 36px;
   padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
   background: #fff;
-  color: #334155;
+  color: #383a40;
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
@@ -88,48 +88,93 @@
   display: grid;
   gap: 20px;
   padding: 24px;
-  border-radius: 26px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background:
-    linear-gradient(135deg, rgba(29, 78, 216, 0.02), rgba(180, 83, 9, 0.04)),
-    #fffdfa;
-  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.05);
+  border-radius: 18px;
+  border: 1px solid rgba(23, 24, 28, 0.1);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(23, 24, 28, 0.04);
   overflow: hidden;
 }
 
-.gz-shell-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
+/* ---- 实景照片 hero 变体：清爽通透的页面视觉锚点 ---- */
+.gz-shell-hero--photo {
+  border: none;
+  min-height: 218px;
   background:
-    linear-gradient(rgba(15, 23, 42, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 23, 42, 0.03) 1px, transparent 1px);
-  background-size: 24px 24px;
-  mask-image: linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0));
-  pointer-events: none;
+    linear-gradient(180deg, rgba(12, 16, 14, 0.42) 0%, rgba(12, 16, 14, 0.14) 45%, rgba(12, 16, 14, 0.4) 100%),
+    url('/icons/hero-landscape.png') center var(--gz-hero-photo-y, 50%) / cover no-repeat #29302b;
+  color: #ffffff;
+}
+
+.gz-shell-hero--photo .gz-shell-kicker {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.gz-shell-hero--photo .gz-shell-hero-title {
+  color: #ffffff;
+  text-shadow: 0 2px 18px rgba(12, 16, 14, 0.45);
+}
+
+.gz-shell-hero--photo .gz-shell-hero-desc {
+  color: rgba(255, 255, 255, 0.94);
+  text-shadow: 0 1px 10px rgba(12, 16, 14, 0.4);
+}
+
+.gz-shell-hero--photo .gz-shell-chip,
+.gz-shell-hero--photo .gz-shell-chip.is-soft-active {
+  border-color: rgba(255, 255, 255, 0.36);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffffff;
+}
+
+.gz-shell-hero--photo .gz-shell-metric {
+  padding: 10px 12px;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(12, 16, 14, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.gz-shell-hero--photo .gz-shell-metric-value {
+  font-size: 16px;
+}
+
+.gz-shell-hero--photo .gz-shell-metric-note {
+  display: none;
+}
+
+.gz-shell-hero--photo .gz-shell-metric-label,
+.gz-shell-hero--photo .gz-shell-metric-note {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.gz-shell-hero--photo .gz-shell-metric-value {
+  color: #ffffff;
 }
 
 .gz-shell-kicker {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   line-height: 1;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #1d4ed8;
+  color: #8e9097;
 }
 
 .gz-shell-hero-title {
   position: relative;
   z-index: 1;
   margin-top: 10px;
+  font-family: var(--gz-font-display);
   font-size: clamp(28px, 4vw, 40px);
-  line-height: 1.08;
-  letter-spacing: -0.04em;
-  font-weight: 800;
-  color: #0f172a;
+  line-height: 1.14;
+  letter-spacing: 0.01em;
+  font-weight: 700;
+  color: var(--gz-ink);
 }
 
 .gz-shell-hero-desc {
@@ -139,7 +184,7 @@
   max-width: 54ch;
   font-size: 14px;
   line-height: 1.75;
-  color: #475569;
+  color: #4b4d54;
 }
 
 .gz-shell-metrics {
@@ -154,7 +199,7 @@
   min-width: 0;
   padding: 14px 16px;
   border-radius: 18px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
   background: rgba(255, 255, 255, 0.92);
 }
 
@@ -162,7 +207,7 @@
   display: block;
   font-size: 12px;
   line-height: 1.4;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .gz-shell-metric-value {
@@ -172,7 +217,7 @@
   line-height: 1.1;
   font-weight: 800;
   letter-spacing: -0.03em;
-  color: #0f172a;
+  color: #17181c;
   font-variant-numeric: tabular-nums;
 }
 
@@ -181,18 +226,18 @@
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.5;
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .gz-shell-panel {
-  border-radius: 22px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 253, 250, 0.96);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
+  border-radius: 18px;
+  border: 1px solid rgba(23, 24, 28, 0.1);
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(23, 24, 28, 0.04);
 }
 
 .gz-shell-panel--muted {
-  background: linear-gradient(180deg, rgba(255, 253, 250, 0.98) 0%, rgba(248, 245, 239, 0.95) 100%);
+  background: var(--gz-bg-subtle);
 }
 
 .gz-shell-panel-head {
@@ -208,13 +253,13 @@
   font-size: 16px;
   line-height: 1.3;
   font-weight: 700;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .gz-shell-panel-desc {
   font-size: 13px;
   line-height: 1.7;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .gz-shell-chip-row {
@@ -230,9 +275,9 @@
   min-height: 40px;
   padding: 0 14px;
   border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: #fffdfa;
-  color: #334155;
+  border: 1px solid rgba(23, 24, 28, 0.14);
+  background: #ffffff;
+  color: #4b4d54;
   font-size: 13px;
   font-weight: 600;
   transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
@@ -240,24 +285,24 @@
 
 .gz-shell-chip:hover {
   transform: translateY(-1px);
-  border-color: #cbd5e1;
+  border-color: rgba(23, 24, 28, 0.34);
 }
 
 .gz-shell-chip.is-active {
-  border-color: #0f172a;
-  background: #0f172a;
+  border-color: var(--gz-ink);
+  background: var(--gz-ink);
   color: #fff;
 }
 
 .gz-shell-chip.is-soft-active {
-  border-color: rgba(37, 99, 235, 0.2);
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: rgba(23, 24, 28, 0.16);
+  background: var(--gz-primary-50);
+  color: var(--gz-ink);
 }
 
 .gz-shell-chip.is-muted {
-  background: #f8fafc;
-  color: #64748b;
+  background: #fafaf8;
+  color: #6a6c72;
 }
 
 .gz-shell-actions {
@@ -272,19 +317,19 @@
   justify-content: center;
   gap: 8px;
   min-height: 42px;
-  padding: 0 16px;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  background: #fffdfa;
-  color: #334155;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(23, 24, 28, 0.16);
+  background: #ffffff;
+  color: var(--gz-ink);
   font-size: 14px;
   font-weight: 600;
-  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .gz-shell-action:hover:not(:disabled) {
   transform: translateY(-1px);
-  border-color: #cbd5e1;
+  border-color: rgba(23, 24, 28, 0.4);
 }
 
 .gz-shell-action:disabled {
@@ -293,20 +338,20 @@
 }
 
 .gz-shell-action--primary {
-  border-color: #0f172a;
-  background: #0f172a;
+  border-color: var(--gz-ink);
+  background: var(--gz-ink);
   color: #fff;
+  box-shadow: none;
 }
 
 .gz-shell-action--primary:hover:not(:disabled) {
-  background: #111827;
-  border-color: #111827;
+  background: #000000;
 }
 
 .gz-shell-action--soft {
-  border-color: rgba(37, 99, 235, 0.16);
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: rgba(23, 24, 28, 0.1);
+  background: var(--gz-primary-50);
+  color: var(--gz-ink);
 }
 
 .gz-shell-empty {

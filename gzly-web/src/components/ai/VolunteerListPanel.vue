@@ -326,11 +326,11 @@ function rankGapClass(item: VolunteerItem): string {
 
 function gradientColor(g: string): { bg: string; fg: string } {
   switch (g) {
-    case '冲': return { bg: '#fef2f2', fg: '#b91c1c' }
-    case '稳': return { bg: '#eff6ff', fg: '#1d4ed8' }
-    case '保': return { bg: '#ecfdf5', fg: '#047857' }
-    case '垫': return { bg: '#fffbeb', fg: '#b45309' }
-    default: return { bg: '#f1f5f9', fg: '#475569' }
+    case '冲': return { bg: '#f7efef', fg: '#a03535' }
+    case '稳': return { bg: '#f4f4f2', fg: '#17181c' }
+    case '保': return { bg: '#eef2ee', fg: '#2f6650' }
+    case '垫': return { bg: '#faf7ef', fg: '#8a6d3b' }
+    default: return { bg: '#f2f2ef', fg: '#4b4d54' }
   }
 }
 
@@ -408,12 +408,12 @@ function downloadBlob(blob: Blob, filename: string) {
   margin-left: 4px;
   font-size: 12px;
   font-weight: 800;
-  color: #64748b;
+  color: #6a6c72;
 }
 .vlp__desc {
   margin: 6px 0 0;
   font-size: 12.5px;
-  color: #64748b;
+  color: #6a6c72;
   line-height: 1.7;
 }
 
@@ -454,7 +454,7 @@ function downloadBlob(blob: Blob, filename: string) {
   border-radius: 999px;
   background: #fffdf7;
   border: 1px solid rgba(31, 41, 51, 0.12);
-  color: #475569;
+  color: #4b4d54;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -477,7 +477,7 @@ function downloadBlob(blob: Blob, filename: string) {
   border-radius: 999px;
   flex: 1;
   min-width: 180px;
-  color: #64748b;
+  color: #6a6c72;
 }
 .vlp__search input {
   flex: 1;
@@ -497,16 +497,16 @@ function downloadBlob(blob: Blob, filename: string) {
   border-radius: 999px;
   background: #fffdf7;
   border: 1px solid rgba(31, 41, 51, 0.12);
-  color: #475569;
+  color: #4b4d54;
   font-size: 12px;
   font-weight: 800;
   cursor: pointer;
 }
 .vlp__gchip.active { color: #1f2933; border-color: rgba(31, 41, 51, 0.3); background: #f7f2e8; }
-.vlp__gchip--冲.active { background: #fef2f2; color: #b91c1c; border-color: rgba(185, 28, 28, 0.28); }
-.vlp__gchip--稳.active { background: #eff6ff; color: #1d4ed8; border-color: rgba(29, 78, 216, 0.28); }
-.vlp__gchip--保.active { background: #ecfdf5; color: #047857; border-color: rgba(4, 120, 87, 0.28); }
-.vlp__gchip--垫.active { background: #fffbeb; color: #b45309; border-color: rgba(180, 83, 9, 0.28); }
+.vlp__gchip--冲.active { background: #f7efef; color: #a03535; border-color: rgba(185, 28, 28, 0.28); }
+.vlp__gchip--稳.active { background: #f4f4f2; color: #17181c; border-color: rgba(23, 24, 28, 0.28); }
+.vlp__gchip--保.active { background: #eef2ee; color: #2f6650; border-color: rgba(4, 120, 87, 0.28); }
+.vlp__gchip--垫.active { background: #faf7ef; color: #8a6d3b; border-color: rgba(138, 109, 59, 0.28); }
 .vlp__gchip-count {
   min-width: 18px;
   height: 16px;
@@ -525,7 +525,7 @@ function downloadBlob(blob: Blob, filename: string) {
   padding: 20px;
   text-align: center;
   font-size: 13px;
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .vlp__group { display: flex; flex-direction: column; gap: 6px; }
@@ -535,12 +535,12 @@ function downloadBlob(blob: Blob, filename: string) {
   gap: 8px;
   font-size: 12px;
   font-weight: 800;
-  color: #475569;
+  color: #4b4d54;
   padding: 2px 4px;
 }
 .vlp__group-head span {
   font-size: 11px;
-  color: #94a3b8;
+  color: #97999e;
   font-weight: 700;
 }
 .vlp__rows { display: flex; flex-direction: column; gap: 6px; }
@@ -553,7 +553,7 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 .vlp__row.expanded {
   border-color: rgba(31, 41, 51, 0.24);
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 6px 16px rgba(23, 24, 28, 0.06);
 }
 .vlp__row-head {
   width: 100%;
@@ -576,7 +576,7 @@ function downloadBlob(blob: Blob, filename: string) {
   justify-content: center;
   border-radius: 6px;
   background: #f4f0e8;
-  color: #475569;
+  color: #4b4d54;
   font-size: 11.5px;
   font-weight: 800;
 }
@@ -601,7 +601,7 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 .vlp__row-major {
   font-size: 12px;
-  color: #475569;
+  color: #4b4d54;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -610,7 +610,7 @@ function downloadBlob(blob: Blob, filename: string) {
   display: inline-flex;
   gap: 6px;
   font-size: 11px;
-  color: #94a3b8;
+  color: #97999e;
   font-weight: 700;
 }
 .vlp__row-tier {
@@ -637,7 +637,7 @@ function downloadBlob(blob: Blob, filename: string) {
 .vlp__metric em {
   font-style: normal;
   font-size: 10px;
-  color: #94a3b8;
+  color: #97999e;
   font-weight: 700;
 }
 .vlp__metric strong {
@@ -645,9 +645,9 @@ function downloadBlob(blob: Blob, filename: string) {
   font-weight: 900;
   color: #1f2933;
 }
-.vlp__metric strong.is-safe { color: #047857; }
-.vlp__metric strong.is-mid { color: #1d4ed8; }
-.vlp__metric strong.is-risk { color: #b91c1c; }
+.vlp__metric strong.is-safe { color: #2f6650; }
+.vlp__metric strong.is-mid { color: #17181c; }
+.vlp__metric strong.is-risk { color: #a03535; }
 .vlp__metric--confidence strong { font-size: 11.5px; }
 
 .vlp__risk {
@@ -656,12 +656,12 @@ function downloadBlob(blob: Blob, filename: string) {
   font-size: 11px;
   font-weight: 800;
 }
-.vlp__risk--red { background: #fef2f2; color: #b91c1c; }
-.vlp__risk--yellow { background: #fffbeb; color: #b45309; }
-.vlp__risk--green { background: #ecfdf5; color: #047857; }
-.vlp__risk--gray { background: #f1f5f9; color: #475569; }
+.vlp__risk--red { background: #f7efef; color: #a03535; }
+.vlp__risk--yellow { background: #faf7ef; color: #8a6d3b; }
+.vlp__risk--green { background: #eef2ee; color: #2f6650; }
+.vlp__risk--gray { background: #f2f2ef; color: #4b4d54; }
 
-.vlp__row-caret { color: #94a3b8; transition: transform 0.18s ease; }
+.vlp__row-caret { color: #97999e; transition: transform 0.18s ease; }
 .vlp__row-caret.rotated { transform: rotate(180deg); color: #1f2933; }
 
 .vlp__row-body {
@@ -682,11 +682,11 @@ function downloadBlob(blob: Blob, filename: string) {
 .vlp__row-block p {
   margin: 0;
   font-size: 12.5px;
-  color: #475569;
+  color: #4b4d54;
   line-height: 1.7;
 }
-.vlp__row-block--warn p { color: #b45309; }
-.vlp__row-block--muted p { color: #94a3b8; }
+.vlp__row-block--warn p { color: #8a6d3b; }
+.vlp__row-block--muted p { color: #97999e; }
 
 .vlp__history-list {
   margin: 0;
@@ -699,7 +699,7 @@ function downloadBlob(blob: Blob, filename: string) {
   display: inline-flex;
   gap: 12px;
   font-size: 12px;
-  color: #475569;
+  color: #4b4d54;
 }
 .vlp__history-list li span:first-child { color: #1f2933; font-weight: 800; min-width: 52px; }
 

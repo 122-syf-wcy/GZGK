@@ -71,6 +71,18 @@ const router = createRouter({
       meta: { title: 'AI深度解读' },
     },
     {
+      path: '/my-plans',
+      name: 'MyPlans',
+      component: () => import('@/views/MyPlans.vue'),
+      meta: { title: '我的志愿空间' },
+    },
+    {
+      path: '/login',
+      name: 'Login',
+      component: () => import('@/views/Login.vue'),
+      meta: { title: '邮箱登录' },
+    },
+    {
       path: '/disclaimer',
       name: 'Disclaimer',
       component: () => import('@/views/Disclaimer.vue'),

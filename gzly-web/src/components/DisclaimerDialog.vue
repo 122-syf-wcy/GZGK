@@ -111,7 +111,7 @@ defineExpose({ open })
   height: 40px;
   flex-shrink: 0;
   border-radius: 12px;
-  background: #0f172a;
+  background: #17181c;
   color: #fff;
   display: flex;
   align-items: center;
@@ -151,9 +151,9 @@ defineExpose({ open })
 .clause {
   margin-bottom: var(--gz-space-4);
   padding: var(--gz-space-3) var(--gz-space-4);
-  background: rgba(15, 23, 42, 0.035);
+  background: rgba(23, 24, 28, 0.035);
   border-radius: var(--gz-radius-md);
-  border-left: 3px solid #0f172a;
+  border-left: 3px solid #17181c;
 }
 
 .clause h4 {
@@ -216,7 +216,7 @@ defineExpose({ open })
   padding: 0 16px;
   border: none;
   border-radius: var(--gz-radius-full);
-  background: #0f172a;
+  background: #17181c;
   color: #fff;
   font-size: 16px;
   font-weight: 700;

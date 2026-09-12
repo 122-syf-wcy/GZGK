@@ -100,8 +100,8 @@ onUnmounted(() => {
   gap: 8px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.06);
-  color: #0f172a;
+  background: rgba(23, 24, 28, 0.06);
+  color: #17181c;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -109,12 +109,12 @@ onUnmounted(() => {
 }
 
 .online-counter--total {
-  background: rgba(59, 130, 246, 0.12);
-  color: #1d4ed8;
+  background: rgba(43, 45, 51, 0.12);
+  color: #17181c;
 }
 
 .online-counter--total .online-counter__count {
-  color: #1d4ed8;
+  color: #17181c;
 }
 
 .online-counter--total .online-counter__label {
@@ -122,7 +122,7 @@ onUnmounted(() => {
 }
 
 .online-counter--total .online-counter__hint {
-  color: #2563eb;
+  color: #17181c;
   font-weight: 600;
 }
 
@@ -138,15 +138,15 @@ onUnmounted(() => {
 .online-counter__count {
   font-size: 14px;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .online-counter__label {
-  color: #1e293b;
+  color: #22242a;
 }
 
 .online-counter__hint {
-  color: #64748b;
+  color: #6a6c72;
   font-weight: 500;
 }
 

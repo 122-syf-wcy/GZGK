@@ -63,6 +63,7 @@ const featureCards = computed(() => [
     desc: '全国院校库保持统一，进入详情后按当前地区招生数据复核。',
     status: '全国库',
     icon: Building2,
+    img: '/icons/university.png',
     path: '/university',
     tone: 'blue',
   },
@@ -72,6 +73,7 @@ const featureCards = computed(() => [
     desc: province.value.scoreLineDescription,
     status: province.value.scorelineStatusLabel,
     icon: Table2,
+    img: '/icons/scoreline.png',
     path: '/score-line',
     tone: 'green',
   },
@@ -79,10 +81,11 @@ const featureCards = computed(() => [
     key: 'volunteer',
     title: 'AI 志愿',
     desc: isPreEstimateOpen.value
-      ? `${province.value.volunteerCta}，普通主批生成历史估算草稿，非普通批展示数据缺口。`
+      ? '填好分数和选科，生成带依据的志愿参考草稿。'
       : province.value.volunteerLockDescription,
     status: isPreEstimateOpen.value ? '历史估算' : '锁定',
     icon: isPreEstimateOpen.value ? GraduationCap : LockKeyhole,
+    img: isPreEstimateOpen.value ? '/icons/volunteer.png' : '',
     path: '/volunteer',
     tone: isPreEstimateOpen.value ? 'dark' : 'amber',
     locked: isPreparing.value,
@@ -90,9 +93,10 @@ const featureCards = computed(() => [
   {
     key: 'data-status',
     title: '政策/数据状态',
-    desc: `${readablePhase.value}；普通主批历史估算，非普通批只查策略并展示缺口。`,
+    desc: `${readablePhase.value}；普通批支持历史估算，其他批次先看政策说明。`,
     status: supportLoading.value ? '读取中' : readablePhase.value,
     icon: ShieldAlert,
+    img: '',
     path: '',
     tone: 'slate',
   },
@@ -102,6 +106,7 @@ const featureCards = computed(() => [
     desc: province.value.specialAdmissionsHint,
     status: isPreparing.value ? '需复核' : '政策线索',
     icon: BookOpenCheck,
+    img: '/icons/special.png',
     path: '/special-admissions',
     tone: 'amber',
   },
@@ -190,12 +195,12 @@ function missingDataText(key: string): string {
     official_2026_skill_exam_rule: '技能高考规则待核验',
     official_2026_skill_qualification: '技能高考资格条件待核验',
     official_2026_qualification_rule: '资格/提前批条件待核验',
-    data_score_rank: '一分一段/位次表门禁未全绿',
-    data_admission_group_plan: '院校专业组计划门禁未全绿',
-    data_admission_plan_gz: '招生计划门禁未全绿',
-    data_major_requirement: '选科/资格要求门禁未全绿',
-    data_major_meta: '专业元数据门禁未全绿',
-    ml_training: '模型训练门禁未激活',
+    data_score_rank: '一分一段/位次表尚未核验完成',
+    data_admission_group_plan: '院校专业组计划尚未核验完成',
+    data_admission_plan_gz: '招生计划尚未核验完成',
+    data_major_requirement: '选科/资格要求尚未核验完成',
+    data_major_meta: '专业信息尚未核验完成',
+    ml_training: '预测模型尚未完成训练',
     HB_A00306_manual_rank_review: '湖北清华A00306位次需人工确认',
     formal_import_strategy_confirmation: '生产已有同年数据，导入策略待确认',
   }
@@ -221,9 +226,9 @@ function missingDataText(key: string): string {
     </header>
 
     <main class="gz-shell-main region-main">
-      <section class="gz-shell-hero region-hero">
+      <section class="gz-shell-hero gz-shell-hero--photo region-hero" style="--gz-hero-photo-y: 62%">
         <div class="region-hero__copy">
-          <span class="gz-shell-kicker">province workspace</span>
+          <span class="gz-shell-kicker">地区工作台</span>
           <h1 class="gz-shell-hero-title">{{ province.heroTitle }}</h1>
           <p class="gz-shell-hero-desc">{{ province.heroDescription }}</p>
           <div class="gz-shell-chip-row region-hero__chips">
@@ -290,8 +295,9 @@ function missingDataText(key: string): string {
           :class="[`is-${feature.tone}`, { 'is-locked': feature.locked }]"
           @click="goFeature(feature.path)"
         >
-          <span class="region-feature-card__icon">
-            <component :is="feature.icon" :size="22" />
+          <span class="region-feature-card__icon" :class="{ 'has-img': feature.img }">
+            <img v-if="feature.img" :src="feature.img" :alt="''" loading="lazy" />
+            <component :is="feature.icon" v-else :size="21" :stroke-width="1.6" />
           </span>
           <span class="region-feature-card__body">
             <span class="region-feature-card__meta">{{ feature.status }}</span>
@@ -339,15 +345,15 @@ function missingDataText(key: string): string {
 }
 
 .gz-shell-header-extra.is-open {
-  border-color: rgba(16, 185, 129, 0.22);
-  background: #ecfdf5;
-  color: #047857;
+  border-color: rgba(47, 125, 93, 0.22);
+  background: #eef2ee;
+  color: #2f6650;
 }
 
 .gz-shell-header-extra.is-preparing {
-  border-color: rgba(180, 83, 9, 0.22);
-  background: #fffbeb;
-  color: #92400e;
+  border-color: rgba(138, 109, 59, 0.22);
+  background: #faf7ef;
+  color: #7c5f33;
 }
 
 .region-hero__chips {
@@ -364,10 +370,11 @@ function missingDataText(key: string): string {
 .region-identity-row span {
   padding: 5px 10px;
   border-radius: 999px;
-  background: #ecfeff;
-  color: #0f766e;
+  border: 1px solid rgba(23, 24, 28, 0.12);
+  background: #ffffff;
+  color: var(--gz-ink-soft);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .region-policy-card {
@@ -381,14 +388,14 @@ function missingDataText(key: string): string {
 
 .region-policy-card p {
   margin: 0;
-  color: #475569;
+  color: #4b4d54;
   line-height: 1.65;
 }
 
 .region-policy-card small {
   display: block;
   margin-top: 8px;
-  color: #64748b;
+  color: #6a6c72;
   line-height: 1.55;
 }
 
@@ -400,7 +407,7 @@ function missingDataText(key: string): string {
 }
 
 .region-status-card.is-preparing {
-  border-color: rgba(180, 83, 9, 0.18);
+  border-color: rgba(138, 109, 59, 0.18);
   background: linear-gradient(180deg, rgba(255, 253, 250, 0.98), rgba(255, 251, 235, 0.94));
 }
 
@@ -411,14 +418,15 @@ function missingDataText(key: string): string {
   width: 44px;
   height: 44px;
   flex-shrink: 0;
-  border-radius: 14px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border: 1px solid rgba(23, 24, 28, 0.12);
+  border-radius: 999px;
+  background: var(--gz-bg-subtle);
+  color: var(--gz-ink);
 }
 
 .region-status-card.is-preparing .region-status-card__icon {
-  background: #fffbeb;
-  color: #92400e;
+  background: #faf7ef;
+  color: #7c5f33;
 }
 
 .region-status-card h2,
@@ -426,7 +434,7 @@ function missingDataText(key: string): string {
   margin: 0;
   font-size: 18px;
   line-height: 1.25;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .region-status-card p,
@@ -434,7 +442,7 @@ function missingDataText(key: string): string {
   margin-top: 8px;
   font-size: 13px;
   line-height: 1.8;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .region-status-card__facts,
@@ -457,28 +465,29 @@ function missingDataText(key: string): string {
 }
 
 .region-status-card__facts span {
-  background: #ecfeff;
-  color: #0f766e;
+  border: 1px solid rgba(23, 24, 28, 0.1);
+  background: var(--gz-bg-subtle);
+  color: var(--gz-text-secondary);
 }
 
 .region-status-card__gaps strong {
   display: inline-flex;
   align-items: center;
   min-height: 30px;
-  color: #92400e;
+  color: #7c5f33;
   font-size: 12px;
   font-weight: 850;
 }
 
 .region-status-card__gaps span {
-  background: #fffbeb;
-  color: #92400e;
-  border: 1px solid #fde68a;
+  background: #faf7ef;
+  color: #7c5f33;
+  border: 1px solid #e6dcbd;
 }
 
 .region-status-card__warning {
   margin-top: 10px;
-  color: #b45309;
+  color: #8a6d3b;
   font-size: 13px;
   font-weight: 700;
 }
@@ -488,7 +497,7 @@ function missingDataText(key: string): string {
   gap: 6px;
   margin: 12px 0 0;
   padding-left: 18px;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 13px;
   line-height: 1.65;
 }
@@ -503,16 +512,16 @@ function missingDataText(key: string): string {
   gap: 6px;
   margin-top: 12px;
   padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid #dbeafe;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-radius: 10px;
+  border: 1px solid rgba(23, 24, 28, 0.1);
+  background: var(--gz-bg-subtle);
+  color: var(--gz-text-secondary);
   font-size: 12px;
   line-height: 1.6;
 }
 
 .region-scoreline-summary strong {
-  color: #0f172a;
+  color: var(--gz-ink);
 }
 
 .region-feature-card {
@@ -522,7 +531,7 @@ function missingDataText(key: string): string {
   gap: 14px;
   width: 100%;
   padding: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(23, 24, 28, 0.08);
   text-align: left;
   color: inherit;
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
@@ -530,8 +539,8 @@ function missingDataText(key: string): string {
 
 .region-feature-card:hover {
   transform: translateY(-1px);
-  border-color: rgba(29, 78, 216, 0.2);
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.07);
+  border-color: rgba(23, 24, 28, 0.2);
+  box-shadow: 0 14px 32px rgba(23, 24, 28, 0.07);
 }
 
 .region-feature-card__icon {
@@ -540,23 +549,29 @@ function missingDataText(key: string): string {
   justify-content: center;
   width: 48px;
   height: 48px;
-  border-radius: 14px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border: 1px solid rgba(23, 24, 28, 0.14);
+  border-radius: 999px;
+  background: var(--gz-bg-subtle);
+  color: var(--gz-ink);
+  overflow: hidden;
 }
 
-.region-feature-card.is-green .region-feature-card__icon {
-  background: #ecfdf5;
-  color: #047857;
+.region-feature-card__icon.has-img {
+  border: none;
+  background: transparent;
 }
 
-.region-feature-card.is-amber .region-feature-card__icon {
-  background: #fffbeb;
-  color: #92400e;
+.region-feature-card__icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 999px;
+  transform: scale(1.02);
 }
 
-.region-feature-card.is-dark .region-feature-card__icon {
-  background: #0f172a;
+.region-feature-card.is-dark .region-feature-card__icon:not(.has-img) {
+  border-color: transparent;
+  background: var(--gz-ink);
   color: #ffffff;
 }
 
@@ -568,30 +583,31 @@ function missingDataText(key: string): string {
 }
 
 .region-feature-card__meta {
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 700;
   line-height: 1.2;
-  color: #1d4ed8;
+  letter-spacing: 0.06em;
+  color: var(--gz-text-tertiary);
 }
 
 .region-feature-card.is-locked .region-feature-card__meta {
-  color: #92400e;
+  color: #7c5f33;
 }
 
 .region-feature-card strong {
   font-size: 17px;
   line-height: 1.25;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .region-feature-card small {
   font-size: 13px;
   line-height: 1.6;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .region-feature-card__arrow {
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .region-source-card {
@@ -619,10 +635,10 @@ function missingDataText(key: string): string {
   gap: 6px;
   min-height: 40px;
   padding: 0 14px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(23, 24, 28, 0.08);
   border-radius: 999px;
-  background: #fffdfa;
-  color: #475569;
+  background: #ffffff;
+  color: #4b4d54;
   font-size: 13px;
   font-weight: 700;
 }

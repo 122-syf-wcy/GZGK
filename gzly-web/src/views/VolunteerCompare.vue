@@ -153,7 +153,7 @@ function openExternal(href: string) {
 <style scoped>
 .compare-page {
   min-height: 100dvh;
-  background: #f8fafc;
+  background: #fafaf8;
 }
 
 .page-header {
@@ -182,13 +182,13 @@ function openExternal(href: string) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #334155;
+  color: #383a40;
 }
 
 .page-header-title {
   font-size: 18px;
   font-weight: 800;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .compare-wrap {
@@ -206,29 +206,31 @@ function openExternal(href: string) {
 }
 
 .compare-title {
+  font-family: var(--gz-font-display);
   font-size: 24px;
-  font-weight: 900;
-  color: #0f172a;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #17181c;
 }
 
 .compare-desc {
   margin-top: 6px;
   font-size: 14px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .compare-count {
   padding: 8px 14px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #f4f4f2;
+  color: #17181c;
   font-weight: 800;
 }
 
 .loading-block {
   padding: 24px;
   text-align: center;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .matrix-card {
@@ -245,15 +247,15 @@ function openExternal(href: string) {
 .matrix-school,
 .matrix-cell {
   padding: 18px 16px;
-  border-right: 1px solid rgba(15, 23, 42, 0.06);
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  border-right: 1px solid rgba(23, 24, 28, 0.06);
+  border-bottom: 1px solid rgba(23, 24, 28, 0.06);
 }
 
 .matrix-label {
-  background: #f8fafc;
+  background: #fafaf8;
   font-size: 13px;
   font-weight: 800;
-  color: #475569;
+  color: #4b4d54;
 }
 
 .matrix-school {
@@ -263,7 +265,7 @@ function openExternal(href: string) {
 .matrix-school h3 {
   font-size: 18px;
   font-weight: 900;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .school-head {
@@ -275,8 +277,8 @@ function openExternal(href: string) {
 
 .school-link {
   border: none;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #f4f4f2;
+  color: #17181c;
   border-radius: 999px;
   padding: 6px 10px;
   display: inline-flex;
@@ -289,7 +291,7 @@ function openExternal(href: string) {
 .school-major {
   margin-top: 6px;
   font-size: 14px;
-  color: #2563eb;
+  color: #17181c;
   font-weight: 700;
 }
 
@@ -299,7 +301,7 @@ function openExternal(href: string) {
   flex-wrap: wrap;
   gap: 8px;
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .school-meta span {
@@ -311,7 +313,7 @@ function openExternal(href: string) {
 .matrix-cell {
   font-size: 14px;
   line-height: 1.7;
-  color: #334155;
+  color: #383a40;
 }
 
 @media (max-width: 1023px) {

@@ -59,11 +59,11 @@ async function login() {
 
 <style scoped>
 .login-page { min-height: 100dvh; background: var(--gz-bg); }
-.login-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #fff; }
+.login-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: linear-gradient(135deg, #1e3a8a, #17181c); color: #fff; }
 .login-header h1 { font-size: 17px; font-weight: 700; }
 .back-btn { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: none; border-radius: 8px; background: rgba(255,255,255,0.15); color: #fff; cursor: pointer; }
 .login-body { max-width: 440px; margin: 0 auto; padding-top: 48px; }
-.login-icon { display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 20px; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; margin: 0 auto 24px; }
+.login-icon { display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 20px; background: linear-gradient(135deg, #17181c, #2b2d33); color: #fff; margin: 0 auto 24px; }
 .login-link { text-align: center; font-size: 13px; color: var(--gz-primary); margin-top: 16px; cursor: pointer; }
 
 @media (min-width: 768px) {

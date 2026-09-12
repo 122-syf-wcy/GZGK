@@ -23,12 +23,12 @@ const isExporting = ref(false)
 
 function gradientColor(g: string): string {
   const map: Record<string, string> = {
-    '冲': '#ef4444',
-    '稳': '#2563eb',
-    '保': '#10b981',
-    '垫': '#f59e0b',
+    '冲': '#c04848',
+    '稳': '#17181c',
+    '保': '#2f7d5d',
+    '垫': '#b98a2f',
   }
-  return map[g] || '#94a3b8'
+  return map[g] || '#97999e'
 }
 
 async function exportPoster() {
@@ -260,7 +260,7 @@ async function restorePlan() {
 .page-header-title {
   font-size: 18px;
   font-weight: 700;
-  color: #111827;
+  color: #17181c;
 }
 
 /* ---- Poster Scroll ---- */
@@ -285,7 +285,7 @@ async function restorePlan() {
 }
 
 .poster-header {
-  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  background: #17181c;
   color: #fff;
   text-align: center;
   padding: 28px 16px 24px;
@@ -305,7 +305,7 @@ async function restorePlan() {
 .poster-info {
   padding: var(--gz-space-4);
   background: var(--gz-primary-50);
-  border-bottom: 1px solid rgba(37, 99, 235, 0.08);
+  border-bottom: 1px solid rgba(23, 24, 28, 0.08);
 }
 
 .info-row {
@@ -493,9 +493,9 @@ async function restorePlan() {
 }
 
 .action-btn--primary {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  background: var(--gz-ink);
   color: #fff;
-  box-shadow: 0 3px 12px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 3px 12px rgba(23, 24, 28, 0.3);
 }
 
 .action-btn--primary:disabled {

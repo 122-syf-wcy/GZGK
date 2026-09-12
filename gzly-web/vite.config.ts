@@ -20,11 +20,12 @@ export default defineConfig({
     port: 3001,
     proxy: {
       '/api': {
-        target: 'http://localhost:8082',
+        // 本地后端端口可用 GZLY_DEV_API 覆盖（如 8082 被其他程序占用时）
+        target: process.env.GZLY_DEV_API || 'http://localhost:8082',
         changeOrigin: true,
       },
       '/uploads': {
-        target: 'http://localhost:8082/api',
+        target: (process.env.GZLY_DEV_API || 'http://localhost:8082') + '/api',
         changeOrigin: true,
       },
       '/gaokao-proxy': {

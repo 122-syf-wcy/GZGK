@@ -168,7 +168,7 @@ function nextPage() { if (page.value < totalPages.value) { page.value++; loadPla
   color: var(--gz-text-primary); white-space: nowrap;
 }
 
-.data-table tr:hover td { background: rgba(37, 99, 235, 0.02); }
+.data-table tr:hover td { background: rgba(23, 24, 28, 0.02); }
 
 .td-id { font-weight: 600; color: var(--gz-text-tertiary); font-variant-numeric: tabular-nums; }
 .td-user { font-variant-numeric: tabular-nums; }
@@ -187,7 +187,7 @@ function nextPage() { if (page.value < totalPages.value) { page.value++; loadPla
 .subject-tag {
   display: inline-block;
   padding: 2px 8px; border-radius: var(--gz-radius-full);
-  background: rgba(37, 99, 235, 0.06); color: var(--gz-primary);
+  background: rgba(23, 24, 28, 0.06); color: var(--gz-primary);
   font-size: 12px; font-weight: 600;
 }
 
@@ -198,7 +198,7 @@ function nextPage() { if (page.value < totalPages.value) { page.value++; loadPla
 .count-badge {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 28px; padding: 2px 6px; border-radius: var(--gz-radius-full);
-  background: rgba(16, 185, 129, 0.08); color: #059669;
+  background: rgba(47, 125, 93, 0.08); color: #2f7d5d;
   font-size: 12px; font-weight: 700;
 }
 

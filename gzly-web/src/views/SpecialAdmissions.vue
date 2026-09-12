@@ -405,8 +405,8 @@ watch(() => route.query.provinceCode, () => {
   padding: calc(env(safe-area-inset-top, 0px) + 20px) 20px 40px;
   color: #fff;
   background:
-    linear-gradient(135deg, rgba(15, 23, 42, 0.78) 0%, rgba(29, 78, 216, 0.68) 100%),
-    url('/hero-bg.png') center/cover no-repeat;
+    linear-gradient(180deg, rgba(12, 16, 14, 0.55) 0%, rgba(12, 16, 14, 0.3) 55%, rgba(12, 16, 14, 0.6) 100%),
+    url('/icons/hero-landscape.png') center 55% / cover no-repeat #29302b;
 }
 
 .back-btn {
@@ -438,7 +438,7 @@ watch(() => route.query.provinceCode, () => {
   margin-bottom: 14px;
   font-size: 13px;
   font-weight: 700;
-  color: #dbeafe;
+  color: #e7e6e1;
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 999px;
@@ -446,9 +446,12 @@ watch(() => route.query.provinceCode, () => {
 
 .special-hero h1 {
   margin: 0;
-  font-size: clamp(34px, 9vw, 58px);
-  line-height: 1.05;
-  letter-spacing: -0.06em;
+  font-family: var(--gz-font-display);
+  font-size: clamp(32px, 8vw, 52px);
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  font-weight: 700;
+  text-shadow: 0 2px 18px rgba(12, 16, 14, 0.4);
 }
 
 .special-hero p {
@@ -476,28 +479,28 @@ watch(() => route.query.provinceCode, () => {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  border-color: rgba(180, 83, 9, 0.2);
-  background: linear-gradient(180deg, rgba(255, 253, 250, 0.98), rgba(255, 251, 235, 0.94));
+  border-color: rgba(138, 109, 59, 0.24);
+  background: #ffffff;
 }
 
 .sc-special-lock svg {
   flex-shrink: 0;
   margin-top: 3px;
-  color: #92400e;
+  color: #7c5f33;
 }
 
 .sc-special-lock h2 {
   margin: 0;
   font-size: 18px;
   line-height: 1.3;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .sc-special-lock p {
   margin-top: 8px;
   font-size: 13px;
   line-height: 1.8;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .special-main {
@@ -548,8 +551,8 @@ watch(() => route.query.provinceCode, () => {
   padding: 14px;
   text-align: left;
   color: var(--gz-text-primary);
-  background: linear-gradient(135deg, #fffdfa, #f8fafc);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  border: 1px solid rgba(23, 24, 28, 0.1);
   border-radius: 18px;
 }
 
@@ -562,7 +565,7 @@ watch(() => route.query.provinceCode, () => {
 }
 
 .focus-card svg {
-  color: #d97706;
+  color: #a5793a;
 }
 
 .focus-card strong {
@@ -589,11 +592,11 @@ watch(() => route.query.provinceCode, () => {
 
 .deadline-chip {
   padding: 9px 10px;
-  color: #92400e;
+  color: #7c5f33;
   font-size: 12px;
   text-align: left;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  background: #faf7ef;
+  border: 1px solid #e6dcbd;
   border-radius: 12px;
 }
 
@@ -630,13 +633,13 @@ watch(() => route.query.provinceCode, () => {
 
 .coverage-summary span {
   color: #1e3a8a;
-  background: #dbeafe;
+  background: #e7e6e1;
 }
 
 .coverage-gap {
-  color: #92400e;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  color: #7c5f33;
+  background: #faf7ef;
+  border: 1px solid #e6dcbd;
 }
 
 .section-head {
@@ -677,30 +680,30 @@ watch(() => route.query.provinceCode, () => {
   gap: 8px;
   min-height: 42px;
   padding: 0 16px;
-  color: #334155;
+  color: #383a40;
   white-space: nowrap;
-  background: #fffdfa;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  border: 1px solid rgba(23, 24, 28, 0.08);
   border-radius: 999px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 8px 20px rgba(23, 24, 28, 0.04);
 }
 
 .category-chip span {
   padding: 1px 7px;
   font-size: 11px;
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: #17181c;
+  background: #e7e6e1;
   border-radius: 999px;
 }
 
 .category-chip.active {
   color: #fff;
-  background: #111827;
-  border-color: #111827;
+  background: #17181c;
+  border-color: #17181c;
 }
 
 .category-chip.active span {
-  color: #111827;
+  color: #17181c;
   background: #fff;
 }
 
@@ -729,9 +732,9 @@ watch(() => route.query.provinceCode, () => {
 .state-link {
   min-height: 32px;
   padding: 0 10px;
-  color: #1d4ed8;
+  color: #17181c;
   font-weight: 700;
-  background: #dbeafe;
+  background: #e7e6e1;
   border: 0;
   border-radius: 999px;
 }
@@ -786,7 +789,7 @@ watch(() => route.query.provinceCode, () => {
 
 .category-label {
   color: #1e3a8a;
-  background: #dbeafe;
+  background: #e7e6e1;
 }
 
 .source--official {
@@ -795,13 +798,13 @@ watch(() => route.query.provinceCode, () => {
 }
 
 .source--wechat {
-  color: #854d0e;
-  background: #fef3c7;
+  color: #7c5f33;
+  background: #f3ecd9;
 }
 
 .source--reprint {
-  color: #475569;
-  background: #f1f5f9;
+  color: #4b4d54;
+  background: #f2f2ef;
 }
 
 .policy-card h3 {
@@ -852,8 +855,8 @@ watch(() => route.query.provinceCode, () => {
 
 .policy-detail {
   padding: 16px 18px 18px;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
-  background: linear-gradient(180deg, rgba(248, 250, 252, 0.7), rgba(255, 253, 250, 0.95));
+  border-top: 1px solid rgba(23, 24, 28, 0.08);
+  background: var(--gz-bg-subtle);
 }
 
 .requirement-box {
@@ -862,8 +865,8 @@ watch(() => route.query.provinceCode, () => {
   padding: 12px;
   margin-bottom: 12px;
   color: #713f12;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  background: #faf7ef;
+  border: 1px solid #e6dcbd;
   border-radius: 14px;
   font-size: 13px;
 }
@@ -899,7 +902,7 @@ watch(() => route.query.provinceCode, () => {
   margin-top: 14px;
   color: #fff;
   font-weight: 700;
-  background: #111827;
+  background: #17181c;
   border: 0;
   border-radius: 999px;
 }

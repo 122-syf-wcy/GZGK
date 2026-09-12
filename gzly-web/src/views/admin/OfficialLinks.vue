@@ -740,7 +740,7 @@ onMounted(() => {
   gap: 18px;
   padding: 24px;
   margin-bottom: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(23, 24, 28, 0.06);
   background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
 }
 
@@ -789,8 +789,8 @@ onMounted(() => {
   gap: 6px;
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.04);
-  color: #334155;
+  background: rgba(23, 24, 28, 0.04);
+  color: #383a40;
   font-size: 12px;
   font-weight: 800;
 }
@@ -805,13 +805,13 @@ onMounted(() => {
   padding: 16px;
   border-radius: 16px;
   background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(23, 24, 28, 0.06);
 }
 
 .hero-stat-card span {
   display: block;
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .hero-stat-card strong {
@@ -819,7 +819,7 @@ onMounted(() => {
   margin-top: 8px;
   font-size: 26px;
   font-weight: 900;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .toolbar {
@@ -872,7 +872,7 @@ onMounted(() => {
   margin-bottom: 10px;
   font-size: 12px;
   font-weight: 800;
-  color: #64748b;
+  color: #6a6c72;
   letter-spacing: 0.04em;
 }
 
@@ -894,14 +894,14 @@ onMounted(() => {
 }
 
 .stat-card--accent {
-  background: linear-gradient(135deg, #eff6ff 0%, #f8fbff 100%);
-  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #f4f4f2 0%, #f8fbff 100%);
+  border-color: #d9d8d3;
 }
 
 .stat-label {
   display: block;
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .stat-value {
@@ -909,7 +909,7 @@ onMounted(() => {
   margin-top: 6px;
   font-size: 24px;
   font-weight: 900;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .filter-section {
@@ -925,7 +925,7 @@ onMounted(() => {
   padding-top: 8px;
   font-size: 12px;
   font-weight: 800;
-  color: #64748b;
+  color: #6a6c72;
   letter-spacing: 0.04em;
 }
 
@@ -946,15 +946,15 @@ onMounted(() => {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 999px;
   background: #fff;
-  color: #475569;
+  color: #4b4d54;
   font-size: 13px;
   font-weight: 700;
 }
 
 .filter-tab.active {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border-color: #93c5fd;
+  background: #f4f4f2;
+  color: #17181c;
+  border-color: #b9bbc0;
 }
 
 .batch-toolbar {
@@ -972,7 +972,7 @@ onMounted(() => {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 999px;
   background: #fff;
-  color: #334155;
+  color: #383a40;
   font-size: 13px;
   font-weight: 700;
 }
@@ -1025,18 +1025,18 @@ onMounted(() => {
 }
 
 .table-row.active td {
-  background: #eff6ff;
+  background: #f4f4f2;
 }
 
 .uni-name {
   font-weight: 700;
-  color: #111827;
+  color: #17181c;
 }
 
 .uni-sub {
   margin-top: 4px;
   font-size: 12px;
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .heat-box,
@@ -1049,25 +1049,25 @@ onMounted(() => {
 .heat-box strong,
 .priority-box strong {
   font-size: 14px;
-  color: #0f172a;
+  color: #17181c;
 }
 
 .heat-box span,
 .priority-box span {
   font-size: 12px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .priority-box--p0 strong {
-  color: #b91c1c;
+  color: #a03535;
 }
 
 .priority-box--p1 strong {
-  color: #b45309;
+  color: #8a6d3b;
 }
 
 .priority-box--p2 strong {
-  color: #334155;
+  color: #383a40;
 }
 
 .missing-list,
@@ -1094,13 +1094,13 @@ onMounted(() => {
 }
 
 .missing-chip--muted {
-  background: #f1f5f9;
-  color: #64748b;
+  background: #f2f2ef;
+  color: #6a6c72;
 }
 
 .field-badge {
-  background: #f8fafc;
-  color: #475569;
+  background: #fafaf8;
+  color: #4b4d54;
 }
 
 .field-badge--parsed {
@@ -1118,24 +1118,24 @@ onMounted(() => {
 }
 
 .status--ok {
-  background: #ecfdf5;
-  color: #047857;
+  background: #eef2ee;
+  color: #2f6650;
 }
 
 .status--pending {
-  background: #fffbeb;
-  color: #b45309;
+  background: #faf7ef;
+  color: #8a6d3b;
 }
 
 .status--empty {
-  background: #f1f5f9;
-  color: #64748b;
+  background: #f2f2ef;
+  color: #6a6c72;
 }
 
 .td-empty {
   text-align: center;
   padding: 24px !important;
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .editor-card {
@@ -1164,13 +1164,13 @@ onMounted(() => {
   margin: 10px 0 0;
   font-size: 22px;
   font-weight: 900;
-  color: #111827;
+  color: #17181c;
 }
 
 .editor-head p {
   margin-top: 6px;
   font-size: 13px;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .editor-actions {
@@ -1194,14 +1194,14 @@ onMounted(() => {
 
 .save-btn {
   border: none;
-  background: #111827;
+  background: #17181c;
   color: #fff;
 }
 
 .save-btn--ghost {
   background: #fff;
-  color: #111827;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  color: #17181c;
+  border: 1px solid rgba(23, 24, 28, 0.12);
 }
 
 .save-btn:disabled,
@@ -1210,9 +1210,9 @@ onMounted(() => {
 }
 
 .secondary-btn {
-  border: 1px solid rgba(37, 99, 235, 0.15);
-  background: #eff6ff;
-  color: #1d4ed8;
+  border: 1px solid rgba(23, 24, 28, 0.15);
+  background: #f4f4f2;
+  color: #17181c;
 }
 
 .editor-summary {
@@ -1224,8 +1224,8 @@ onMounted(() => {
 .summary-card {
   padding: 14px;
   border-radius: 16px;
-  background: #f8fafc;
-  border: 1px solid rgba(15, 23, 42, 0.05);
+  background: #fafaf8;
+  border: 1px solid rgba(23, 24, 28, 0.05);
 }
 
 .summary-card--priority {
@@ -1237,7 +1237,7 @@ onMounted(() => {
   margin-bottom: 10px;
   font-size: 12px;
   font-weight: 800;
-  color: #64748b;
+  color: #6a6c72;
   letter-spacing: 0.04em;
 }
 
@@ -1253,8 +1253,8 @@ onMounted(() => {
 
 .summary-tag {
   background: #ffffff;
-  color: #334155;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: #383a40;
+  border: 1px solid rgba(23, 24, 28, 0.08);
 }
 
 .summary-tag--warn {
@@ -1278,7 +1278,7 @@ onMounted(() => {
   margin: 0;
   font-size: 12px;
   line-height: 1.7;
-  color: #64748b;
+  color: #6a6c72;
 }
 
 .field-block--highlight {
@@ -1291,7 +1291,7 @@ onMounted(() => {
 .field-block label {
   font-size: 13px;
   font-weight: 700;
-  color: #334155;
+  color: #383a40;
 }
 
 .text-input,
@@ -1301,7 +1301,7 @@ onMounted(() => {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 12px;
   font-size: 14px;
-  color: #111827;
+  color: #17181c;
   background: #fff;
   box-sizing: border-box;
 }
@@ -1322,10 +1322,10 @@ onMounted(() => {
 
 .link-btn {
   width: 40px;
-  border: 1px solid rgba(37, 99, 235, 0.15);
+  border: 1px solid rgba(23, 24, 28, 0.15);
   border-radius: 12px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #f4f4f2;
+  color: #17181c;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1338,7 +1338,7 @@ onMounted(() => {
 .empty-editor {
   padding: 40px 12px;
   text-align: center;
-  color: #94a3b8;
+  color: #97999e;
 }
 
 .pagination {

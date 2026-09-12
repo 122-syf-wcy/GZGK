@@ -11,41 +11,41 @@ const visibleChanceScore = computed(() => props.item.chanceScore || 0)
 
 function gradientColor(g: string) {
   const map: Record<string, string> = {
-    '冲': '#ef4444',
-    '稳': '#2563eb',
-    '保': '#10b981',
-    '垫': '#f59e0b',
+    '冲': '#c04848',
+    '稳': '#17181c',
+    '保': '#2f7d5d',
+    '垫': '#b98a2f',
   }
-  return map[g] || '#94a3b8'
+  return map[g] || '#97999e'
 }
 
 function gradientBg(g: string) {
   const map: Record<string, string> = {
-    '冲': 'linear-gradient(135deg, #ef4444, #f97316)',
-    '稳': 'linear-gradient(135deg, #2563eb, #3b82f6)',
-    '保': 'linear-gradient(135deg, #10b981, #34d399)',
-    '垫': 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+    '冲': 'linear-gradient(135deg, #c04848, #f97316)',
+    '稳': 'linear-gradient(135deg, #17181c, #2b2d33)',
+    '保': 'linear-gradient(135deg, #2f7d5d, #4f9578)',
+    '垫': 'linear-gradient(135deg, #b98a2f, #c29a45)',
   }
-  return map[g] || '#94a3b8'
+  return map[g] || '#97999e'
 }
 
 function tagColor(tag: string): string {
   const map: Record<string, string> = {
-    '985': '#ef4444',
-    '211': '#f59e0b',
-    '双一流': '#2563eb',
-    '公办': '#10b981',
-    '民办': '#8b5cf6',
+    '985': '#c04848',
+    '211': '#b98a2f',
+    '双一流': '#17181c',
+    '公办': '#2f7d5d',
+    '民办': '#6b5d8a',
   }
-  return map[tag] || '#94a3b8'
+  return map[tag] || '#97999e'
 }
 
 function probBarColor(prob: number | undefined): string {
-  if (!prob) return '#94a3b8'
-  if (prob >= 80) return '#10b981'
-  if (prob >= 60) return '#2563eb'
-  if (prob >= 40) return '#f59e0b'
-  return '#ef4444'
+  if (!prob) return '#97999e'
+  if (prob >= 80) return '#2f7d5d'
+  if (prob >= 60) return '#17181c'
+  if (prob >= 40) return '#b98a2f'
+  return '#c04848'
 }
 
 function trendClass(trend: string | undefined): string {
@@ -282,7 +282,7 @@ function requirementSourceLabel(source: string | undefined): string {
 .stat-divider {
   width: 1px;
   height: 28px;
-  background: rgba(37, 99, 235, 0.1);
+  background: rgba(23, 24, 28, 0.1);
   flex-shrink: 0;
 }
 
@@ -300,7 +300,7 @@ function requirementSourceLabel(source: string | undefined): string {
 }
 
 .stat-value--score {
-  color: #ef4444;
+  color: #c04848;
 }
 
 .stat-value--sub {
@@ -322,9 +322,9 @@ function requirementSourceLabel(source: string | undefined): string {
   align-items: center;
   margin-top: var(--gz-space-2);
   padding: var(--gz-space-2) var(--gz-space-3);
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.04), rgba(16, 185, 129, 0.04));
+  background: linear-gradient(135deg, rgba(23, 24, 28, 0.04), rgba(47, 125, 93, 0.04));
   border-radius: var(--gz-radius-md);
-  border: 1px solid rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(23, 24, 28, 0.08);
 }
 
 .algo-cell {
@@ -342,7 +342,7 @@ function requirementSourceLabel(source: string | undefined): string {
 .algo-divider {
   width: 1px;
   height: 24px;
-  background: rgba(37, 99, 235, 0.08);
+  background: rgba(23, 24, 28, 0.08);
   flex-shrink: 0;
   margin: 0 4px;
 }
@@ -384,22 +384,22 @@ function requirementSourceLabel(source: string | undefined): string {
 }
 
 .risk--green {
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
+  color: #2f7d5d;
+  background: rgba(47, 125, 93, 0.1);
 }
 
 .risk--yellow {
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
+  color: #b98a2f;
+  background: rgba(185, 138, 47, 0.1);
 }
 
 .risk--red {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
+  color: #c04848;
+  background: rgba(192, 72, 72, 0.1);
 }
 
 .risk--gray {
-  color: #94a3b8;
+  color: #97999e;
   background: rgba(148, 163, 184, 0.1);
 }
 
@@ -412,14 +412,14 @@ function requirementSourceLabel(source: string | undefined): string {
 }
 
 .trend--hot {
-  color: #ef4444;
+  color: #c04848;
 }
 
 .trend--cool {
-  color: #10b981;
+  color: #2f7d5d;
 }
 
 .trend--neutral {
-  color: #64748b;
+  color: #6a6c72;
 }
 </style>

@@ -52,7 +52,7 @@ defineEmits<{ 'scroll-to': [id: string] }>()
 .report-nav__desc {
   font-size: 12px;
   line-height: 1.7;
-  color: #64748b;
+  color: #6a6c72;
 }
 .report-nav__progress {
   display: flex;
@@ -65,7 +65,7 @@ defineEmits<{ 'scroll-to': [id: string] }>()
   border: 1px solid rgba(31, 41, 51, 0.08);
 }
 .report-nav__progress span {
-  color: #64748b;
+  color: #6a6c72;
   font-size: 12px;
   font-weight: 800;
 }
@@ -81,7 +81,7 @@ defineEmits<{ 'scroll-to': [id: string] }>()
   border: 1px solid transparent;
   border-radius: 10px;
   background: transparent;
-  color: #475569;
+  color: #4b4d54;
   font-size: 12px;
   font-weight: 700;
   text-align: left;
@@ -100,7 +100,7 @@ defineEmits<{ 'scroll-to': [id: string] }>()
   width: 4px;
   height: 4px;
   border-radius: 999px;
-  background: #cbd5e1;
+  background: #cdccc7;
   transform: translateY(-50%);
 }
 .report-nav__item:hover {

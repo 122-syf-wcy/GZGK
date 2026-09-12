@@ -372,7 +372,7 @@ onMounted(loadData)
 
 .page-desc {
   margin: 6px 0 0;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 14px;
 }
 
@@ -391,13 +391,13 @@ onMounted(loadData)
   padding: 0 16px;
   color: #fff;
   font-weight: 700;
-  background: #111827;
+  background: #17181c;
   border: 0;
   border-radius: 999px;
 }
 
 .secondary-btn {
-  color: #111827;
+  color: #17181c;
   background: #fff;
   border: 1px solid #dbe3ea;
 }
@@ -430,8 +430,8 @@ onMounted(loadData)
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: #17181c;
+  background: #e7e6e1;
   border-radius: 14px;
 }
 
@@ -445,7 +445,7 @@ onMounted(loadData)
 .panel-head p,
 .field-block small {
   margin: 4px 0 0;
-  color: #64748b;
+  color: #6a6c72;
   font-size: 13px;
 }
 
@@ -465,7 +465,7 @@ onMounted(loadData)
 }
 
 .test-result--fail {
-  color: #991b1b;
+  color: #8f3030;
   background: #fee2e2;
 }
 
@@ -503,26 +503,26 @@ onMounted(loadData)
 }
 
 .field-block label {
-  color: #334155;
+  color: #383a40;
   font-size: 13px;
   font-weight: 700;
 }
 
 .model-options-note {
   padding: 10px 12px;
-  color: #1d4ed8;
+  color: #17181c;
   font-size: 12px;
   font-weight: 700;
-  background: #dbeafe;
+  background: #e7e6e1;
   border-radius: 12px;
 }
 
 .text-input,
 .prompt-area {
   width: 100%;
-  color: #111827;
+  color: #17181c;
   background: #fff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e3e2de;
   border-radius: 12px;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -542,8 +542,8 @@ onMounted(loadData)
 
 .text-input:focus,
 .prompt-area:focus {
-  border-color: #1d4ed8;
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+  border-color: #17181c;
+  box-shadow: 0 0 0 3px rgba(23, 24, 28, 0.12);
 }
 
 .key-row {
@@ -569,7 +569,7 @@ onMounted(loadData)
 
 .switch-row {
   gap: 8px;
-  color: #334155;
+  color: #383a40;
   font-weight: 700;
 }
 

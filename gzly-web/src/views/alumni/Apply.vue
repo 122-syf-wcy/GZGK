@@ -134,22 +134,22 @@ async function submit() {
 
 <style scoped>
 .apply-page { min-height: 100dvh; background: var(--gz-bg); }
-.apply-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #fff; }
+.apply-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: linear-gradient(135deg, #1e3a8a, #17181c); color: #fff; }
 .apply-header h1 { font-size: 17px; font-weight: 700; }
 .back-btn { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: none; border-radius: 8px; background: rgba(255,255,255,0.15); color: #fff; cursor: pointer; }
 
 .apply-hero { text-align: center; padding: 32px 24px 24px; }
-.hero-icon { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 20px; background: linear-gradient(135deg, #2563eb, #7c3aed); color: #fff; margin-bottom: 16px; }
+.hero-icon { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 20px; background: linear-gradient(135deg, #17181c, #7c3aed); color: #fff; margin-bottom: 16px; }
 .apply-hero h2 { font-size: 20px; font-weight: 800; color: var(--gz-text-primary); margin-bottom: 8px; }
 .apply-hero p { font-size: 14px; color: var(--gz-text-secondary); line-height: 1.5; max-width: 320px; margin: 0 auto; }
 
 .form-card { max-width: 500px; margin: 0 auto; padding: 0 16px; position: relative; }
 .school-dropdown { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; max-height: 200px; overflow-y: auto; margin: -8px 16px 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; position: relative; }
 .school-option { padding: 10px 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; }
-.school-option:hover { background: #eff6ff; }
+.school-option:hover { background: #f4f4f2; }
 .school-option:last-child { border-bottom: none; }
-.school-name { font-size: 14px; font-weight: 600; color: #1e293b; }
-.school-meta { font-size: 12px; color: #94a3b8; }
+.school-name { font-size: 14px; font-weight: 600; color: #22242a; }
+.school-meta { font-size: 12px; color: #97999e; }
 .submit-wrap { padding: 24px 16px; }
 .submit-note { text-align: center; font-size: 12px; color: var(--gz-text-tertiary); margin-top: 10px; }
 

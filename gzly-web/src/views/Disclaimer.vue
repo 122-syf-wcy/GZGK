@@ -118,13 +118,13 @@ const router = useRouter()
   width: 48px;
   height: 48px;
   border-radius: var(--gz-radius-lg);
-  background: #0f172a;
+  background: #17181c;
   color: #fff;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-bottom: var(--gz-space-3);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 4px 12px rgba(23, 24, 28, 0.18);
 }
 
 .card-title {
@@ -149,9 +149,9 @@ const router = useRouter()
 .clause {
   margin-bottom: var(--gz-space-4);
   padding: var(--gz-space-4);
-  background: rgba(15, 23, 42, 0.025);
+  background: rgba(23, 24, 28, 0.025);
   border-radius: var(--gz-radius-md);
-  border-left: 3px solid #0f172a;
+  border-left: 3px solid #17181c;
 }
 
 .clause h3 {
@@ -175,7 +175,7 @@ const router = useRouter()
 }
 
 .clause li::marker {
-  color: #0f172a;
+  color: #17181c;
 }
 
 .update-time {

@@ -44,10 +44,10 @@ function pct(s: number) { return Math.round(s * 100) }
 
 function clr(s: number): string {
   const p = s * 100
-  if (p >= 80) return '#10b981'
-  if (p >= 60) return '#2563eb'
-  if (p >= 40) return '#f59e0b'
-  return '#ef4444'
+  if (p >= 80) return '#2f7d5d'
+  if (p >= 60) return '#17181c'
+  if (p >= 40) return '#b98a2f'
+  return '#c04848'
 }
 </script>
 
@@ -124,7 +124,7 @@ function clr(s: number): string {
   width: 26px;
   height: 26px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #f59e0b, #f97316);
+  background: linear-gradient(135deg, #b98a2f, #f97316);
   color: #fff;
 }
 .rec-title {
@@ -179,7 +179,7 @@ function clr(s: number): string {
 }
 .rec-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 8px 32px rgba(23, 24, 28, 0.12);
 }
 .rec-badge {
   display: inline-flex;
