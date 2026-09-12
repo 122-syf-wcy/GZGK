@@ -48,7 +48,7 @@ mysql -u root -p < src/main/resources/db/schema.sql
 | POST | `/api/volunteer/generate` | 生成 96/45 志愿 | 公开（强制 disclaimer） |
 | GET  | `/api/volunteer/plan` | 通过短期 ticket 获取已生成方案 | ticket |
 | GET  | `/api/volunteer/ai-analysis` | AI 解读（SSE） | ticket |
-| GET  | `/api/volunteer/metrics` | 生成质量监控 | 公开 |
+| GET  | `/api/volunteer/metrics` | 生成质量监控 | 管理员 JWT |
 | GET  | `/api/special-admission/...` | 特殊招生（强基/综合评价等） | 公开 |
 | POST | `/api/feedback/...` | 反馈/留言 | 公开 + 限流 |
 | ALL  | `/api/admin/...` | 管理后台（含 `/api/admin/province-data/{code}/...` 等） | 管理员 JWT |
@@ -82,7 +82,7 @@ src/main/java/com/gzly/
 
 ## 运维
 
-- 生产服务名：`gzly`，systemd 管理；端口 8090；健康检查 `/api/volunteer/metrics`。
+- 生产服务名：`gzly`，systemd 管理；端口 8090；健康检查 `/api/health`（公开存活探针，部署脚本 `HEALTH_URL` 默认指向它）。
 - 部署脚本：仓库根 `scripts/server/deploy_backend_safe.sh`（含本地构建、上传、备份、健康检查、失败回滚）。
 - 数据补数与官方材料治理：`scripts/server/run_data_gap_supplement.sh` 与 `scripts/server/province_group_2025/`。
 

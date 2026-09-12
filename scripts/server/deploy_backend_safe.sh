@@ -10,7 +10,7 @@ REMOTE_HOST="${REMOTE_HOST:-}"
 REMOTE_USER="${REMOTE_USER:-root}"
 REMOTE_JAR="${REMOTE_JAR:-/opt/gzly/backend/app.jar}"
 SERVICE_NAME="${SERVICE_NAME:-gzly}"
-HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8090/api/volunteer/metrics}"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8090/api/health}"
 RUN_TESTS="${RUN_TESTS:-1}"
 SSH_STRICT_HOST_KEY_CHECKING="${SSH_STRICT_HOST_KEY_CHECKING:-accept-new}"
 
@@ -28,7 +28,7 @@ Optional environment:
   REMOTE_USER=root
   REMOTE_JAR=/opt/gzly/backend/app.jar
   SERVICE_NAME=gzly
-  HEALTH_URL=http://127.0.0.1:8090/api/volunteer/metrics
+  HEALTH_URL=http://127.0.0.1:8090/api/health
   RUN_TESTS=1 (set 0 to skip tests; additionally requires CONFIRM_SKIP_TESTS=1)
   CONFIRM_SKIP_TESTS= (explicit confirmation required when RUN_TESTS=0)
   LOCAL_SERVER_DIR=/path/to/gzly-server
