@@ -115,7 +115,9 @@ public class AlumniController {
         }
         a.setLastLoginAt(LocalDateTime.now());
         alumniMapper.updateById(a);
-        String role = a.getRole() != null && a.getRole() >= 9 ? "admin" : "alumni";
+        // 校友超管（role>=9）在校友域内是最高权限，但不等同于系统管理员：
+        // 签发 alumni_admin 而非 admin，避免其令牌通过 /admin/** 的 admin-only 链越权。
+        String role = a.getRole() != null && a.getRole() >= 9 ? "alumni_admin" : "alumni";
         String token = jwtUtil.generate(a.getId(), a.getSchoolId(), role);
         Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("token", token);

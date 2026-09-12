@@ -106,6 +106,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
             registry.addInterceptor(new PublicRateLimitInterceptor(redisTemplate, rules));
         }
 
+        // 系统管理员链（admin-only）。以 /alumni/admin/** 与下方若干校友侧审核端点为主。
+        // 注意：/alumni/media/pending、/alumni/media/review、/alumni/media/review/** 必须保留在本链路中，
+        // 它们并不是下方 /alumni/media/** 通配链的“重复注册”：本链先于通配链执行，
+        // 以 admin-only 拦截审核类请求；若删除，通配链会放行 alumni/alumni_admin，造成越权审核。
         registry.addInterceptor(new AuthInterceptor(jwtUtil, "admin"))
                 .addPathPatterns("/admin/**")
                 .addPathPatterns("/alumni/admin/**")
@@ -117,7 +121,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/alumni/content/review/**")
                 .excludePathPatterns("/admin/login");
 
-        registry.addInterceptor(new AuthInterceptor(jwtUtil, "admin", "alumni"))
+        // 校友域链：admin(系统管理员) / alumni(普通校友维护员) / alumni_admin(校友超管) 均可访问。
+        // alumni_admin 是校友域最高权限，不应被降权，故与 alumni 一并放行。
+        // /alumni/media/list 为公开端点（AlumniController.listMedia 无鉴权），必须从通配链中排除，
+        // 否则会被 401 拦截导致公开列表功能失效。
+        registry.addInterceptor(new AuthInterceptor(jwtUtil, "admin", "alumni", "alumni_admin"))
                 .addPathPatterns("/alumni/media/**")
                 .addPathPatterns("/alumni/content/edit")
                 .addPathPatterns("/alumni/content/my-edits")
@@ -126,7 +134,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/alumni/qa/review/update-note")
                 .addPathPatterns("/alumni/qa/reply/edit-and-resubmit")
                 .addPathPatterns("/alumni/qa/history")
-                .addPathPatterns("/alumni/qa/pending");
+                .addPathPatterns("/alumni/qa/pending")
+                .excludePathPatterns("/alumni/media/list");
 
         // 卡密激活后的"我的空间"端点：user 与 admin 都允许（admin 可代查），但必须有 token
         registry.addInterceptor(new AuthInterceptor(jwtUtil, "user", "admin"))

@@ -204,6 +204,20 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   document.title = (to.meta.title as string) || '高考志愿辅助系统'
+
+  // 管理端守卫：无管理员 token(gz_token) 时不允许直接进入 /admin/** 受保护页。
+  // 管理端没有独立登录路由，密码门禁内联在 AdminLayout（挂在 /admin 本身），
+  // 故无 token 时回落到 /admin 由门禁接管，避免深链直开子页。
+  if (to.path.startsWith('/admin')) {
+    if (to.path !== '/admin' && !localStorage.getItem('gz_token')) {
+      return { path: '/admin' }
+    }
+  }
+
+  // 校友端守卫：内容管理页需校友 token(alumni_token)，缺失时回校友登录页。
+  if (to.path.startsWith('/alumni/manage') && !localStorage.getItem('alumni_token')) {
+    return { path: '/alumni/login' }
+  }
 })
 
 export default router
