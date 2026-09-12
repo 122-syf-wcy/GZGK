@@ -6,12 +6,16 @@ import com.gzly.algorithm.core.ThreeOneTwoSubjectMatcher;
 import com.gzly.algorithm.core.VolunteerUnitType;
 import com.gzly.common.exception.BizException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +39,14 @@ public class RecommendationOrchestrator {
     private static final Duration GROUP_LOCK_TTL = Duration.ofSeconds(30);
     private static final long GROUP_WAIT_MILLIS = 4000;
     private static final long GROUP_WAIT_POLL_MILLIS = 300;
+
+    /**
+     * 释放专业组请求锁的原子 compare-and-delete：仅当锁值仍等于持锁者写入的 lockValue 时才删除，
+     * 避免 GET+DEL 窗口内误删他人重抢后的同名锁。
+     */
+    private static final DefaultRedisScript<Long> RELEASE_LOCK_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end",
+            Long.class);
 
     private final ProvincePolicyService provincePolicyService;
     private final ProvinceReadinessService provinceReadinessService;
@@ -203,10 +215,7 @@ public class RecommendationOrchestrator {
 
     private void releaseGroupLock(String lockKey, String lockValue) {
         try {
-            String current = stringRedisTemplate.opsForValue().get(lockKey);
-            if (lockValue.equals(current)) {
-                stringRedisTemplate.delete(lockKey);
-            }
+            stringRedisTemplate.execute(RELEASE_LOCK_SCRIPT, Collections.singletonList(lockKey), lockValue);
         } catch (Exception e) {
             log.debug("专业组请求锁释放失败（将随 TTL 过期）: {}", e.getMessage());
         }

@@ -29,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -85,6 +86,15 @@ public class VolunteerService {
     private long generateLockSeconds;
     @Value("${gzly.stability.generate-wait-millis:4000}")
     private long generateWaitMillis;
+
+    /**
+     * 释放请求锁的原子 compare-and-delete：仅当锁值仍等于持锁者写入的 lockValue 时才删除。
+     * GET+DEL 两条命令之间存在窗口，持锁者超 TTL 未完成、他人重抢同名锁后，前者会误删后者锁，
+     * 故改为 Lua 单命令原子执行。
+     */
+    private static final DefaultRedisScript<Long> RELEASE_LOCK_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end",
+            Long.class);
 
     // 梯度配置：按报告建议的“冲/稳/保/兜底”比例折算为贵州本科批 96 志愿。
     private static final int TOTAL_COUNT = 96;
@@ -2826,10 +2836,7 @@ public class VolunteerService {
 
     private void releaseGenerateLock(String lockKey, String lockValue) {
         try {
-            String current = stringRedisTemplate.opsForValue().get(lockKey);
-            if (lockValue.equals(current)) {
-                stringRedisTemplate.delete(lockKey);
-            }
+            stringRedisTemplate.execute(RELEASE_LOCK_SCRIPT, Collections.singletonList(lockKey), lockValue);
         } catch (Exception e) {
             log.warn("释放志愿生成锁失败: key={}", lockKey, e);
         }
@@ -2840,18 +2847,53 @@ public class VolunteerService {
             Map<String, Object> normalized = new LinkedHashMap<>();
             normalized.put("scope", userId != null && userId > 0 ? "u:" + userId : "ip:" + safeTrim(clientIp));
             normalized.put("provinceCode", normalizeProvinceCode(req.getProvinceCode()));
+            // 以下字段会被 buildFilterCriteria / PreferenceProfile / pickGradient 消费，必须全部入指纹，
+            // 否则 120s 结果缓存会把"同分但不同硬规则条件"的请求判为同一份，返回错误方案。
+            normalized.put("year", req.getYear());
+            normalized.put("batchCode", safeTrim(req.getBatchCode()));
+            normalized.put("candidateType", safeTrim(req.getCandidateType()));
             normalized.put("totalScore", req.getTotalScore());
             normalized.put("provinceRank", req.getProvinceRank());
             normalized.put("firstSubject", safeTrim(req.getFirstSubject()));
             normalized.put("resubjects", normalizeList(req.getResubjects()));
+            // selectedSubjects 与 resubjects 同源（buildFilterCriteria 优先取 selectedSubjects，回退 resubjects）
+            List<String> selectedSubjects = req.getSelectedSubjects() != null && !req.getSelectedSubjects().isEmpty()
+                    ? req.getSelectedSubjects() : req.getResubjects();
+            normalized.put("selectedSubjects", normalizeList(selectedSubjects));
             normalized.put("preferredMajors", normalizeList(req.getPreferredMajors()));
             normalized.put("preferredRegions", normalizeList(req.getPreferredRegions()));
             normalized.put("strategyMode", safeTrim(req.getStrategyMode()));
             normalized.put("decisionPriority", safeTrim(req.getDecisionPriority()));
             normalized.put("careerGoal", safeTrim(req.getCareerGoal()));
             normalized.put("tuitionBudget", safeTrim(req.getTuitionBudget()));
+            // 新旧接受标志并存：原始字段参与 profile 判定，归一后的值参与硬规则判定，两者都收，
+            // 保证任意一路输入变化都能得到不同指纹（宁可缓存未命中，也不可共享错误结果）。
             normalized.put("acceptPrivate", Boolean.TRUE.equals(req.getAcceptPrivate()));
             normalized.put("acceptSinoForeign", Boolean.TRUE.equals(req.getAcceptSinoForeign()));
+            Boolean acceptPriv = req.getAcceptPrivateSchool() != null
+                    ? req.getAcceptPrivateSchool()
+                    : (req.getAcceptPrivate() == null ? Boolean.TRUE : req.getAcceptPrivate());
+            Boolean acceptCoop = req.getAcceptChineseForeignCoop() != null
+                    ? req.getAcceptChineseForeignCoop()
+                    : (req.getAcceptSinoForeign() == null ? Boolean.TRUE : req.getAcceptSinoForeign());
+            normalized.put("acceptPrivateSchool", acceptPriv);
+            normalized.put("acceptChineseForeignCoop", acceptCoop);
+            normalized.put("maxTuition", req.getMaxTuition());
+            normalized.put("dislikedMajors", normalizeList(req.getDislikedMajors()));
+            normalized.put("medicalLimitations", normalizeList(req.getMedicalLimitations()));
+            normalized.put("singleSubjectScores", normalizeIntMap(req.getSingleSubjectScores()));
+            normalized.put("foreignLanguage", safeTrim(req.getForeignLanguage()));
+            normalized.put("gender", safeTrim(req.getGender()));
+            normalized.put("qualificationTags", normalizeList(req.getQualificationTags()));
+            // policy* 字段虽设计为服务端按省注入，但生成入口直接反序列化请求体，客户端可自带取值，
+            // 而它们会改变输出（志愿条数 / 批次名 / 志愿单位文案 / 梯度比例 / 机会指数参数），
+            // 故一并入指纹，避免同窗口内不同条件共用缓存。
+            normalized.put("policyMaxVolunteerCount", req.getPolicyMaxVolunteerCount());
+            normalized.put("policyBatchName", safeTrim(req.getPolicyBatchName()));
+            normalized.put("policyVolunteerUnitType", safeTrim(req.getPolicyVolunteerUnitType()));
+            normalized.put("policyVolunteerUnitLabel", safeTrim(req.getPolicyVolunteerUnitLabel()));
+            normalized.put("policyGradientPresetJson", safeTrim(req.getPolicyGradientPresetJson()));
+            normalized.put("policyChanceParamsJson", safeTrim(req.getPolicyChanceParamsJson()));
             normalized.put("disclaimerVersion", safeTrim(req.getDisclaimerVersion()));
             normalized.put("gradientRanges", normalizeGradientRanges(req.getGradientRanges()));
             String payload = objectMapper.writeValueAsString(normalized);
@@ -2876,6 +2918,18 @@ public class VolunteerService {
                 .distinct()
                 .sorted()
                 .toList();
+    }
+
+    /** 单科成绩 Map 稳定化：按 key 排序序列化，保证同输入同指纹（与候选过滤消费口径一致）。 */
+    private Map<String, Integer> normalizeIntMap(Map<String, Integer> values) {
+        if (values == null || values.isEmpty()) return Map.of();
+        Map<String, Integer> normalized = new TreeMap<>();
+        for (Map.Entry<String, Integer> entry : values.entrySet()) {
+            String key = entry.getKey() == null ? "" : entry.getKey().trim();
+            if (key.isEmpty() || entry.getValue() == null) continue;
+            normalized.put(key, entry.getValue());
+        }
+        return normalized;
     }
 
     private Map<String, List<Integer>> normalizeGradientRanges(Map<String, GradientRangeInput> ranges) {
