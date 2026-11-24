@@ -1,0 +1,63 @@
+server:
+  port: ${CORE_PORT:8082}
+  compression:
+    enabled: true
+
+spring:
+  application:
+    name: gzgk-core
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://${PG_HOST:127.0.0.1}:${PG_PORT:5432}/${PG_DB:gzgk}
+    username: ${PG_USER:gzgk}
+    password: ${PG_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${PG_POOL_MAX:30}
+      minimum-idle: 5
+      connection-timeout: 5000
+  flyway:
+    enabled: ${FLYWAY_ENABLED:false}
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 1500ms
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:127.0.0.1:9092}
+    producer:
+      acks: all
+      retries: 3
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: gzgk-core-persister
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+gzgk:
+  core:
+    # "postgres" on remote server with PG16/Redis/Kafka; "local-files" for ultra-lightweight zero-container local dev!
+    storage-mode: ${GZGK_STORAGE_MODE:local-files}
+    data-root: ${GZGK_DATA_ROOT:../../scripts/data}
+    contracts-root: ${GZGK_CONTRACTS_ROOT:../../contracts}
+    grpc-server-enabled: ${GRPC_SERVER_ENABLED:true}
+    grpc-server-port: ${GRPC_SERVER_PORT:9090}
+    ml-grpc-host: ${ML_GRPC_HOST:127.0.0.1}
+    ml-grpc-port: ${ML_GRPC_PORT:50051}
+    ml-grpc-enabled: ${ML_GRPC_ENABLED:false}
+    kafka-enabled: ${KAFKA_ENABLED:false}
+    redis-enabled: ${REDIS_ENABLED:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics

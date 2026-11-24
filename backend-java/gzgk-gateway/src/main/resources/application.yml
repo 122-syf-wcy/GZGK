@@ -1,0 +1,53 @@
+server:
+  port: ${GATEWAY_PORT:8080}
+
+spring:
+  application:
+    name: gzgk-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 1500ms
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            exposedHeaders: "X-Request-Id,X-RateLimit-Remaining,Retry-After"
+      routes:
+        - id: gzgk-core-api
+          uri: ${CORE_SERVICE_URL:http://127.0.0.1:8082}
+          predicates:
+            - Path=/api/v2/core/**
+          filters:
+            - StripPrefix=3
+        - id: gzgk-agent-sse
+          uri: ${AGENT_SERVICE_URL:http://127.0.0.1:8001}
+          predicates:
+            - Path=/api/v2/agent/**
+          filters:
+            - StripPrefix=3
+            # Ensure zero-buffer streaming for LangGraph SSE tokens
+            - AddResponseHeader=X-Accel-Buffering, no
+            - AddResponseHeader=Cache-Control, no-cache
+
+gzgk:
+  gateway:
+    rate-limit:
+      enabled: ${GATEWAY_RATE_LIMIT_ENABLED:true}
+      read-limit-per-min: 600
+      recommend-limit-per-min: 60
+      agent-limit-per-min: 20
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
