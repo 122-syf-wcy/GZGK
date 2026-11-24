@@ -1,10 +1,22 @@
-# GZLY 开发进度交接
+# GZLY / GZGK 开发进度交接
 
-更新时间：2026-04-30 21:27
+更新时间：2026-11-24 22:45
 
 > 完整历史流水已归档到 `DEV_PROGRESS_ARCHIVE_20260426.md`。本文件只保留当前交接所需信息，后续每轮只追加高价值结论，避免继续膨胀。
 
-## 最新一轮变更（v7.37，2026-04-30 21:27）
+## 最新一轮变更（v2.0 全面架构重构，2026-11-24）
+
+### Java 21 高并发引擎 × PostgreSQL 16 一库多模 × LangGraph ReAct+MCP Agent × Vue 3 AI-Native Web 落地
+
+- **架构与设计文档入库**：完整沉淀 [docs/v2/ARCHITECTURE_BLUEPRINT.md](docs/v2/ARCHITECTURE_BLUEPRINT.md)、[docs/v2/IMPLEMENTATION_PLAN.md](docs/v2/IMPLEMENTATION_PLAN.md) 与暖纸白×深森绿风格 [docs/v2/UI_DESIGN_SPEC.md](docs/v2/UI_DESIGN_SPEC.md)（含 5 屏视觉稿 `docs/v2/assets/`）。
+- **跨语言契约与远端基建（Phase 0）**：落地 `contracts/`（`core_tools.proto`、`ml_predict.proto`、`sse-protocol.schema.json`、`compliance-terms.json`），完成 `infra/docker-compose.yml`（分级 `core/gov/obs` profile，默认绑定 `127.0.0.1` 防公网暴露）、3 套 k6 压测脚本、SSH 隧道 `scripts/dev/tunnel.sh` 与远端部署脚本 `scripts/deploy/deploy_all.sh`。
+- **PostgreSQL 16 一库多模与真实数据 ETL（Phase 1）**：编写 Flyway `V1`–`V4`（`LIST` 省份分区、`RANGE` 按月分区、`JSONB/GIN`、`pgvector` HNSW + `pg_trgm`、`langgraph` Schema）；完成高速 `COPY` ETL 脚本 `scripts/pg_etl/import_real_data_to_pg.py` 与知识库入库脚本 `ingest_knowledge_base.py`，干跑 0.26s 校验通过（2,198 院校、28,920 专业线、2,435 一分一段、24,483 官方选科、5 篇种子政策/章程 → 13 语义切片）。
+- **Java 21 高并发核心与 WebFlux 网关（Phase 2）**：新建 Maven 多模块 `backend-java/`（`gzgk-common`、`gzgk-gateway`、`gzgk-core`），实现 11 阶段无状态推荐 Pipeline（零外层 `@Transactional`、规范化指纹跨考生缓存共享、批量富化去 N+1、自适应位次窗口）、64 虚拟线程 64:1 合并的 `DistributedSingleFlight`、Resilience4j ML 熔断降级至 `LogRankChanceModel`、Kafka 幂等消费者、2000 次蒙特卡洛沙箱与乐观锁回滚、gRPC 工具服务端。`mvn test` **12/12 通过**（含 4 项 ArchUnit 分层边界测试）。
+- **Python 自主 ReAct + MCP + 双层记忆 + 上下文压缩（Phase 3）**：新建 CPU 隔离推理服务 `backend-python/gzgk-ml`、官方 `mcp 2.3` Server `backend-python/gzgk-mcp` 与自主 Multi-Agent `backend-python/gzgk-agent`（真多轮 `react_agent ↔ ToolNode` 循环、动态 MCP Client 挂载、短时 Checkpointer + 跨会话长期偏好 `LangGraph Store`、`tiktoken` 三层上下文滚动压缩与成对工具边界保护 `RemoveMessage`、Hybrid RAG RRF、HITL `interrupt/resume`、Map-Reduce 三专家并行、12 字符滑动窗口流式合规拦截）。`pytest` **9/9 通过**（`gzgk-ml` 1/1 + `gzgk-agent` 8/8）。
+- **Vue 3 AI-Native Web 工作台（Phase 4）**：新建 `frontend/` pnpm Monorepo（`@gzgk/shared` + `gzgk-web`，App 端暂缓），完整实现统一工作区侧边栏 + 7 大页面，副驾驶实时展示 Token 用量条、一键压缩、Native+MCP 工具清单、长期记忆管理与 HITL 沙箱 Diff 卡片；`check:compliance` 0 违规（39 硬词）、`typecheck` 0 错误、`vite build` 1.26s 通过。
+- **下一步（Phase 5）**：接入远端服务器拉起 PostgreSQL 16 + Redis 7 + Kafka 3.8、灌入真实全量数据并执行 k6 压测与混沌降级演练。
+
+## 历史一轮变更（v7.37，2026-04-30 21:27）
 
 ### 贵州推荐算法按研究报告优化并部署
 
