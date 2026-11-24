@@ -1,0 +1,169 @@
+name: gzgk-v2
+
+# ==============================================================================
+# GZGK v2 Remote Infrastructure Stack (Profiled to fit 4GB ~ 32GB Servers)
+#
+# Usage on remote server (/opt/gzgk-v2/infra):
+#   Core only (PG16 + pgvector, Redis 7, Kafka 3.8 KRaft):
+#     docker compose --env-file .env --profile core up -d
+#   With Nacos governance:
+#     docker compose --env-file .env --profile core --profile gov up -d
+#   With full Observability (OTel + Prometheus + Grafana):
+#     docker compose --env-file .env --profile core --profile obs up -d
+#
+# Security: ALL ports bind to 127.0.0.1 by default. Developers connect from
+# local Mac securely via `scripts/dev/tunnel.sh` (SSH port forwarding).
+# ==============================================================================
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: gzgk-postgres
+    profiles: ["core"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PG_DB:-gzgk}
+      POSTGRES_USER: ${PG_USER:-gzgk}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD must be set in infra/.env}
+      TZ: Asia/Shanghai
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-512MB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE:-1536MB}
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - max_connections=200
+      - -c
+      - random_page_cost=1.1
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${PG_PORT:-5432}:5432"
+    volumes:
+      - gzgk_pg_data:/var/lib/postgresql/data
+    mem_limit: ${PG_MEM_LIMIT:-1536m}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-gzgk} -d ${PG_DB:-gzgk}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: gzgk-redis
+    profiles: ["core"]
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory ${REDIS_MAXMEM:-512mb}
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in infra/.env}
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - gzgk_redis_data:/data
+    mem_limit: ${REDIS_MEM_LIMIT:-640m}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: gzgk-kafka
+    profiles: ["core"]
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_ADVERTISED_HOST:-127.0.0.1}:${KAFKA_PORT:-9092}
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 72
+      KAFKA_HEAP_OPTS: "-Xmx${KAFKA_HEAP:-384m} -Xms${KAFKA_HEAP:-256m}"
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:${KAFKA_PORT:-9092}:9092"
+    volumes:
+      - gzgk_kafka_data:/tmp/kraft-combined-logs
+    mem_limit: ${KAFKA_MEM_LIMIT:-768m}
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: gzgk-nacos
+    profiles: ["gov"]
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      JVM_XMS: 256m
+      JVM_XMX: 384m
+      NACOS_AUTH_ENABLE: "false"
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8848:8848"
+      - "${BIND_ADDR:-127.0.0.1}:9848:9848"
+    mem_limit: 512m
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.108.0
+    container_name: gzgk-otel
+    profiles: ["obs"]
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./observability/otel-collector-config.yml:/etc/otel-collector-config.yml:ro
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:4317:4317"
+      - "${BIND_ADDR:-127.0.0.1}:4318:4318"
+      - "${BIND_ADDR:-127.0.0.1}:8889:8889"
+    mem_limit: 256m
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: gzgk-prometheus
+    profiles: ["obs"]
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - gzgk_prom_data:/prometheus
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:9095:9090"
+    mem_limit: 512m
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: gzgk-grafana
+    profiles: ["obs"]
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?GRAFANA_PASSWORD must be set in infra/.env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - gzgk_grafana_data:/var/lib/grafana
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:3000:3000"
+    mem_limit: 384m
+
+volumes:
+  gzgk_pg_data:
+  gzgk_redis_data:
+  gzgk_kafka_data:
+  gzgk_prom_data:
+  gzgk_grafana_data:

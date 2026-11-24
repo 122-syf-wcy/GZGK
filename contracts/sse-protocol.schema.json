@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gzgk.local/contracts/sse-protocol.schema.json",
+  "title": "GZGK v2 Unified SSE Event Protocol",
+  "description": "Shared Server-Sent Events contract between gzgk-agent (Python LangGraph), gzgk-gateway (WebFlux zero-buffer proxy), and gzgk-web (Vue 3 Copilot).",
+  "type": "object",
+  "required": ["eventId", "type", "timestampMs"],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "description": "Monotonic event id used as SSE `id:` field for Last-Event-ID resumption."
+    },
+    "threadId": {
+      "type": "string",
+      "description": "LangGraph persisted conversation thread identifier."
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "status",
+        "tool_call",
+        "tool_result",
+        "expert_progress",
+        "reasoning",
+        "content",
+        "sources",
+        "diff_card",
+        "context_stats",
+        "final",
+        "error"
+      ]
+    },
+    "timestampMs": {
+      "type": "integer"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Type-specific payload.",
+      "properties": {
+        "stage": { "type": "string" },
+        "label": { "type": "string" },
+        "tool": { "type": "string" },
+        "latencyMs": { "type": "integer" },
+        "summary": { "type": "string" },
+        "text": { "type": "string" },
+        "expertId": { "type": "string", "enum": ["gradient_risk", "charter_audit", "career_city"] },
+        "expertStatus": { "type": "string", "enum": ["running", "completed", "warning"] },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["index", "chunkId", "title", "excerpt"],
+            "properties": {
+              "index": { "type": "integer" },
+              "chunkId": { "type": "string" },
+              "title": { "type": "string" },
+              "docType": { "type": "string" },
+              "schoolName": { "type": "string" },
+              "excerpt": { "type": "string" },
+              "highlight": { "type": "string" },
+              "sourceUrl": { "type": "string" },
+              "verified": { "type": "boolean" }
+            }
+          }
+        },
+        "diffCard": {
+          "type": "object",
+          "required": ["interruptId", "planId", "baseVersion", "beforeHitRate", "afterHitRate", "changes"],
+          "properties": {
+            "interruptId": { "type": "string" },
+            "planId": { "type": "string" },
+            "baseVersion": { "type": "integer" },
+            "beforeHitRate": { "type": "number" },
+            "afterHitRate": { "type": "number" },
+            "hitRateDelta": { "type": "number" },
+            "gradientCliffResolved": { "type": "boolean" },
+            "changes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "action": { "type": "string", "enum": ["REMOVE", "ADD", "MOVE"] },
+                  "volunteerIndex": { "type": "integer" },
+                  "universityName": { "type": "string" },
+                  "majorName": { "type": "string" },
+                  "gradient": { "type": "string" },
+                  "chanceScore": { "type": "integer" },
+                  "summary": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "complianceSanitized": { "type": "boolean" },
+        "disclaimer": { "type": "string" },
+        "cacheHit": { "type": "boolean" },
+        "code": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}

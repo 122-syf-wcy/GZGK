@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package gzgk.ml.v1;
+
+option java_multiple_files = true;
+option java_package = "com.gzgk.contracts.ml.v1";
+option java_outer_classname = "MlPredictProto";
+
+// Dedicated CPU-isolated LightGBM inference service (gzgk-ml).
+// Strongly typed protobuf fields permanently prevent camelCase vs snake_case schema drift.
+service MlPredictService {
+  rpc BatchPredict (BatchPredictRequest) returns (BatchPredictResponse);
+  rpc GetModelStatus (ModelStatusRequest) returns (ModelStatusResponse);
+}
+
+message CandidateContext {
+  string province_code = 1;
+  int32 year = 2;
+  string subject_type = 3;
+  int32 candidate_score = 4;
+  int32 candidate_rank = 5;
+}
+
+message PredictFeatureItem {
+  string item_id = 1;
+  string school_id = 2;
+  string major_name = 3;
+  int32 min_rank_last_year = 4;
+  int32 min_rank_2y_ago = 5;
+  int32 min_rank_3y_ago = 6;
+  double rank_volatility_3y = 7;
+  double plan_change_rate = 8;
+  double major_hot_score = 9;
+  double data_confidence = 10;
+  string school_level = 11;
+  bool is_985 = 12;
+  bool is_211 = 13;
+  bool is_double_first_class = 14;
+  bool is_public = 15;
+  int32 plan_count = 16;
+  double province_sigma_min = 17;
+  double group_withdraw_prior = 18;
+}
+
+message BatchPredictRequest {
+  string model_version = 1; // "latest" or pinned version
+  CandidateContext candidate = 2;
+  repeated PredictFeatureItem items = 3;
+}
+
+message PredictItemResult {
+  string item_id = 1;
+  int32 predicted_min_rank = 2;
+  double internal_chance_score = 3; // 0.01..0.99
+  int32 chance_score = 4;           // 0..100 compliant opportunity index
+  string chance_level = 5;          // 冲刺参考 / 适中 / 稳妥参考 / 兜底参考
+  string risk_level = 6;
+  double data_confidence = 7;
+  string confidence_level = 8;
+  double prediction_confidence = 9;
+  double volatility_risk = 10;
+  double hot_trend_score = 11;
+  int32 rank_diff = 12;
+}
+
+message BatchPredictResponse {
+  string model_version = 1;
+  bool rank_model_used = 2;
+  bool chance_model_used = 3;
+  int64 inference_time_ms = 4;
+  repeated PredictItemResult predictions = 5;
+}
+
+message ModelStatusRequest {}
+
+message ModelStatusResponse {
+  bool ready = 1;
+  string active_model_version = 2;
+  bool rank_model_loaded = 3;
+  bool chance_model_loaded = 4;
+  string runtime_mode = 5; // "lightgbm" | "hybrid-rule-fallback"
+}

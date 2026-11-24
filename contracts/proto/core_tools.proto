@@ -1,0 +1,214 @@
+syntax = "proto3";
+
+package gzgk.core.v1;
+
+option java_multiple_files = true;
+option java_package = "com.gzgk.contracts.core.v1";
+option java_outer_classname = "CoreToolsProto";
+
+// Deterministic domain & sandbox RPC service exposed by gzgk-core to gzgk-agent.
+// The Agent NEVER fabricates score lines or directly mutates business tables;
+// all factual lookups, Monte Carlo sandbox simulations, and HITL mutations go through this contract.
+service CoreToolsService {
+  rpc GetPlanSummary (GetPlanSummaryRequest) returns (PlanSummaryResponse);
+  rpc GetPlanItems (GetPlanItemsRequest) returns (GetPlanItemsResponse);
+  rpc EstimateRank (EstimateRankRequest) returns (EstimateRankResponse);
+  rpc GetSchoolMajorHistory (SchoolMajorHistoryRequest) returns (SchoolMajorHistoryResponse);
+  rpc SimulatePlanAdjustment (SimulatePlanAdjustmentRequest) returns (SimulatePlanAdjustmentResponse);
+  rpc ApplyPlanMutation (ApplyPlanMutationRequest) returns (ApplyPlanMutationResponse);
+}
+
+message GetPlanSummaryRequest {
+  string plan_id = 1;
+}
+
+message GradientCounts {
+  int32 sprint = 1;   // 冲
+  int32 steady = 2;   // 稳
+  int32 safe = 3;     // 保
+  int32 pad = 4;      // 垫
+}
+
+message PlanSummaryResponse {
+  string plan_id = 1;
+  int32 version = 2;
+  string province_code = 3;
+  string province_name = 4;
+  string volunteer_unit_type = 5; // MAJOR_96 | PROFESSIONAL_GROUP_45
+  string target_batch = 6;
+  int32 total_score = 7;
+  int32 province_rank = 8;
+  string first_subject = 9;
+  repeated string resubjects = 10;
+  string strategy_mode = 11;
+  int32 total_items = 12;
+  GradientCounts gradient_counts = 13;
+  double list_hit_rate = 14;         // Monte Carlo 2000-iter portfolio reference safety rate (0..1)
+  int32 manual_review_count = 15;
+  int32 shrink_warning_count = 16;
+  string readiness_status = 17;      // FULL | ESTIMATE | BLOCKED
+  string data_quality_warning = 18;
+}
+
+message GetPlanItemsRequest {
+  string plan_id = 1;
+  string gradient = 2;      // Optional: 冲 / 稳 / 保 / 垫
+  string keyword = 3;       // Optional: school / major / city keyword
+  bool only_manual_review = 4;
+  bool only_shrink_warning = 5;
+  int32 limit = 6;          // Default 20, max 96
+}
+
+message PlanItemProto {
+  int32 volunteer_index = 1;
+  string item_id = 2;
+  string gradient = 3;             // 冲 / 稳 / 保 / 垫
+  string school_id = 4;
+  string university_name = 5;
+  string major_code = 6;
+  string major_name = 7;
+  string province = 8;
+  string city = 9;
+  repeated string school_tags = 10; // 985 / 211 / 双一流
+  string school_nature = 11;        // 公办 / 民办 / 中外合作
+  string tuition = 12;
+  int32 latest_min_score = 13;
+  int32 latest_min_rank = 14;
+  int32 predicted_min_rank = 15;
+  int32 plan_count = 16;
+  double plan_change_rate = 17;     // e.g. -0.45 means 45% shrink
+  int32 chance_score = 18;          // 0..100 compliant opportunity index
+  string chance_level = 19;         // 冲刺参考 / 适中 / 稳妥参考 / 兜底参考
+  double calibrated_prob = 20;      // Internal isotonic probability (never shown raw as guarantee)
+  string risk_level = 21;
+  bool needs_manual_review = 22;
+  string manual_review_reason = 23;
+  string official_charter_url = 24;
+  repeated int32 recent_3y_ranks = 25;
+  bool locked = 26;
+}
+
+message GetPlanItemsResponse {
+  string plan_id = 1;
+  int32 total_matched = 2;
+  repeated PlanItemProto items = 3;
+}
+
+message EstimateRankRequest {
+  string province_code = 1; // e.g. GZ, SC
+  int32 year = 2;           // 0 -> latest available official year
+  string subject_type = 3;  // 物理类 / 历史类 / 综合
+  int32 score = 4;
+}
+
+message EstimateRankResponse {
+  string province_code = 1;
+  int32 year = 2;
+  string subject_type = 3;
+  int32 score = 4;
+  int32 rank_low = 5;
+  int32 rank_high = 6;
+  int32 segment_count = 7;
+  int32 cumulative_count = 8;
+  double beat_percentage = 9;
+  string source_name = 10;
+  string source_url = 11;
+  bool official_ready = 12;
+  int64 latency_micros = 13;
+}
+
+message SchoolMajorHistoryRequest {
+  string province_code = 1;
+  string school_name = 2;
+  string major_keyword = 3; // Optional
+  string subject_type = 4;  // Optional: 物理类 / 历史类
+  int32 limit = 5;          // Default 20
+}
+
+message SchoolMajorHistoryRecord {
+  string school_id = 1;
+  string university_name = 2;
+  string province = 3;
+  string city = 4;
+  repeated string tags = 5;
+  string major_name = 6;
+  int32 year = 7;
+  string subject_type = 8;
+  string batch = 9;
+  string resubject_requirement = 10;
+  int32 min_score = 11;
+  int32 min_rank = 12;
+  int32 plan_count = 13;
+  string official_charter_url = 14;
+}
+
+message SchoolMajorHistoryResponse {
+  repeated SchoolMajorHistoryRecord records = 1;
+  int32 total_count = 2;
+}
+
+enum MutationOpType {
+  MUTATION_OP_UNSPECIFIED = 0;
+  MUTATION_OP_REMOVE = 1;
+  MUTATION_OP_ADD = 2;
+  MUTATION_OP_REPLACE = 3;
+  MUTATION_OP_REORDER = 4;
+}
+
+message MutationOperation {
+  MutationOpType op_type = 1;
+  int32 target_index = 2;        // Existing 1-based volunteer_index for REMOVE / REPLACE / REORDER
+  int32 new_index = 3;           // Destination 1-based index for ADD / REORDER
+  string school_id = 4;          // Required for ADD / REPLACE
+  string university_name = 5;    // Optional hint if school_id not provided
+  string major_name = 6;         // Required for ADD / REPLACE
+  string reason = 7;
+}
+
+message SimulatePlanAdjustmentRequest {
+  string plan_id = 1;
+  repeated MutationOperation operations = 2;
+}
+
+message DiffChangeEntry {
+  string action = 1;             // REMOVE | ADD | MOVE
+  int32 volunteer_index = 2;
+  string university_name = 3;
+  string major_name = 4;
+  string gradient = 5;
+  int32 chance_score = 6;
+  string summary = 7;
+}
+
+message SimulatePlanAdjustmentResponse {
+  string plan_id = 1;
+  int32 base_version = 2;
+  GradientCounts before_gradient = 3;
+  GradientCounts after_gradient = 4;
+  double before_list_hit_rate = 5;
+  double after_list_hit_rate = 6;
+  double hit_rate_delta = 7;
+  bool gradient_cliff_resolved = 8;
+  repeated string diagnosis_notes = 9;
+  repeated DiffChangeEntry diff_entries = 10;
+  repeated MutationOperation normalized_operations = 11;
+  int64 simulation_time_ms = 12;
+}
+
+message ApplyPlanMutationRequest {
+  string plan_id = 1;
+  int32 expected_version = 2;    // Optimistic concurrency control
+  string thread_id = 3;          // LangGraph checkpoint thread_id for audit trail
+  string summary = 4;
+  repeated MutationOperation operations = 5;
+}
+
+message ApplyPlanMutationResponse {
+  bool applied = 1;
+  string plan_id = 2;
+  int32 new_version = 3;
+  string mutation_log_id = 4;
+  double new_list_hit_rate = 5;
+  GradientCounts new_gradient = 6;
+  string message = 7;
+}
